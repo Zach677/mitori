@@ -30,15 +30,3 @@ extension LaunchHaloPresenter {
         LaunchHaloPresenter(displaying: LaunchHaloWindowController())
     }
 }
-
-@MainActor
-final class LaunchHaloAppDelegate: NSObject, NSApplicationDelegate {
-    private let presenter = LaunchHaloPresenter.live()
-
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(240))
-            presenter.presentIfNeeded()
-        }
-    }
-}

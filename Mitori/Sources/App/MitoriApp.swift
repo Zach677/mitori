@@ -2,13 +2,11 @@ import SwiftUI
 
 @main
 struct MitoriApp: App {
-    @NSApplicationDelegateAdaptor(LaunchHaloAppDelegate.self) private var appDelegate
-    @State private var model = MitoriModel.live()
+    @NSApplicationDelegateAdaptor(MitoriAppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra("Mitori", systemImage: "creditcard.and.123") {
-            RootMenuBarView(model: model)
+        Settings {
+            EmptyView()
         }
-        .menuBarExtraStyle(.window)
     }
 }

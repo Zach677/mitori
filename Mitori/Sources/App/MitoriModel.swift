@@ -13,8 +13,6 @@ final class MitoriModel {
     private(set) var refreshStates: [String: RefreshState] = [:]
     private(set) var secretSummaries: [String: String] = [:]
 
-    var isPresentingAddAccount = false
-    var selectedAccountID: String?
     var bannerMessage: String?
     var isRefreshingAll = false
 
@@ -32,10 +30,6 @@ final class MitoriModel {
 
     static func live() -> MitoriModel {
         MitoriModel()
-    }
-
-    var selectedAccount: StoredAccountMeta? {
-        account(with: selectedAccountID)
     }
 
     func menuPresented() async {
@@ -57,15 +51,6 @@ final class MitoriModel {
 
     func secretSummary(for accountID: String) -> String {
         secretSummaries[accountID] ?? "Unavailable"
-    }
-
-    func openAddAccount() {
-        bannerMessage = nil
-        isPresentingAddAccount = true
-    }
-
-    func dismissDetails() {
-        selectedAccountID = nil
     }
 
     func loadSecretSummary(for accountID: String) async {
@@ -93,7 +78,6 @@ final class MitoriModel {
         )
         try await persist(normalized(result))
         bannerMessage = result.meta.lastIssue?.message
-        isPresentingAddAccount = false
     }
 
     func refreshAll() async {
@@ -154,9 +138,6 @@ final class MitoriModel {
             accounts = try await accountStore.deleteAccount(id: id)
             try await secretStore.deleteSecret(for: id)
             secretSummaries[id] = nil
-            if selectedAccountID == id {
-                selectedAccountID = nil
-            }
             bannerMessage = nil
         } catch {
             bannerMessage = MitoriError.map(error).localizedDescription

@@ -2,8 +2,7 @@ import SwiftUI
 
 struct AddAccountSheet: View {
     let model: MitoriModel
-
-    @Environment(\.dismiss) private var dismiss
+    let onClose: () -> Void
 
     @State private var email = ""
     @State private var password = ""
@@ -41,7 +40,7 @@ struct AddAccountSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        dismiss()
+                        onClose()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -69,7 +68,7 @@ struct AddAccountSheet: View {
                     code: verificationCode,
                     probeBundleID: probeBundleID
                 )
-                dismiss()
+                onClose()
             } catch {
                 errorMessage = MitoriError.map(error).localizedDescription
             }

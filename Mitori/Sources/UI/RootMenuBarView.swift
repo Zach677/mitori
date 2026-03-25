@@ -3,6 +3,9 @@ import SwiftUI
 
 struct RootMenuBarView: View {
     @Bindable var model: MitoriModel
+    let onAddAccount: () -> Void
+    let onOpenAccount: (String) -> Void
+    let onQuit: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -17,7 +20,7 @@ struct RootMenuBarView: View {
                             AccountRowView(
                                 account: account,
                                 refreshState: model.refreshState(for: account.id),
-                                onOpen: { model.selectedAccountID = account.id },
+                                onOpen: { onOpenAccount(account.id) },
                                 onRefresh: {
                                     Task {
                                         await model.refreshAccount(id: account.id, isManualRefresh: true)
@@ -36,33 +39,16 @@ struct RootMenuBarView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            HStack {
+                Spacer()
+                Button("Quit", action: onQuit)
+            }
         }
         .padding(16)
         .frame(width: 420)
         .task {
             await model.menuPresented()
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { model.isPresentingAddAccount },
-                set: { model.isPresentingAddAccount = $0 }
-            )
-        ) {
-            AddAccountSheet(model: model)
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { model.selectedAccountID != nil },
-                set: {
-                    if !$0 {
-                        model.dismissDetails()
-                    }
-                }
-            )
-        ) {
-            if let accountID = model.selectedAccountID {
-                AccountDetailSheet(model: model, accountID: accountID)
-            }
         }
     }
 
@@ -87,7 +73,7 @@ struct RootMenuBarView: View {
             .disabled(model.accounts.isEmpty || model.isRefreshingAll)
 
             Button {
-                model.openAddAccount()
+                onAddAccount()
             } label: {
                 Label("Add Account", systemImage: "plus")
             }
@@ -103,7 +89,7 @@ struct RootMenuBarView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
             Button("Add Account") {
-                model.openAddAccount()
+                onAddAccount()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

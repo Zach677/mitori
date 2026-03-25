@@ -3,8 +3,7 @@ import SwiftUI
 struct AccountDetailSheet: View {
     let model: MitoriModel
     let accountID: String
-
-    @Environment(\.dismiss) private var dismiss
+    let onClose: () -> Void
 
     @State private var probeBundleID = ""
     @State private var verificationCode = ""
@@ -148,7 +147,7 @@ struct AccountDetailSheet: View {
         isDeleting = true
         Task {
             await model.deleteAccount(id: accountID)
-            dismiss()
+            onClose()
         }
     }
 }
