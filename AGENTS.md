@@ -22,17 +22,22 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
 ## Commands
 
 - Preferred run command: `mise run run-macos`
-- That task handles generate/build/relaunch for the debug app.
-- If generation is needed manually, use: `tuist generate --no-open`
-- If external dependencies are missing, run: `tuist install`
+- That task now installs dependencies if needed, warms Tuist's external binary cache when the package graph changes, then generates/builds/relaunches the debug app.
+- Preferred cache warm command: `mise run warm-external-cache`
+- Preferred test command: `mise run test-macos`
+- Prefer `mise exec -- tuist ...` or `mise run ...` over bare `tuist` so you do not accidentally use a different Homebrew version.
+- The repo now scopes Tuist's cache home into `.cache/tuist` during scripted runs, which avoids cross-project cache drift and stale permission issues from the global cache.
+- If generation is needed manually, use: `mise exec -- tuist generate --no-open`
+- If external dependencies are missing, run: `mise exec -- tuist install`
 - To inspect available project targets and schemes, use: `xcodebuild -list -project Mitori.xcodeproj`
 
 ## Testing And Verification
 
-- Prefer the repo test scheme: `tuist test MitoriTests`
-- As of March 25, 2026, `tuist test MitoriTests` fails before execution if external dependencies have not been installed; run `tuist install` first.
-- A direct fallback is `xcodebuild test -project Mitori.xcodeproj -scheme MitoriTests -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO`
-- As of March 25, 2026, the direct `xcodebuild test` path is not a clean fallback yet; it currently fails on missing SPM resource bundles in DerivedData. If that still happens, say so clearly instead of pretending tests passed.
+- Prefer the repo task: `mise run test-macos`
+- That task installs dependencies if needed, reuses the generated workspace, and keeps test DerivedData isolated at `.xcodebuild/test-macos`.
+- If you need to run Tuist directly, use: `mise exec -- tuist test MitoriTests`
+- A direct fallback is `xcodebuild test -workspace Mitori.xcworkspace -scheme MitoriTests -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO`
+- If the direct `xcodebuild test` path still fails, say so clearly instead of pretending tests passed.
 - For doc-only changes, verify by re-reading the edited file and checking that commands and paths still match the repo.
 
 ## Code Preferences

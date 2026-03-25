@@ -73,3 +73,6 @@ Tuist/.build
 
 ### Local agent state ###
 .codex/
+
+### Repo-local Tuist cache ###
+.cache/
