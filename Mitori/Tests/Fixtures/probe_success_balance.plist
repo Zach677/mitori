@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>songList</key>
+    <array>
+        <dict>
+            <key>creditBalance</key>
+            <dict>
+                <key>display</key>
+                <string>CNY 88.00</string>
+                <key>amount</key>
+                <real>88.00</real>
+                <key>currency</key>
+                <string>CNY</string>
+            </dict>
+        </dict>
+    </array>
+</dict>
+</plist>
