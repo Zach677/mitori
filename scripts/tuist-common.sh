@@ -10,6 +10,9 @@ readonly MITORI_TUIST_STATE_DIR="$MITORI_REPO_ROOT/.xcodebuild/tuist"
 readonly MITORI_INSTALL_STAMP="$MITORI_TUIST_STATE_DIR/install.stamp"
 readonly MITORI_GENERATE_STAMP="$MITORI_TUIST_STATE_DIR/generate-${MITORI_CONFIGURATION}.stamp"
 readonly MITORI_EXTERNAL_CACHE_STAMP="$MITORI_TUIST_STATE_DIR/external-cache-${MITORI_CONFIGURATION}.stamp"
+readonly MITORI_TUIST_DIR="$MITORI_REPO_ROOT/Tuist"
+readonly MITORI_PACKAGE_SWIFT_PATH="$MITORI_TUIST_DIR/Package.swift"
+readonly MITORI_PACKAGE_RESOLVED_PATH="$MITORI_TUIST_DIR/Package.resolved"
 readonly MITORI_WORKSPACE_PATH="$MITORI_REPO_ROOT/Mitori.xcworkspace"
 readonly MITORI_PROJECT_PATH="$MITORI_REPO_ROOT/Mitori.xcodeproj"
 
@@ -61,33 +64,29 @@ inputs_newer_than_stamp() {
 list_dependency_inputs() {
   local path
 
-  for path in Package.swift Package.resolved; do
-    if [ -e "$MITORI_REPO_ROOT/$path" ]; then
-      printf '%s\n' "$MITORI_REPO_ROOT/$path"
+  for path in "$MITORI_PACKAGE_SWIFT_PATH" "$MITORI_PACKAGE_RESOLVED_PATH"; do
+    if [ -e "$path" ]; then
+      printf '%s\n' "$path"
     fi
   done
-
-  if [ -d "$MITORI_REPO_ROOT/Tuist" ]; then
-    find "$MITORI_REPO_ROOT/Tuist" -type f \( -name 'Package.swift' -o -name 'Package.resolved' \)
-  fi
 }
 
 list_generation_inputs() {
   local path
 
-  for path in Project.swift Tuist.swift Package.swift Package.resolved; do
-    if [ -e "$MITORI_REPO_ROOT/$path" ]; then
-      printf '%s\n' "$MITORI_REPO_ROOT/$path"
+  for path in \
+    "$MITORI_REPO_ROOT/Project.swift" \
+    "$MITORI_REPO_ROOT/Tuist.swift" \
+    "$MITORI_PACKAGE_SWIFT_PATH" \
+    "$MITORI_PACKAGE_RESOLVED_PATH"; do
+    if [ -e "$path" ]; then
+      printf '%s\n' "$path"
     fi
   done
-
-  if [ -d "$MITORI_REPO_ROOT/Tuist" ]; then
-    find "$MITORI_REPO_ROOT/Tuist" -type f \( -name '*.swift' -o -name 'Package.swift' -o -name 'Package.resolved' \)
-  fi
 }
 
 needs_dependency_install() {
-  if [ ! -d "$MITORI_REPO_ROOT/.build/checkouts" ]; then
+  if [ ! -d "$MITORI_TUIST_DIR/.build/checkouts" ]; then
     return 0
   fi
 
