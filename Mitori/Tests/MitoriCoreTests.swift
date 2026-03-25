@@ -125,7 +125,30 @@ struct BalanceParserTests {
     }
 }
 
+@MainActor
+struct LaunchHaloPresenterTests {
+    @Test
+    func presentsOnlyOncePerProcess() {
+        let display = LaunchHaloDisplaySpy()
+        let presenter = LaunchHaloPresenter(displaying: display)
+
+        presenter.presentIfNeeded()
+        presenter.presentIfNeeded()
+
+        #expect(display.presentCount == 1)
+    }
+}
+
 private final class FixtureBundleToken: NSObject {}
+
+@MainActor
+private final class LaunchHaloDisplaySpy: LaunchHaloDisplaying {
+    private(set) var presentCount = 0
+
+    func showLaunchHalo() {
+        presentCount += 1
+    }
+}
 
 private enum FixtureLoader {
     static func data(named resourceName: String) throws -> Data {
