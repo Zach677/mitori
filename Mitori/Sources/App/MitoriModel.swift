@@ -7,7 +7,7 @@ import Observation
 final class MitoriModel {
     private let accountStore: AccountStore
     private let secretStore: SecretStore
-    private let sessionBridge: AppleSessionBridge
+    private let sessionBridge: any AppleSessionBridging
 
     private(set) var accounts: [StoredAccountMeta] = []
     private(set) var refreshStates: [String: RefreshState] = [:]
@@ -21,7 +21,7 @@ final class MitoriModel {
     init(
         accountStore: AccountStore = AccountStore(),
         secretStore: SecretStore = SecretStore(),
-        sessionBridge: AppleSessionBridge = AppleSessionBridge()
+        sessionBridge: any AppleSessionBridging = AppleSessionBridge()
     ) {
         self.accountStore = accountStore
         self.secretStore = secretStore
@@ -104,8 +104,7 @@ final class MitoriModel {
             }
             let result = try await sessionBridge.refreshBalance(meta: meta, secret: secret)
             try await persist(normalized(result))
-            refreshStates[id] = .succeeded(result.meta.lastRefreshAt ?? Date())
-            bannerMessage = nil
+            applyPostRefreshState(for: id, using: result)
         } catch {
             let storedError = MitoriError.map(error)
             try? await persistFailure(for: meta, error: storedError)
@@ -123,14 +122,31 @@ final class MitoriModel {
         refreshStates[id] = .refreshing
         let result = try await sessionBridge.reauthenticate(meta: meta, secret: secret, code: code)
         try await persist(normalized(result))
-        refreshStates[id] = .succeeded(result.meta.lastRefreshAt ?? Date())
-        bannerMessage = result.meta.lastIssue?.message
+        if let error = applyPostRefreshState(for: id, using: result) {
+            throw error
+        }
     }
 
     func saveProbeBundleID(_ probeBundleID: String, for accountID: String) async throws {
         guard var meta = account(with: accountID) else { return }
-        meta.probeBundleID = probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedProbeBundleID = probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        meta.probeBundleID = trimmedProbeBundleID
+
+        if trimmedProbeBundleID.isEmpty {
+            meta.lastIssue = MitoriError.missingProbeBundleID.refreshIssue()
+        } else if meta.lastIssue?.kind == .probeConfigurationMissing {
+            meta.lastIssue = nil
+            meta.nextEligibleRefreshAt = nil
+            meta.consecutiveFailureCount = 0
+        }
+
         accounts = try await accountStore.upsert(meta)
+
+        if trimmedProbeBundleID.isEmpty {
+            bannerMessage = MitoriError.missingProbeBundleID.localizedDescription
+        } else if bannerMessage == MitoriError.missingProbeBundleID.localizedDescription {
+            bannerMessage = nil
+        }
     }
 
     func deleteAccount(id: String) async {
@@ -217,5 +233,18 @@ final class MitoriModel {
         default:
             return 15 * 60
         }
+    }
+
+    @discardableResult
+    private func applyPostRefreshState(for accountID: String, using result: SessionRefreshResult) -> MitoriError? {
+        if let issue = result.meta.lastIssue {
+            refreshStates[accountID] = .failed(issue.kind)
+            bannerMessage = issue.message
+            return MitoriError.from(refreshIssue: issue)
+        }
+
+        refreshStates[accountID] = .succeeded(result.meta.lastRefreshAt ?? Date())
+        bannerMessage = nil
+        return nil
     }
 }

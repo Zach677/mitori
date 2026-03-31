@@ -1,7 +1,28 @@
 import ApplePackage
 import Foundation
 
-actor AppleSessionBridge {
+protocol AppleSessionBridging {
+    func login(
+        email: String,
+        password: String,
+        code: String,
+        deviceIdentifier: String,
+        probeBundleID: String
+    ) async throws -> SessionRefreshResult
+
+    func reauthenticate(
+        meta: StoredAccountMeta,
+        secret: StoredAccountSecret,
+        code: String
+    ) async throws -> SessionRefreshResult
+
+    func refreshBalance(
+        meta: StoredAccountMeta,
+        secret: StoredAccountSecret
+    ) async throws -> SessionRefreshResult
+}
+
+actor AppleSessionBridge: AppleSessionBridging {
     private let balanceService: BalanceService
 
     init(balanceService: BalanceService = BalanceService()) {

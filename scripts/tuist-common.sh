@@ -92,14 +92,6 @@ list_cache_setup_inputs() {
   fi
 }
 
-cache_binaries_present() {
-  [ -d "$MITORI_TUIST_BINARIES_DIR" ] || return 1
-
-  find "$MITORI_TUIST_BINARIES_DIR" -mindepth 2 -maxdepth 2 \
-    \( -name '*.xcframework' -o -name '*.bundle' \) \
-    -print -quit | grep -q .
-}
-
 list_generation_inputs() {
   local path
 
@@ -220,10 +212,10 @@ needs_external_cache_warm() {
     return 0
   fi
 
-  if ! cache_binaries_present; then
-    return 0
-  fi
-
+  # Tuist 4 stores warmed externals in its shared module/CAS state instead of
+  # the repo-local Binaries directory this script used to inspect.
+  # A successful warm already records a stamp, so rely on that plus dependency
+  # inputs unless the caller explicitly forces a refresh.
   inputs_newer_than_stamp "$MITORI_EXTERNAL_CACHE_STAMP" list_dependency_inputs
 }
 

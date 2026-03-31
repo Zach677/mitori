@@ -19,7 +19,7 @@ final class MenuBarController: NSObject {
 
     private lazy var addAccountWindowController = HostingWindowController(
         title: { "Add Account" },
-        size: NSSize(width: 420, height: 340),
+        size: NSSize(width: 408, height: 448),
         autosaveName: "dev.zach.mitori.add-account"
     ) { [unowned self] in
         AnyView(

@@ -72,6 +72,12 @@ struct StoredAccountMeta: Codable, Equatable, Identifiable, Sendable {
             return value
         }.joined(separator: " • ")
     }
+    var needsProbeBundleID: Bool {
+        probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    var requiresProbeConfiguration: Bool {
+        needsProbeBundleID || lastIssue?.kind == .probeConfigurationMissing
+    }
     var status: AccountStatus {
         guard let lastIssue else { return .normal }
         switch lastIssue.kind {
