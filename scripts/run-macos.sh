@@ -21,6 +21,7 @@ wait_for_app_quit() {
 }
 
 ensure_dependencies_installed
+ensure_xcode_cache_setup
 ensure_external_cache_warmed
 ensure_generated_workspace
 

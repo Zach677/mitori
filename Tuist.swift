@@ -1,3 +1,13 @@
 import ProjectDescription
 
-let tuist = Tuist(project: .tuist())
+let tuist = Tuist(
+    fullHandle: "zach/mitori",
+    project: .tuist(
+        generationOptions: .options(
+            buildInsightsDisabled: true,
+            testInsightsDisabled: true,
+            disableSandbox: false,
+            enableCaching: true
+        )
+    )
+)

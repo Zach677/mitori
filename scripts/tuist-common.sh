@@ -7,7 +7,10 @@ readonly MITORI_REPO_ROOT="$(
 readonly MITORI_CONFIGURATION="${MITORI_CONFIGURATION:-Debug}"
 export TUIST_XDG_CACHE_HOME="${TUIST_XDG_CACHE_HOME:-$MITORI_REPO_ROOT/.cache/tuist}"
 readonly MITORI_TUIST_STATE_DIR="$MITORI_REPO_ROOT/.xcodebuild/tuist"
+readonly MITORI_TUIST_BINARIES_DIR="$TUIST_XDG_CACHE_HOME/tuist/Binaries"
+readonly MITORI_TUIST_SWIFT_PATH="$MITORI_REPO_ROOT/Tuist.swift"
 readonly MITORI_INSTALL_STAMP="$MITORI_TUIST_STATE_DIR/install.stamp"
+readonly MITORI_SETUP_CACHE_STAMP="$MITORI_TUIST_STATE_DIR/setup-cache.stamp"
 readonly MITORI_GENERATE_STAMP="$MITORI_TUIST_STATE_DIR/generate-${MITORI_CONFIGURATION}.stamp"
 readonly MITORI_EXTERNAL_CACHE_STAMP="$MITORI_TUIST_STATE_DIR/external-cache-${MITORI_CONFIGURATION}.stamp"
 readonly MITORI_TUIST_DIR="$MITORI_REPO_ROOT/Tuist"
@@ -15,6 +18,18 @@ readonly MITORI_PACKAGE_SWIFT_PATH="$MITORI_TUIST_DIR/Package.swift"
 readonly MITORI_PACKAGE_RESOLVED_PATH="$MITORI_TUIST_DIR/Package.resolved"
 readonly MITORI_WORKSPACE_PATH="$MITORI_REPO_ROOT/Mitori.xcworkspace"
 readonly MITORI_PROJECT_PATH="$MITORI_REPO_ROOT/Mitori.xcodeproj"
+
+resolve_tuist_full_handle() {
+  if [ -e "$MITORI_TUIST_SWIFT_PATH" ]; then
+    sed -n 's/.*fullHandle: "\(.*\)".*/\1/p' "$MITORI_TUIST_SWIFT_PATH" | head -n 1
+  fi
+}
+
+readonly MITORI_TUIST_FULL_HANDLE="$(resolve_tuist_full_handle)"
+readonly MITORI_TUIST_CACHE_SERVICE_SLUG="${MITORI_TUIST_FULL_HANDLE//\//_}"
+readonly MITORI_TUIST_CACHE_SERVICE_LABEL="${MITORI_TUIST_FULL_HANDLE:+tuist.cache.$MITORI_TUIST_CACHE_SERVICE_SLUG}"
+readonly MITORI_TUIST_CACHE_SOCKET_PATH="${MITORI_TUIST_FULL_HANDLE:+$HOME/.local/state/tuist/$MITORI_TUIST_CACHE_SERVICE_SLUG.sock}"
+readonly MITORI_TUIST_CACHE_LAUNCH_AGENT_PATH="${MITORI_TUIST_FULL_HANDLE:+$HOME/Library/LaunchAgents/$MITORI_TUIST_CACHE_SERVICE_LABEL.plist}"
 
 resolve_tuist_bin() {
   if command -v mise >/dev/null 2>&1; then
@@ -71,6 +86,20 @@ list_dependency_inputs() {
   done
 }
 
+list_cache_setup_inputs() {
+  if [ -e "$MITORI_TUIST_SWIFT_PATH" ]; then
+    printf '%s\n' "$MITORI_TUIST_SWIFT_PATH"
+  fi
+}
+
+cache_binaries_present() {
+  [ -d "$MITORI_TUIST_BINARIES_DIR" ] || return 1
+
+  find "$MITORI_TUIST_BINARIES_DIR" -mindepth 2 -maxdepth 2 \
+    \( -name '*.xcframework' -o -name '*.bundle' \) \
+    -print -quit | grep -q .
+}
+
 list_generation_inputs() {
   local path
 
@@ -83,6 +112,47 @@ list_generation_inputs() {
       printf '%s\n' "$path"
     fi
   done
+}
+
+xcode_cache_enabled() {
+  [ -e "$MITORI_TUIST_SWIFT_PATH" ] || return 1
+  rg -q 'enableCaching:\s*true' "$MITORI_TUIST_SWIFT_PATH"
+}
+
+tuist_logged_in() {
+  run_tuist auth whoami >/dev/null 2>&1
+}
+
+xcode_cache_service_running() {
+  [ -n "$MITORI_TUIST_CACHE_SERVICE_LABEL" ] || return 1
+
+  local pid
+  pid="$(launchctl list | awk -v label="$MITORI_TUIST_CACHE_SERVICE_LABEL" '$3 == label { print $1 }')"
+  [ -n "$pid" ] && [ "$pid" != "-" ]
+}
+
+needs_xcode_cache_setup() {
+  if ! xcode_cache_enabled; then
+    return 1
+  fi
+
+  if [ -z "$MITORI_TUIST_FULL_HANDLE" ]; then
+    return 1
+  fi
+
+  if [ ! -f "$MITORI_TUIST_CACHE_LAUNCH_AGENT_PATH" ]; then
+    return 0
+  fi
+
+  if ! xcode_cache_service_running; then
+    return 0
+  fi
+
+  if [ ! -S "$MITORI_TUIST_CACHE_SOCKET_PATH" ]; then
+    return 0
+  fi
+
+  inputs_newer_than_stamp "$MITORI_SETUP_CACHE_STAMP" list_cache_setup_inputs
 }
 
 needs_dependency_install() {
@@ -103,6 +173,37 @@ ensure_dependencies_installed() {
   fi
 }
 
+ensure_xcode_cache_setup() {
+  if ! xcode_cache_enabled; then
+    return
+  fi
+
+  if [ -z "$MITORI_TUIST_FULL_HANDLE" ]; then
+    echo "Skipping Tuist Xcode cache setup because fullHandle is not configured."
+    return
+  fi
+
+  if ! needs_xcode_cache_setup; then
+    echo "Skipping Tuist Xcode cache setup; daemon is already configured."
+    return
+  fi
+
+  if ! tuist_logged_in; then
+    echo "Skipping Tuist Xcode cache setup because Tuist is not logged in."
+    return
+  fi
+
+  echo "Ensuring Tuist Xcode cache is configured..."
+  run_tuist setup cache --path "$MITORI_REPO_ROOT"
+
+  if [ -f "$MITORI_TUIST_CACHE_LAUNCH_AGENT_PATH" ]; then
+    launchctl bootstrap "gui/$(id -u)" "$MITORI_TUIST_CACHE_LAUNCH_AGENT_PATH" >/dev/null 2>&1 || true
+    launchctl kickstart -k "gui/$(id -u)/$MITORI_TUIST_CACHE_SERVICE_LABEL" >/dev/null 2>&1 || true
+  fi
+
+  touch_stamp "$MITORI_SETUP_CACHE_STAMP"
+}
+
 external_cache_warming_enabled() {
   case "${MITORI_SKIP_EXTERNAL_CACHE_WARM:-0}" in
     1|true|TRUE|yes|YES)
@@ -116,6 +217,10 @@ external_cache_warming_enabled() {
 
 needs_external_cache_warm() {
   if [ "${MITORI_FORCE_EXTERNAL_CACHE_WARM:-0}" = "1" ]; then
+    return 0
+  fi
+
+  if ! cache_binaries_present; then
     return 0
   fi
 
@@ -145,6 +250,10 @@ needs_generation() {
     return 0
   fi
 
+  if [ "$MITORI_EXTERNAL_CACHE_STAMP" -nt "$MITORI_GENERATE_STAMP" ]; then
+    return 0
+  fi
+
   inputs_newer_than_stamp "$MITORI_GENERATE_STAMP" list_generation_inputs
 }
 
@@ -155,7 +264,9 @@ ensure_generated_workspace() {
       --path "$MITORI_REPO_ROOT" \
       --configuration "$MITORI_CONFIGURATION" \
       --cache-profile only-external \
-      --no-open
+      --no-open \
+      Mitori \
+      MitoriTests
     touch_stamp "$MITORI_GENERATE_STAMP"
   else
     echo "Skipping generate; manifests are unchanged."

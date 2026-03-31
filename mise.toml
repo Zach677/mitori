@@ -2,13 +2,13 @@
 tuist = "4.162.1"
 
 [tasks.run-macos]
-description = "Install deps if needed, warm external Tuist cache, build, and relaunch the macOS debug app"
+description = "Install deps if needed, ensure Tuist caches are configured, build, and relaunch the macOS debug app"
 run = "bash scripts/run-macos.sh"
 
 [tasks.test-macos]
-description = "Install deps if needed, reuse the generated workspace, and run the macOS test scheme"
+description = "Install deps if needed, ensure Tuist caches are configured, and run macOS tests via Tuist for dashboard upload"
 run = "bash scripts/test-macos.sh"
 
 [tasks.warm-external-cache]
-description = "Warm Tuist binary cache for external dependencies when the package graph changes"
+description = "Warm Tuist external binary cache, ensure Xcode cache is configured, and refresh the generated workspace if needed"
 run = "bash scripts/warm-external-cache.sh"
