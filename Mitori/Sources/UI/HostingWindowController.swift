@@ -79,7 +79,12 @@ final class HostingWindowController: NSWindowController, NSWindowDelegate, Windo
         if let hostingController = window.contentViewController as? NSHostingController<AnyView> {
             hostingController.rootView = contentProvider()
         } else {
-            window.contentViewController = NSHostingController(rootView: contentProvider())
+            let hostingController = NSHostingController(rootView: contentProvider())
+            // Let the window track SwiftUI's intrinsic content size so content drives
+            // the window dimensions instead of getting clipped or scrolled inside a
+            // fixed frame.
+            hostingController.sizingOptions = [.intrinsicContentSize]
+            window.contentViewController = hostingController
         }
     }
 }

@@ -23,21 +23,19 @@ struct AccountDetailSheet: View {
 
         NavigationStack {
             if let account {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        accountHeader(account)
-                        balanceCard(account)
-                        accountInfoSection(account)
-                        probeSection
-                        reauthSection
-                        actionsSection
+                VStack(alignment: .leading, spacing: 20) {
+                    accountHeader(account)
+                    balanceCard(account)
+                    accountInfoSection(account)
+                    probeSection
+                    reauthSection
+                    actionsSection
 
-                        if let errorMessage {
-                            errorBanner(errorMessage)
-                        }
+                    if let errorMessage {
+                        errorBanner(errorMessage)
                     }
-                    .padding(20)
                 }
+                .padding(20)
                 .navigationTitle(account.displayName)
                 .task {
                     probeBundleID = account.probeBundleID
@@ -45,9 +43,10 @@ struct AccountDetailSheet: View {
                 }
             } else {
                 ContentUnavailableView("Account removed", systemImage: "trash")
+                    .padding(20)
             }
         }
-        .frame(width: 440, height: 540)
+        .frame(width: 440)
     }
 
     private func accountHeader(_ account: StoredAccountMeta) -> some View {
