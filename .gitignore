@@ -76,3 +76,5 @@ Tuist/.build
 
 ### Repo-local Tuist cache ###
 .cache/
+skills/tuist-pr-upgrader/scripts/__pycache__/tuist_pr_upgrader.cpython-312.pyc
+tests/__pycache__/test_tuist_pr_upgrader.cpython-312.pyc
