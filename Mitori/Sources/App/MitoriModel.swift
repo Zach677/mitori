@@ -66,14 +66,14 @@ final class MitoriModel {
         email: String,
         password: String,
         code: String,
+        deviceIdentifier: String,
         probeBundleID: String
     ) async throws {
-        let deviceIdentifier = DeviceIdentifier.random()
         let result = try await sessionBridge.login(
             email: email,
             password: password,
             code: code,
-            deviceIdentifier: deviceIdentifier,
+            deviceIdentifier: deviceIdentifier.trimmingCharacters(in: .whitespacesAndNewlines),
             probeBundleID: probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
         )
         try await persist(normalized(result))

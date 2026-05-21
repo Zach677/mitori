@@ -8,5 +8,12 @@ final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = menuBarController
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["MITORI_OPEN_ADD_ACCOUNT"] == "1" {
+            Task { @MainActor in
+                menuBarController.presentAddAccountWindowForDebugging()
+            }
+        }
+        #endif
     }
 }

@@ -30,6 +30,8 @@ struct ProbePayloadResult: Sendable {
 }
 
 final class BalanceProbeClient {
+    private let maxRedirectCount = 3
+
     func fetchProbePayload(
         account: Account,
         probeBundleID: String,
@@ -43,62 +45,51 @@ final class BalanceProbeClient {
         }
 
         let app = try await Lookup.lookup(bundleID: probeBundleID, countryCode: countryCode)
-        let url = try makeProbeURL(pod: account.pod, guid: deviceIdentifier)
+        var url = try makeProbeURL(pod: account.pod, guid: deviceIdentifier)
         let requestBody = try makeRequestBody(deviceIdentifier: deviceIdentifier, adamID: app.id)
 
-        let cookieStorage = HTTPCookieStorage()
         let configuration = URLSessionConfiguration.ephemeral
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        configuration.httpCookieAcceptPolicy = .always
-        configuration.httpShouldSetCookies = true
-        configuration.httpCookieStorage = cookieStorage
+        configuration.httpShouldSetCookies = false
 
-        let foundationCookies = account.cookie.compactMap(\.foundationCookie)
-        if !foundationCookies.isEmpty {
-            cookieStorage.setCookies(foundationCookies, for: url, mainDocumentURL: nil)
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.httpBody = requestBody
-        request.httpShouldHandleCookies = true
-        request.setValue("application/x-apple-plist", forHTTPHeaderField: "Content-Type")
-        request.setValue(Configuration.userAgent, forHTTPHeaderField: "User-Agent")
-        request.setValue(account.directoryServicesIdentifier, forHTTPHeaderField: "iCloud-DSID")
-        request.setValue(account.directoryServicesIdentifier, forHTTPHeaderField: "X-Dsid")
-
-        let session = URLSession(configuration: configuration)
+        let redirectDelegate = BalanceProbeRedirectDelegate()
+        let session = URLSession(configuration: configuration, delegate: redirectDelegate, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
 
-        let (data, response) = try await session.data(for: request)
-        guard let response = response as? HTTPURLResponse else {
-            throw MitoriError.unknown("Unexpected response type from Apple.")
-        }
+        var redirectCount = 0
+        while true {
+            let request = makeRequest(url: url, body: requestBody, account: account)
+            let (data, response) = try await session.data(for: request)
+            guard let response = response as? HTTPURLResponse else {
+                throw MitoriError.unknown("Unexpected response type from Apple.")
+            }
 
-        if let pod = response.value(forHTTPHeaderField: "pod"), !pod.isEmpty {
-            account.pod = pod
-        }
+            updateAccount(&account, from: response)
 
-        if let storefront = response.value(forHTTPHeaderField: "x-set-apple-store-front")?
-            .split(separator: "-")
-            .first
-        {
-            account.store = String(storefront)
-        }
+            if isRedirect(response.statusCode) {
+                guard redirectCount < maxRedirectCount else {
+                    throw MitoriError.network("Apple returned too many redirects.")
+                }
+                guard let location = response.value(forHTTPHeaderField: "Location"),
+                      let redirectURL = URL(string: location, relativeTo: url)?.absoluteURL
+                else {
+                    throw MitoriError.network("Apple returned a redirect without a Location header.")
+                }
+                url = redirectURL
+                redirectCount += 1
+                continue
+            }
 
-        if let cookies = cookieStorage.cookies, !cookies.isEmpty {
-            account.cookie = account.cookie.merging(cookies.map(\.appleCookie))
-        }
+            if let knownFailure = parseKnownFailure(from: data) {
+                throw knownFailure
+            }
 
-        if let knownFailure = parseKnownFailure(from: data) {
-            throw knownFailure
-        }
+            guard (200 ..< 300).contains(response.statusCode) else {
+                throw MitoriError.network("Apple returned HTTP \(response.statusCode).")
+            }
 
-        guard (200 ..< 300).contains(response.statusCode) else {
-            throw MitoriError.network("Apple returned HTTP \(response.statusCode).")
+            return ProbePayloadResult(payload: data, account: account)
         }
-
-        return ProbePayloadResult(payload: data, account: account)
     }
 
     private func makeProbeURL(pod: String?, guid: String) throws -> URL {
@@ -124,6 +115,41 @@ final class BalanceProbeClient {
             format: .xml,
             options: 0
         )
+    }
+
+    private func makeRequest(url: URL, body: Data, account: Account) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = body
+        request.httpShouldHandleCookies = false
+        request.setValue("application/x-apple-plist", forHTTPHeaderField: "Content-Type")
+        request.setValue(Configuration.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(account.directoryServicesIdentifier, forHTTPHeaderField: "iCloud-DSID")
+        request.setValue(account.directoryServicesIdentifier, forHTTPHeaderField: "X-Dsid")
+        if let cookieHeader = account.cookie.mitoriCookieHeader(for: url) {
+            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        }
+        return request
+    }
+
+    private func isRedirect(_ statusCode: Int) -> Bool {
+        (300 ..< 400).contains(statusCode)
+    }
+
+    private func updateAccount(
+        _ account: inout Account,
+        from response: HTTPURLResponse
+    ) {
+        if let pod = response.value(forHTTPHeaderField: "pod"), !pod.isEmpty {
+            account.pod = pod
+        }
+
+        if let storefront = response.value(forHTTPHeaderField: "x-set-apple-store-front")?
+            .split(separator: "-")
+            .first
+        {
+            account.store = String(storefront)
+        }
     }
 
     private func parseKnownFailure(from data: Data) -> MitoriError? {
@@ -157,48 +183,74 @@ final class BalanceProbeClient {
     }
 }
 
-private extension Cookie {
-    var foundationCookie: HTTPCookie? {
-        var properties: [HTTPCookiePropertyKey: Any] = [
-            .name: name,
-            .value: value,
-            .path: path,
-            .domain: domain ?? "itunes.apple.com",
-            .secure: secure,
-        ]
-
-        if let expiresAt {
-            properties[.expires] = Date(timeIntervalSince1970: expiresAt)
-        }
-
-        if httpOnly {
-            properties[HTTPCookiePropertyKey("HttpOnly")] = true
-        }
-
-        return HTTPCookie(properties: properties)
-    }
-}
-
-private extension HTTPCookie {
-    var appleCookie: Cookie {
-        Cookie(
-            name: name,
-            value: value,
-            path: path,
-            domain: domain,
-            expiresAt: expiresDate?.timeIntervalSince1970,
-            httpOnly: isHTTPOnly,
-            secure: isSecure
-        )
-    }
-}
-
 private extension Array where Element == Cookie {
-    func merging(_ incoming: [Cookie]) -> [Cookie] {
-        var dictionary = Dictionary(uniqueKeysWithValues: map { ($0.name, $0) })
-        for cookie in incoming {
-            dictionary[cookie.name] = cookie
+    func mitoriCookieHeader(for url: URL) -> String? {
+        if let header = buildCookieHeader(url).first(where: { $0.0.lowercased() == "cookie" })?.1 {
+            return header
         }
-        return Array(dictionary.values)
+
+        // Remove this fallback after the pinned ApplePackage revision includes leading-dot domain matching.
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true),
+              let requestHost = components.host
+        else {
+            return nil
+        }
+
+        let requestPath = components.path.isEmpty ? "/" : components.path
+        let fragments = compactMap { cookie -> String? in
+            guard !cookie.name.isEmpty, !cookie.value.isEmpty else { return nil }
+
+            if let domain = cookie.domain, !domainMatches(domain, requestHost: requestHost) {
+                return nil
+            }
+            guard pathMatches(cookie.path, requestPath: requestPath) else {
+                return nil
+            }
+            if let expiresAt = cookie.expiresAt, expiresAt <= Date().timeIntervalSince1970 {
+                return nil
+            }
+            if cookie.secure, components.scheme != "https" {
+                return nil
+            }
+            return "\(cookie.name)=\(cookie.value)"
+        }
+
+        return fragments.isEmpty ? nil : fragments.joined(separator: "; ")
+    }
+
+    private func domainMatches(_ cookieDomain: String, requestHost: String) -> Bool {
+        let normalizedCookieDomain = cookieDomain
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            .lowercased()
+        let normalizedRequestHost = requestHost.lowercased()
+
+        return normalizedRequestHost == normalizedCookieDomain ||
+            normalizedRequestHost.hasSuffix("." + normalizedCookieDomain)
+    }
+
+    private func pathMatches(_ cookiePath: String, requestPath: String) -> Bool {
+        if cookiePath == "/" { return true }
+        if requestPath == cookiePath { return true }
+        guard requestPath.hasPrefix(cookiePath) else { return false }
+
+        let nextIndex = cookiePath.endIndex
+        if nextIndex < requestPath.endIndex {
+            let nextChar = requestPath[nextIndex]
+            return cookiePath.hasSuffix("/") || nextChar == "/"
+        }
+
+        return true
+    }
+}
+
+private final class BalanceProbeRedirectDelegate: NSObject, URLSessionTaskDelegate {
+    func urlSession(
+        _: URLSession,
+        task _: URLSessionTask,
+        willPerformHTTPRedirection _: HTTPURLResponse,
+        newRequest _: URLRequest,
+        completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
     }
 }

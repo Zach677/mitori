@@ -140,6 +140,12 @@ final class MenuBarController: NSObject {
         addAccountWindowPresenter.present()
     }
 
+    #if DEBUG
+    func presentAddAccountWindowForDebugging() {
+        presentAddAccountWindow()
+    }
+    #endif
+
     private func closeAddAccountWindow() {
         addAccountWindowController.close()
     }

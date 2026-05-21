@@ -198,6 +198,37 @@ struct MitoriModelTests {
         #expect(model.refreshState(for: meta.id) == .failed(.sessionExpired))
         #expect(model.bannerMessage == MitoriError.sessionExpired.localizedDescription)
     }
+
+    @Test
+    func addAccountUsesFlowDeviceIdentifier() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let bridge = SessionBridgeStub(loginResult: SessionRefreshResult(
+            meta: StoredAccountMeta(
+                account: sampleAccount(),
+                deviceIdentifier: "ABCDEF123456",
+                probeBundleID: "com.example.probe"
+            ),
+            secret: StoredAccountSecret(account: sampleAccount())
+        ))
+        let model = MitoriModel(
+            accountStore: AccountStore(baseDirectory: tempDirectory),
+            secretStore: SecretStore(backend: InMemorySecretBackend()),
+            sessionBridge: bridge
+        )
+
+        try await model.addAccount(
+            email: "demo@example.com",
+            password: "password",
+            code: "123456",
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+
+        let request = try #require(bridge.loginRequests.first)
+        #expect(request.deviceIdentifier == "ABCDEF123456")
+        #expect(request.code == "123456")
+    }
 }
 
 struct MitoriErrorTests {
@@ -261,7 +292,7 @@ private enum FixtureLoader {
     }
 }
 
-private func sampleAccount() -> Account {
+private func sampleAccount(cookies: [Cookie] = []) -> Account {
     Account(
         email: "demo@example.com",
         password: "password",
@@ -271,15 +302,24 @@ private func sampleAccount() -> Account {
         lastName: "User",
         passwordToken: "token",
         directoryServicesIdentifier: "1234567890",
-        cookie: [],
+        cookie: cookies,
         pod: "25"
     )
 }
 
 private final class SessionBridgeStub: AppleSessionBridging {
+    struct LoginRequest {
+        var email: String
+        var password: String
+        var code: String
+        var deviceIdentifier: String
+        var probeBundleID: String
+    }
+
     var loginResult: SessionRefreshResult?
     var refreshResult: SessionRefreshResult?
     var reauthenticateResult: SessionRefreshResult?
+    var loginRequests: [LoginRequest] = []
 
     init(
         loginResult: SessionRefreshResult? = nil,
@@ -298,7 +338,14 @@ private final class SessionBridgeStub: AppleSessionBridging {
         deviceIdentifier: String,
         probeBundleID: String
     ) async throws -> SessionRefreshResult {
-        try requiredResult(loginResult, fallback: .unknown("Missing login result"))
+        loginRequests.append(LoginRequest(
+            email: email,
+            password: password,
+            code: code,
+            deviceIdentifier: deviceIdentifier,
+            probeBundleID: probeBundleID
+        ))
+        return try requiredResult(loginResult, fallback: .unknown("Missing login result"))
     }
 
     func reauthenticate(

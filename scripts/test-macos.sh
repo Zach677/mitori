@@ -13,10 +13,11 @@ ensure_external_cache_warmed
 ensure_generated_workspace
 
 mkdir -p "$(dirname "$RESULT_BUNDLE_PATH")"
+rm -rf "$RESULT_BUNDLE_PATH"
 
 run_tuist test MitoriTests \
   --path "$MITORI_REPO_ROOT" \
-  -configuration "$MITORI_CONFIGURATION" \
+  --configuration "$MITORI_CONFIGURATION" \
   -T "$RESULT_BUNDLE_PATH" \
   -- \
   -destination 'platform=macOS,arch=arm64' \

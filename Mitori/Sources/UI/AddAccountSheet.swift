@@ -24,25 +24,23 @@ struct AddAccountSheet: View {
                 .padding(.top, 24)
                 .padding(.bottom, 20)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    credentialsSection
+            VStack(alignment: .leading, spacing: 20) {
+                credentialsSection
 
-                    if flow.requiresVerificationCode {
-                        twoFactorSection
-                    }
-
-                    probeSection
-
-                    if let errorMessage = flow.errorMessage {
-                        errorBanner(errorMessage)
-                    }
-
-                    loginButton
+                if flow.requiresVerificationCode {
+                    twoFactorSection
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
+
+                probeSection
+
+                if let errorMessage = flow.errorMessage {
+                    errorBanner(errorMessage, recoveryLink: flow.recoveryLink)
+                }
+
+                loginButton
             }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
 
             Divider()
 
@@ -57,7 +55,7 @@ struct AddAccountSheet: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 14)
         }
-        .frame(width: 420, height: flow.requiresVerificationCode ? 500 : 460)
+        .frame(width: 420)
         .task {
             if focusedField == nil {
                 focusedField = .email
@@ -148,16 +146,27 @@ struct AddAccountSheet: View {
         }
     }
 
-    private func errorBanner(_ message: String) -> some View {
-        HStack(spacing: 8) {
+    private func errorBanner(
+        _ message: String,
+        recoveryLink: AddAccountFlowModel.RecoveryLink?
+    ) -> some View {
+        HStack(alignment: .top, spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 12))
                 .foregroundStyle(.red)
+                .padding(.top, 1)
 
-            Text(message)
-                .font(.system(size: 12))
-                .foregroundStyle(.red)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(message)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let recoveryLink {
+                    Link(recoveryLink.title, destination: recoveryLink.url)
+                        .font(.system(size: 12, weight: .medium))
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
@@ -173,7 +182,7 @@ struct AddAccountSheet: View {
                     ProgressView()
                         .controlSize(.small)
                 }
-                Text(flow.requiresVerificationCode ? "Verify & Login" : "Login")
+                Text(loginButtonTitle)
                     .font(.system(size: 13, weight: .medium))
             }
             .frame(maxWidth: .infinity)
@@ -184,11 +193,14 @@ struct AddAccountSheet: View {
         .disabled(!flow.canSubmit)
     }
 
+    private var loginButtonTitle: String {
+        return flow.requiresVerificationCode ? "Verify & Login" : "Login"
+    }
+
     private func sectionLabel(_ title: String) -> some View {
         Text(title)
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.secondary)
-            .textCase(.uppercase)
     }
 
     private func submit() {
@@ -202,6 +214,7 @@ struct AddAccountSheet: View {
                     email: flow.email,
                     password: flow.password,
                     code: flow.verificationCode,
+                    deviceIdentifier: flow.deviceIdentifier,
                     probeBundleID: flow.probeBundleID
                 )
                 onClose()

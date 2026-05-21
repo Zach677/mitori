@@ -32,6 +32,7 @@ struct AddAccountFlowModelTests {
 
         #expect(flow.requiresVerificationCode == true)
         #expect(flow.canSubmit == false)
+        #expect(flow.recoveryLink?.url.absoluteString == "https://account.apple.com")
 
         flow.verificationCode = "123456"
         #expect(flow.canSubmit == true)
@@ -51,6 +52,19 @@ struct AddAccountFlowModelTests {
 
         #expect(flow.requiresVerificationCode == true)
         #expect(flow.errorMessage == MitoriError.invalidTwoFactorCode.localizedDescription)
+    }
+
+    @Test
+    func keepsDeviceIdentifierAcrossTwoFactorRetry() {
+        let flow = AddAccountFlowModel(deviceIdentifier: "ABCDEF123456")
+        flow.email = "demo@example.com"
+        flow.password = "secret"
+
+        flow.handleFailure(MitoriError.twoFactorCodeRequired)
+        flow.verificationCode = "123456"
+
+        #expect(flow.deviceIdentifier == "ABCDEF123456")
+        #expect(flow.canSubmit == true)
     }
 
     @Test
