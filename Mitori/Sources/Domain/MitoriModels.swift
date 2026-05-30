@@ -134,13 +134,6 @@ struct StoredAccountSecret: Codable, Equatable, Sendable {
         self.account = account
     }
 
-    var dsidSummary: String {
-        guard directoryServicesIdentifier.count > 4 else {
-            return directoryServicesIdentifier
-        }
-        return "••••" + directoryServicesIdentifier.suffix(4)
-    }
-
     func restoredAccount() -> Account {
         var restored = account
         restored.password = password

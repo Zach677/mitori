@@ -9,7 +9,6 @@ final class MitoriModel {
 
     private(set) var accounts: [StoredAccountMeta] = []
     private(set) var refreshStates: [String: RefreshState] = [:]
-    private(set) var secretSummaries: [String: String] = [:]
 
     var bannerMessage: String?
     var isRefreshingAll = false
@@ -45,19 +44,6 @@ final class MitoriModel {
 
     func refreshState(for accountID: String) -> RefreshState {
         refreshStates[accountID] ?? .idle
-    }
-
-    func secretSummary(for accountID: String) -> String {
-        secretSummaries[accountID] ?? "Unavailable"
-    }
-
-    func loadSecretSummary(for accountID: String) async {
-        do {
-            let summary = try await secretStore.loadSecret(for: accountID)?.dsidSummary ?? "Unavailable"
-            secretSummaries[accountID] = summary
-        } catch {
-            secretSummaries[accountID] = "Unavailable"
-        }
     }
 
     func addAccount(
@@ -151,7 +137,6 @@ final class MitoriModel {
         do {
             accounts = try await accountStore.deleteAccount(id: id)
             try await secretStore.deleteSecret(for: id)
-            secretSummaries[id] = nil
             bannerMessage = nil
         } catch {
             bannerMessage = MitoriError.map(error).localizedDescription
@@ -169,7 +154,6 @@ final class MitoriModel {
     private func persist(_ result: SessionRefreshResult) async throws {
         try await secretStore.save(result.secret, for: result.meta.id)
         accounts = try await accountStore.upsert(result.meta)
-        secretSummaries[result.meta.id] = result.secret.dsidSummary
     }
 
     private func persistFailure(for meta: StoredAccountMeta, error: MitoriError) async throws {

@@ -11,6 +11,7 @@ final class AccountDetailViewController: NSViewController {
     private var isReauthing = false
     private var isDeleting = false
 
+    private let scrollView = NSScrollView()
     private let contentStack = NSStackView()
     private let errorLabel = NSTextField(labelWithString: "")
     private let probeBundleIDField = NSTextField()
@@ -44,46 +45,37 @@ final class AccountDetailViewController: NSViewController {
         reload()
     }
 
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        Task {
-            await model.loadSecretSummary(for: accountID)
-            reload()
-        }
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        updateDocumentFrame()
     }
 }
 
 private extension AccountDetailViewController {
     func configureLayout() {
-        let scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = false
         scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
-        let documentView = NSView()
         contentStack.orientation = .vertical
-        contentStack.spacing = 18
-        contentStack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
-        contentStack.translatesAutoresizingMaskIntoConstraints = false
-        documentView.addSubview(contentStack)
+        contentStack.alignment = .width
+        contentStack.spacing = 16
+        contentStack.edgeInsets = NSEdgeInsets(top: 22, left: 22, bottom: 22, right: 22)
+        contentStack.translatesAutoresizingMaskIntoConstraints = true
+        contentStack.autoresizingMask = [.width]
 
-        NSLayoutConstraint.activate([
-            contentStack.leadingAnchor.constraint(equalTo: documentView.leadingAnchor),
-            contentStack.trailingAnchor.constraint(equalTo: documentView.trailingAnchor),
-            contentStack.topAnchor.constraint(equalTo: documentView.topAnchor),
-            contentStack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor),
-            contentStack.widthAnchor.constraint(equalTo: documentView.widthAnchor),
-        ])
-
-        scrollView.documentView = documentView
+        scrollView.documentView = contentStack
         view.addSubview(scrollView)
+
+        configureErrorLabel()
 
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.topAnchor.constraint(equalTo: view.topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            view.widthAnchor.constraint(equalToConstant: 480),
+            view.widthAnchor.constraint(equalToConstant: 500),
             view.heightAnchor.constraint(greaterThanOrEqualToConstant: 520),
         ])
     }
@@ -95,7 +87,8 @@ private extension AccountDetailViewController {
         }
 
         guard let account else {
-            contentStack.addArrangedSubview(label("Account removed", size: 14, weight: .medium))
+            addFullWidth(label("Account removed", size: 14, weight: .medium), to: contentStack)
+            updateDocumentFrame()
             return
         }
 
@@ -103,18 +96,19 @@ private extension AccountDetailViewController {
             probeBundleIDField.stringValue = account.probeBundleID
         }
 
-        contentStack.addArrangedSubview(makeHeader(account))
-        contentStack.addArrangedSubview(makeBalanceSection(account))
-        contentStack.addArrangedSubview(makeInfoSection(account))
-        contentStack.addArrangedSubview(makeProbeSection(account))
-        contentStack.addArrangedSubview(makeReauthSection())
-        contentStack.addArrangedSubview(makeActionsSection())
+        addFullWidth(makeHeader(account), to: contentStack)
+        addFullWidth(makeBalanceSection(account), to: contentStack)
+        addFullWidth(makeInfoSection(account), to: contentStack)
+        addFullWidth(makeProbeSection(account), to: contentStack)
+        addFullWidth(makeReauthSection(), to: contentStack)
 
         errorLabel.stringValue = errorMessage ?? ""
         errorLabel.isHidden = errorMessage == nil
         if errorMessage != nil {
-            contentStack.addArrangedSubview(errorLabel)
+            addFullWidth(errorLabel, to: contentStack)
         }
+        addFullWidth(makeActionsSection(), to: contentStack)
+        updateDocumentFrame()
     }
 
     func makeHeader(_ account: StoredAccountMeta) -> NSView {
@@ -138,6 +132,7 @@ private extension AccountDetailViewController {
 
         let identity = NSStackView()
         identity.orientation = .vertical
+        identity.alignment = .width
         identity.spacing = 2
         identity.addArrangedSubview(label(account.displayName, size: 15, weight: .medium))
         identity.addArrangedSubview(label(account.email, size: 12, color: .secondaryLabelColor))
@@ -150,54 +145,57 @@ private extension AccountDetailViewController {
 
     func makeBalanceSection(_ account: StoredAccountMeta) -> NSView {
         let stack = boxedStack()
-        stack.addArrangedSubview(label("Balance", size: 11, weight: .medium, color: .secondaryLabelColor))
-        stack.addArrangedSubview(label(
+        addFullWidth(label("Balance", size: 11, weight: .medium, color: .secondaryLabelColor), to: stack)
+        addFullWidth(label(
             account.balanceSnapshot?.displayText ?? "Unavailable",
             size: 28,
             weight: .semibold,
             monospaced: true
-        ))
+        ), to: stack)
         if let lastRefresh = account.lastRefreshAt {
-            stack.addArrangedSubview(label(
+            addFullWidth(label(
                 "Updated \(lastRefresh.formatted(date: .abbreviated, time: .shortened))",
                 size: 11,
                 color: .tertiaryLabelColor
-            ))
+            ), to: stack)
         }
         return stack
     }
 
     func makeInfoSection(_ account: StoredAccountMeta) -> NSView {
         let stack = section(title: "Account Info")
-        stack.addArrangedSubview(detailRow("Apple ID", value: account.appleID))
-        stack.addArrangedSubview(detailRow("Region", value: account.regionLabel.isEmpty ? "Unknown" : account.regionLabel))
-        stack.addArrangedSubview(detailRow("Pod", value: account.pod ?? "Unavailable"))
-        stack.addArrangedSubview(detailRow("DSID", value: model.secretSummary(for: accountID)))
-        stack.addArrangedSubview(detailRow("Device ID", value: String(account.deviceIdentifier.prefix(12)) + "..."))
+        addFullWidth(detailRow("Apple ID", value: account.appleID), to: stack)
+        addFullWidth(detailRow("Region", value: account.regionLabel.isEmpty ? "Unknown" : account.regionLabel), to: stack)
+        addFullWidth(detailRow("Pod", value: account.pod ?? "Unavailable"), to: stack)
+        addFullWidth(detailRow("Credentials", value: "Stored in Keychain"), to: stack)
+        addFullWidth(detailRow("Device ID", value: String(account.deviceIdentifier.prefix(12)) + "..."), to: stack)
         return stack
     }
 
     func makeProbeSection(_ account: StoredAccountMeta) -> NSView {
         let stack = section(title: "Probe Bundle ID")
         probeBundleIDField.placeholderString = "Owned app bundle ID"
-        stack.addArrangedSubview(probeBundleIDField)
+        probeBundleIDField.font = .systemFont(ofSize: 13)
+        addFullWidth(probeBundleIDField, to: stack)
 
         let searchRow = NSStackView()
         searchRow.orientation = .horizontal
+        searchRow.alignment = .centerY
         searchRow.spacing = 8
         probeSearchField.placeholderString = "Search app name"
+        probeSearchField.font = .systemFont(ofSize: 13)
         probeSearchField.target = self
         probeSearchField.action = #selector(searchProbeApps)
+        probeSearchField.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         let searchButton = NSButton(title: "Search", target: self, action: #selector(searchProbeApps))
         searchButton.bezelStyle = .rounded
-        searchButton.controlSize = .small
         searchRow.addArrangedSubview(probeSearchField)
         searchRow.addArrangedSubview(searchButton)
-        stack.addArrangedSubview(searchRow)
+        addFullWidth(searchRow, to: stack)
 
         if let searchError = probeLookup.errorMessage {
-            stack.addArrangedSubview(label(searchError, size: 11, color: .systemOrange))
+            addFullWidth(label(searchError, size: 11, color: .systemOrange), to: stack)
         }
 
         probeResultsStack.orientation = .vertical
@@ -210,31 +208,30 @@ private extension AccountDetailViewController {
             probeResultsStack.addArrangedSubview(resultButton(result))
         }
         if !probeLookup.results.isEmpty {
-            stack.addArrangedSubview(probeResultsStack)
+            addFullWidth(probeResultsStack, to: stack)
         }
 
-        stack.addArrangedSubview(label("Pick any app this Apple ID already owns in \(account.countryCode ?? "US").", size: 11, color: .tertiaryLabelColor))
+        addFullWidth(label("Pick any app this Apple ID already owns in \(account.countryCode ?? "US").", size: 12, color: .secondaryLabelColor), to: stack)
 
         saveProbeButton.target = self
         saveProbeButton.action = #selector(saveProbeBundleID)
         saveProbeButton.bezelStyle = .rounded
-        saveProbeButton.controlSize = .small
         saveProbeButton.isEnabled = !isSavingProbe
-        stack.addArrangedSubview(saveProbeButton)
+        addFullWidth(buttonRow(trailing: saveProbeButton), to: stack)
         return stack
     }
 
     func makeReauthSection() -> NSView {
         let stack = section(title: "Re-authentication")
         verificationCodeField.placeholderString = "2FA Code (optional)"
-        stack.addArrangedSubview(verificationCodeField)
+        verificationCodeField.font = .systemFont(ofSize: 13)
+        addFullWidth(verificationCodeField, to: stack)
 
         reauthButton.target = self
         reauthButton.action = #selector(reauthenticate)
         reauthButton.bezelStyle = .rounded
-        reauthButton.controlSize = .small
         reauthButton.isEnabled = !isReauthing
-        stack.addArrangedSubview(reauthButton)
+        addFullWidth(buttonRow(trailing: reauthButton), to: stack)
         return stack
     }
 
@@ -246,18 +243,17 @@ private extension AccountDetailViewController {
 
         let refreshButton = NSButton(title: "Refresh Balance", target: self, action: #selector(refreshBalance))
         refreshButton.bezelStyle = .rounded
-        refreshButton.controlSize = .small
 
         deleteButton.target = self
         deleteButton.action = #selector(deleteAccount)
         deleteButton.bezelStyle = .rounded
-        deleteButton.controlSize = .small
+        deleteButton.contentTintColor = NSColor.systemRed.blended(withFraction: 0.2, of: .labelColor)
         deleteButton.isEnabled = !isDeleting
 
         row.addArrangedSubview(refreshButton)
         row.addArrangedSubview(NSView())
         row.addArrangedSubview(deleteButton)
-        stack.addArrangedSubview(row)
+        addFullWidth(row, to: stack)
         return stack
     }
 
@@ -272,14 +268,16 @@ private extension AccountDetailViewController {
     func section(title: String) -> NSStackView {
         let stack = NSStackView()
         stack.orientation = .vertical
+        stack.alignment = .width
         stack.spacing = 8
-        stack.addArrangedSubview(label(title, size: 11, weight: .medium, color: .secondaryLabelColor))
+        addFullWidth(label(title, size: 12, weight: .medium, color: .secondaryLabelColor), to: stack)
         return stack
     }
 
     func boxedStack() -> NSStackView {
         let stack = NSStackView()
         stack.orientation = .vertical
+        stack.alignment = .width
         stack.spacing = 6
         stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
         stack.wantsLayer = true
@@ -296,16 +294,48 @@ private extension AccountDetailViewController {
 
         let titleLabel = label(title, size: 12, color: .secondaryLabelColor)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.widthAnchor.constraint(equalToConstant: 80).isActive = true
+        titleLabel.widthAnchor.constraint(equalToConstant: 92).isActive = true
 
         let valueLabel = label(value, size: 12)
         valueLabel.alignment = .right
         valueLabel.maximumNumberOfLines = 3
         valueLabel.lineBreakMode = .byTruncatingMiddle
+        valueLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         row.addArrangedSubview(titleLabel)
         row.addArrangedSubview(valueLabel)
         return row
+    }
+
+    func buttonRow(trailing button: NSButton) -> NSView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.addArrangedSubview(NSView())
+        row.addArrangedSubview(button)
+        return row
+    }
+
+    func configureErrorLabel() {
+        errorLabel.font = .systemFont(ofSize: 12)
+        errorLabel.textColor = NSColor.systemRed.blended(withFraction: 0.15, of: .labelColor)
+        errorLabel.lineBreakMode = .byWordWrapping
+        errorLabel.maximumNumberOfLines = 4
+        errorLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    }
+
+    func updateDocumentFrame() {
+        let width = max(view.bounds.width, 500)
+        let height = max(contentStack.fittingSize.height, view.bounds.height)
+        contentStack.frame = NSRect(x: 0, y: 0, width: width, height: height)
+        scrollView.hasVerticalScroller = contentStack.fittingSize.height > scrollView.contentSize.height
+    }
+
+    func addFullWidth(_ view: NSView, to stack: NSStackView) {
+        stack.addArrangedSubview(view)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        let horizontalInsets = stack.edgeInsets.left + stack.edgeInsets.right
+        view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -horizontalInsets).isActive = true
     }
 
     func label(

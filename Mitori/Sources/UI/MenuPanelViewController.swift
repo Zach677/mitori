@@ -14,9 +14,11 @@ final class MenuPanelViewController: NSViewController {
 
     private let contentStack = NSStackView()
     private let accountsStack = NSStackView()
+    private let accountScrollView = NSScrollView()
     private let bannerLabel = NSTextField(labelWithString: "")
     private let summaryLabel = NSTextField(labelWithString: "")
     private let refreshButton = NSButton()
+    private var accountScrollHeightConstraint: NSLayoutConstraint?
 
     init(
         model: MitoriModel,
@@ -59,6 +61,7 @@ final class MenuPanelViewController: NSViewController {
         reloadAccounts()
         reloadBanner()
         reloadSummary()
+        updatePanelSize()
     }
 }
 
@@ -77,7 +80,7 @@ private extension MenuPanelViewController {
         ])
 
         contentStack.addArrangedSubview(makeHeader())
-        contentStack.addArrangedSubview(makeAccountScrollView())
+        contentStack.addArrangedSubview(configureAccountScrollView())
 
         bannerLabel.font = .systemFont(ofSize: 11)
         bannerLabel.textColor = .secondaryLabelColor
@@ -112,7 +115,8 @@ private extension MenuPanelViewController {
 
         refreshButton.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh All")
         refreshButton.imagePosition = .imageOnly
-        refreshButton.bezelStyle = .texturedRounded
+        refreshButton.isBordered = false
+        refreshButton.focusRingType = .none
         refreshButton.target = self
         refreshButton.action = #selector(refreshAll)
         refreshButton.toolTip = "Refresh All"
@@ -120,7 +124,8 @@ private extension MenuPanelViewController {
         let addButton = NSButton()
         addButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "Add Account")
         addButton.imagePosition = .imageOnly
-        addButton.bezelStyle = .texturedRounded
+        addButton.isBordered = false
+        addButton.focusRingType = .none
         addButton.target = self
         addButton.action = #selector(addAccount)
         addButton.toolTip = "Add Account"
@@ -143,30 +148,24 @@ private extension MenuPanelViewController {
         return wrapper
     }
 
-    func makeAccountScrollView() -> NSView {
+    func configureAccountScrollView() -> NSView {
         accountsStack.orientation = .vertical
         accountsStack.alignment = .width
         accountsStack.spacing = 8
-        accountsStack.translatesAutoresizingMaskIntoConstraints = false
+        accountsStack.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 4, right: 12)
+        accountsStack.translatesAutoresizingMaskIntoConstraints = true
 
-        let documentView = NSView()
-        documentView.addSubview(accountsStack)
-        NSLayoutConstraint.activate([
-            accountsStack.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 12),
-            accountsStack.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -12),
-            accountsStack.topAnchor.constraint(equalTo: documentView.topAnchor, constant: 4),
-            accountsStack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor, constant: -4),
-            accountsStack.widthAnchor.constraint(equalTo: documentView.widthAnchor, constant: -24),
-        ])
+        accountScrollView.hasVerticalScroller = false
+        accountScrollView.drawsBackground = false
+        accountScrollView.borderType = .noBorder
+        accountScrollView.documentView = accountsStack
+        accountScrollView.translatesAutoresizingMaskIntoConstraints = false
 
-        let scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = true
-        scrollView.drawsBackground = false
-        scrollView.documentView = documentView
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.heightAnchor.constraint(lessThanOrEqualToConstant: Metrics.maxScrollHeight).isActive = true
+        let heightConstraint = accountScrollView.heightAnchor.constraint(equalToConstant: 120)
+        heightConstraint.isActive = true
+        accountScrollHeightConstraint = heightConstraint
 
-        return scrollView
+        return accountScrollView
     }
 
     func makeFooter() -> NSView {
@@ -207,6 +206,7 @@ private extension MenuPanelViewController {
 
         if model.accounts.isEmpty {
             accountsStack.addArrangedSubview(makeEmptyState())
+            updateAccountDocumentFrame()
             return
         }
 
@@ -222,6 +222,7 @@ private extension MenuPanelViewController {
                 }
             ))
         }
+        updateAccountDocumentFrame()
     }
 
     func makeEmptyState() -> NSView {
@@ -253,6 +254,8 @@ private extension MenuPanelViewController {
         stack.wantsLayer = true
         stack.layer?.backgroundColor = NSColor.quaternaryLabelColor.withAlphaComponent(0.08).cgColor
         stack.layer?.cornerRadius = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.widthAnchor.constraint(equalToConstant: Metrics.width - 24).isActive = true
         return stack
     }
 
@@ -272,6 +275,21 @@ private extension MenuPanelViewController {
         let refreshedAt = model.accounts.compactMap(\.lastRefreshAt).max()
         let refreshLabel = refreshedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never"
         summaryLabel.stringValue = "\(count) account\(count == 1 ? "" : "s") · \(refreshLabel)"
+    }
+
+    func updateAccountDocumentFrame() {
+        let documentWidth = Metrics.width
+        let fittingHeight = accountsStack.fittingSize.height
+        let visibleHeight = min(max(fittingHeight, 116), Metrics.maxScrollHeight)
+        accountsStack.frame = NSRect(x: 0, y: 0, width: documentWidth, height: fittingHeight)
+        accountScrollView.hasVerticalScroller = fittingHeight > Metrics.maxScrollHeight
+        accountScrollHeightConstraint?.constant = visibleHeight
+    }
+
+    func updatePanelSize() {
+        view.layoutSubtreeIfNeeded()
+        let height = min(max(contentStack.fittingSize.height, 180), 560)
+        preferredContentSize = NSSize(width: Metrics.width, height: height)
     }
 
     func wrapped(_ view: NSView, horizontal: CGFloat, vertical: CGFloat) -> NSView {
@@ -406,7 +424,8 @@ private final class AccountRowView: NSView {
                 accessibilityDescription: "Refresh"
             )
             button.imagePosition = .imageOnly
-            button.bezelStyle = .texturedRounded
+            button.isBordered = false
+            button.focusRingType = .none
             button.toolTip = "Refresh"
             button.isEnabled = !isRefreshing
         }

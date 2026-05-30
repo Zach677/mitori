@@ -55,7 +55,7 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
 
         let createdWindow = NSWindow(
             contentRect: NSRect(origin: .zero, size: defaultSize),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
