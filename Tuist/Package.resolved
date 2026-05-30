@@ -1,12 +1,12 @@
 {
-  "originHash" : "02715d9f2c0432e8693639e944078662e8e9c4fd92d673e5f6badc4d14676499",
+  "originHash" : "d470019ac716b22acd683331f11076729688b13acff6a46d9871eb1b4849f07b",
   "pins" : [
     {
       "identity" : "applepackage",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Lakr233/ApplePackage.git",
+      "location" : "https://github.com/Zach677/ApplePackage.git",
       "state" : {
-        "revision" : "fd4860b78eb2db60a0dcbe7e5a6e4a3d2cae004e"
+        "revision" : "6925a6c2459aa649d223051bc6e561cb8b31b2d4"
       }
     },
     {

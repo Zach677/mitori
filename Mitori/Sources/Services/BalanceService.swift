@@ -126,8 +126,8 @@ final class BalanceProbeClient {
         request.setValue(Configuration.userAgent, forHTTPHeaderField: "User-Agent")
         request.setValue(account.directoryServicesIdentifier, forHTTPHeaderField: "iCloud-DSID")
         request.setValue(account.directoryServicesIdentifier, forHTTPHeaderField: "X-Dsid")
-        if let cookieHeader = account.cookie.mitoriCookieHeader(for: url) {
-            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        for header in account.cookie.buildCookieHeader(url) {
+            request.setValue(header.1, forHTTPHeaderField: header.0)
         }
         return request
     }
@@ -180,66 +180,6 @@ final class BalanceProbeClient {
         }
 
         return nil
-    }
-}
-
-private extension Array where Element == Cookie {
-    func mitoriCookieHeader(for url: URL) -> String? {
-        if let header = buildCookieHeader(url).first(where: { $0.0.lowercased() == "cookie" })?.1 {
-            return header
-        }
-
-        // Remove this fallback after the pinned ApplePackage revision includes leading-dot domain matching.
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true),
-              let requestHost = components.host
-        else {
-            return nil
-        }
-
-        let requestPath = components.path.isEmpty ? "/" : components.path
-        let fragments = compactMap { cookie -> String? in
-            guard !cookie.name.isEmpty, !cookie.value.isEmpty else { return nil }
-
-            if let domain = cookie.domain, !domainMatches(domain, requestHost: requestHost) {
-                return nil
-            }
-            guard pathMatches(cookie.path, requestPath: requestPath) else {
-                return nil
-            }
-            if let expiresAt = cookie.expiresAt, expiresAt <= Date().timeIntervalSince1970 {
-                return nil
-            }
-            if cookie.secure, components.scheme != "https" {
-                return nil
-            }
-            return "\(cookie.name)=\(cookie.value)"
-        }
-
-        return fragments.isEmpty ? nil : fragments.joined(separator: "; ")
-    }
-
-    private func domainMatches(_ cookieDomain: String, requestHost: String) -> Bool {
-        let normalizedCookieDomain = cookieDomain
-            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
-            .lowercased()
-        let normalizedRequestHost = requestHost.lowercased()
-
-        return normalizedRequestHost == normalizedCookieDomain ||
-            normalizedRequestHost.hasSuffix("." + normalizedCookieDomain)
-    }
-
-    private func pathMatches(_ cookiePath: String, requestPath: String) -> Bool {
-        if cookiePath == "/" { return true }
-        if requestPath == cookiePath { return true }
-        guard requestPath.hasPrefix(cookiePath) else { return false }
-
-        let nextIndex = cookiePath.endIndex
-        if nextIndex < requestPath.endIndex {
-            let nextChar = requestPath[nextIndex]
-            return cookiePath.hasSuffix("/") || nextChar == "/"
-        }
-
-        return true
     }
 }
 

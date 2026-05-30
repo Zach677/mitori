@@ -13,8 +13,8 @@ let package = Package(
     name: "Mitori",
     dependencies: [
         .package(
-            url: "https://github.com/Lakr233/ApplePackage.git",
-            revision: "fd4860b78eb2db60a0dcbe7e5a6e4a3d2cae004e"
+            url: "https://github.com/Zach677/ApplePackage.git",
+            revision: "6925a6c2459aa649d223051bc6e561cb8b31b2d4"
         ),
         .package(
             url: "https://github.com/kishikawakatsumi/KeychainAccess.git",
