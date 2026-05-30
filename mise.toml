@@ -1,14 +1,38 @@
-[tools]
-tuist = "4.162.1"
+[task_config]
+dir = "{{config_root}}"
+
+[tasks.default]
+description = "Build the macOS app bundle"
+run = [{ task = "build-macos" }]
+
+[tasks.help]
+description = "Show project task help"
+run = "mise tasks"
+
+[tasks.build]
+description = "Alias for build-macos"
+run = [{ task = "build-macos" }]
+
+[tasks.build-macos]
+description = "Build the SwiftPM executable and package a local .app bundle"
+run = "bash scripts/build-macos.sh"
+
+[tasks.run]
+description = "Alias for run-macos"
+run = [{ task = "run-macos" }]
 
 [tasks.run-macos]
-description = "Install deps if needed, ensure Tuist caches are configured, build, and relaunch the macOS debug app"
+description = "Build and relaunch the local macOS app bundle"
 run = "bash scripts/run-macos.sh"
 
+[tasks.test]
+description = "Alias for test-macos"
+run = [{ task = "test-macos" }]
+
 [tasks.test-macos]
-description = "Install deps if needed, ensure Tuist caches are configured, and run macOS tests via Tuist for dashboard upload"
+description = "Run SwiftPM tests"
 run = "bash scripts/test-macos.sh"
 
-[tasks.warm-external-cache]
-description = "Warm Tuist external binary cache, ensure Xcode cache is configured, and refresh the generated workspace if needed"
-run = "bash scripts/warm-external-cache.sh"
+[tasks.clean]
+description = "Remove SwiftPM and app build output"
+run = "rm -rf .build .app-build"

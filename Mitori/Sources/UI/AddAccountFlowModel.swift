@@ -1,9 +1,7 @@
 import ApplePackage
 import Foundation
-import Observation
 
 @MainActor
-@Observable
 final class AddAccountFlowModel {
     struct RecoveryLink: Equatable {
         var title: String

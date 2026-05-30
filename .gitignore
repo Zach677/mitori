@@ -62,19 +62,18 @@ DerivedData/
 *.xcodeproj
 *.xcworkspace
 
-### Tuist derived files ###
+### Local build output ###
 graph.dot
 Derived/
 .xcodebuild/
+.app-build/
 
-### Tuist managed dependencies ###
-Tuist/.build
+### SwiftPM managed dependencies ###
 .build/
 
 ### Local agent state ###
 .codex/
 
-### Repo-local Tuist cache ###
+### Repo-local tool cache ###
 .cache/
-skills/tuist-pr-upgrader/scripts/__pycache__/tuist_pr_upgrader.cpython-312.pyc
-tests/__pycache__/test_tuist_pr_upgrader.cpython-312.pyc
+tests/__pycache__/

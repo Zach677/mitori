@@ -278,10 +278,11 @@ private final class FixtureBundleToken: NSObject {}
 
 private enum FixtureLoader {
     static func data(named resourceName: String) throws -> Data {
-        let bundle = Bundle(for: FixtureBundleToken.self)
         let urls = [
-            bundle.url(forResource: resourceName, withExtension: "plist"),
-            bundle.url(forResource: resourceName, withExtension: "plist", subdirectory: "Fixtures"),
+            Bundle.module.url(forResource: resourceName, withExtension: "plist"),
+            Bundle.module.url(forResource: resourceName, withExtension: "plist", subdirectory: "Fixtures"),
+            Bundle(for: FixtureBundleToken.self).url(forResource: resourceName, withExtension: "plist"),
+            Bundle(for: FixtureBundleToken.self).url(forResource: resourceName, withExtension: "plist", subdirectory: "Fixtures"),
         ]
 
         guard let url = urls.compactMap({ $0 }).first else {

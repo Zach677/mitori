@@ -6,7 +6,8 @@ final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
     private let model = MitoriModel.live()
     private lazy var menuBarController = MenuBarController(model: model)
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    func applicationDidFinishLaunching(_: Notification) {
+        NSApp.setActivationPolicy(.accessory)
         _ = menuBarController
         #if DEBUG
         if ProcessInfo.processInfo.environment["MITORI_OPEN_ADD_ACCOUNT"] == "1" {
@@ -15,5 +16,9 @@ final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         #endif
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
+        false
     }
 }

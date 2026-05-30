@@ -1,10 +1,9 @@
 import AppKit
-import SwiftUI
 
 @MainActor
-final class HostingWindowController: NSWindowController, NSWindowDelegate, WindowVisibilityManaging {
+final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVisibilityManaging {
     private let titleProvider: () -> String
-    private let contentProvider: () -> AnyView
+    private let contentProvider: () -> NSViewController
     private let defaultSize: NSSize
     private let autosaveName: String?
 
@@ -12,7 +11,7 @@ final class HostingWindowController: NSWindowController, NSWindowDelegate, Windo
         title: @escaping () -> String,
         size: NSSize,
         autosaveName: String? = nil,
-        content: @escaping () -> AnyView
+        content: @escaping () -> NSViewController
     ) {
         titleProvider = title
         contentProvider = content
@@ -56,7 +55,7 @@ final class HostingWindowController: NSWindowController, NSWindowDelegate, Windo
 
         let createdWindow = NSWindow(
             contentRect: NSRect(origin: .zero, size: defaultSize),
-            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -64,6 +63,7 @@ final class HostingWindowController: NSWindowController, NSWindowDelegate, Windo
         createdWindow.center()
         createdWindow.delegate = self
         createdWindow.tabbingMode = .disallowed
+        createdWindow.minSize = defaultSize
 
         if let autosaveName {
             createdWindow.setFrameAutosaveName(autosaveName)
@@ -75,16 +75,6 @@ final class HostingWindowController: NSWindowController, NSWindowDelegate, Windo
 
     private func refresh(_ window: NSWindow) {
         window.title = titleProvider()
-
-        if let hostingController = window.contentViewController as? NSHostingController<AnyView> {
-            hostingController.rootView = contentProvider()
-        } else {
-            let hostingController = NSHostingController(rootView: contentProvider())
-            // Let the window track SwiftUI's intrinsic content size so content drives
-            // the window dimensions instead of getting clipped or scrolled inside a
-            // fixed frame.
-            hostingController.sizingOptions = [.intrinsicContentSize]
-            window.contentViewController = hostingController
-        }
+        window.contentViewController = contentProvider()
     }
 }

@@ -4,9 +4,9 @@
 
 **Goal:** Show a brief `halo` floating prompt near the menu bar once on each cold app launch.
 
-**Architecture:** Keep the existing SwiftUI `MenuBarExtra` and add a tiny AppKit overlay path for launch feedback. A `LaunchHaloPresenter` in the app layer owns the one-shot launch rule, while a dedicated window controller renders and dismisses the visual halo.
+**Architecture:** Keep the AppKit `NSStatusItem` menu bar app structure and add a tiny AppKit overlay path for launch feedback. A `LaunchHaloPresenter` in the app layer owns the one-shot launch rule, while a dedicated window controller renders and dismisses the visual halo.
 
-**Tech Stack:** SwiftUI, AppKit, Observation, Swift Testing, Tuist/mise
+**Tech Stack:** AppKit, Swift Testing, SwiftPM/mise
 
 ---
 
@@ -70,7 +70,7 @@ Expected: PASS
 ### Task 2: Build the launch halo overlay and wire app launch
 
 **Files:**
-- Modify: `Mitori/Sources/App/MitoriApp.swift`
+- Modify: `Mitori/Sources/App/MitoriAppDelegate.swift`
 - Modify: `Mitori/Sources/App/LaunchHaloPresenter.swift`
 - Create: `Mitori/Sources/UI/LaunchHaloWindowController.swift`
 
@@ -83,12 +83,12 @@ Create a live presenter factory that uses an AppKit-backed window controller and
 Add a borderless, non-activating floating panel that:
 - positions near the menu bar on the main screen
 - ignores mouse events
-- hosts a SwiftUI capsule with a Messages-like icon and `halo`
+- renders an AppKit capsule with a Messages-like icon and `halo`
 - animates in, pauses about 2.2 seconds, then animates out and closes
 
 - [ ] **Step 3: Wire launch completion**
 
-Attach an `NSApplicationDelegateAdaptor` in `MitoriApp` so `applicationDidFinishLaunching` triggers `presentIfNeeded()`.
+Trigger `presentIfNeeded()` from `MitoriAppDelegate.applicationDidFinishLaunching`.
 
 - [ ] **Step 4: Run focused verification**
 

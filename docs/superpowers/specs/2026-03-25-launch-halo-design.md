@@ -14,15 +14,15 @@
 
 ## Constraints
 
-- Keep the existing `MenuBarExtra` app structure.
+- Keep the existing AppKit `NSStatusItem` menu bar app structure.
 - Avoid notifications because they require separate platform behavior and can feel heavier than the requested effect.
-- Avoid converting the whole menu bar implementation to a custom `NSStatusItem`; that would be disproportionate for this feature.
+- Avoid introducing another menu bar abstraction; the existing `NSStatusItem` path should remain the single owner.
 
 ## Architecture
 
 - Add a small launch-halo presenter in the `App` layer that guarantees single-fire behavior for the current process.
-- Add an AppKit-backed floating overlay window that can host a SwiftUI halo view.
-- Trigger the presenter from `MitoriApp` when the app finishes launching.
+- Add an AppKit-backed floating overlay window that renders the halo view directly.
+- Trigger the presenter from `MitoriAppDelegate` when the app finishes launching.
 - Keep animation and copy in the halo view/controller so the main model stays focused on account/session state.
 
 ## Testing
@@ -32,7 +32,7 @@
 
 ## Files
 
-- Modify `Mitori/Sources/App/MitoriApp.swift`
+- Modify `Mitori/Sources/App/MitoriAppDelegate.swift`
 - Add `Mitori/Sources/App/LaunchHaloPresenter.swift`
 - Add `Mitori/Sources/UI/LaunchHaloWindowController.swift`
 - Add `Mitori/Tests/MitoriCoreTests.swift`

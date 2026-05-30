@@ -1,8 +1,6 @@
 import Foundation
-import Observation
 
 @MainActor
-@Observable
 final class ProbeAppLookupModel {
     private let searchService: any ProbeAppSearching
 

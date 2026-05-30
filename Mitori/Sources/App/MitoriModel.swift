@@ -1,9 +1,7 @@
 import ApplePackage
 import Foundation
-import Observation
 
 @MainActor
-@Observable
 final class MitoriModel {
     private let accountStore: AccountStore
     private let secretStore: SecretStore

@@ -1,13 +1,30 @@
 import AppKit
-import SwiftUI
 
 @MainActor
 final class MenuBarController: NSObject {
     private let model: MitoriModel
     private let statusItem: NSStatusItem
     private let popover: NSPopover
+    private lazy var menuPanelController = MenuPanelViewController(
+        model: model,
+        onAddAccount: { [weak self] in
+            self?.presentAddAccountWindow()
+        },
+        onOpenAccount: { [weak self] accountID in
+            self?.presentAccountDetailWindow(for: accountID)
+        },
+        onQuit: {
+            NSApp.terminate(nil)
+        }
+    )
     private lazy var interactionController: MenuBarInteractionController = {
-        let popoverPresenter = StatusItemPopoverController(statusItem: statusItem, popover: popover)
+        let popoverPresenter = StatusItemPopoverController(
+            statusItem: statusItem,
+            popover: popover,
+            beforePresent: { [weak self] in
+                self?.menuPanelController.prepareForPresentation()
+            }
+        )
         let contextMenuPresenter = StatusItemContextMenuPresenter(
             statusItem: statusItem,
             menuProvider: makeContextMenu
@@ -17,34 +34,30 @@ final class MenuBarController: NSObject {
 
     private var detailAccountID: String?
 
-    private lazy var addAccountWindowController = HostingWindowController(
+    private lazy var addAccountWindowController = AppWindowController(
         title: { "Add Account" },
-        size: NSSize(width: 408, height: 448),
+        size: NSSize(width: 420, height: 520),
         autosaveName: "dev.zach.mitori.add-account"
     ) { [unowned self] in
-        AnyView(
-            AddAccountSheet(
-                model: model,
-                onClose: closeAddAccountWindow
-            )
+        AddAccountViewController(
+            model: model,
+            onClose: closeAddAccountWindow
         )
     }
 
     private lazy var addAccountWindowPresenter = WindowPresentationCoordinator(window: addAccountWindowController)
 
-    private lazy var accountDetailWindowController = HostingWindowController(
+    private lazy var accountDetailWindowController = AppWindowController(
         title: { [unowned self] in
             model.account(with: detailAccountID)?.displayName ?? "Account Details"
         },
-        size: NSSize(width: 440, height: 500),
+        size: NSSize(width: 480, height: 620),
         autosaveName: "dev.zach.mitori.account-detail"
     ) { [unowned self] in
-        AnyView(
-            AccountDetailSheet(
-                model: model,
-                accountID: detailAccountID ?? "",
-                onClose: closeAccountDetailWindow
-            )
+        AccountDetailViewController(
+            model: model,
+            accountID: detailAccountID ?? "",
+            onClose: closeAccountDetailWindow
         )
     }
 
@@ -84,22 +97,8 @@ final class MenuBarController: NSObject {
     private func configurePopover() {
         popover.behavior = .transient
         popover.animates = false
-        popover.contentViewController = NSHostingController(rootView: makeRootMenuBarView())
-    }
-
-    private func makeRootMenuBarView() -> RootMenuBarView {
-        RootMenuBarView(
-            model: model,
-            onAddAccount: { [weak self] in
-                self?.presentAddAccountWindow()
-            },
-            onOpenAccount: { [weak self] accountID in
-                self?.presentAccountDetailWindow(for: accountID)
-            },
-            onQuit: {
-                NSApp.terminate(nil)
-            }
-        )
+        popover.contentSize = NSSize(width: 352, height: 420)
+        popover.contentViewController = menuPanelController
     }
 
     private func makeContextMenu() -> NSMenu {
@@ -148,6 +147,7 @@ final class MenuBarController: NSObject {
 
     private func closeAddAccountWindow() {
         addAccountWindowController.close()
+        menuPanelController.reload()
     }
 
     private func presentAccountDetailWindow(for accountID: String) {
@@ -158,10 +158,11 @@ final class MenuBarController: NSObject {
 
     private func closeAccountDetailWindow() {
         accountDetailWindowController.close()
+        menuPanelController.reload()
     }
 
     @objc
-    private func handleStatusItemClick(_ sender: Any?) {
+    private func handleStatusItemClick(_: Any?) {
         let clickKind: StatusItemClickKind
         switch NSApp.currentEvent?.type {
         case .rightMouseUp:
@@ -174,19 +175,20 @@ final class MenuBarController: NSObject {
     }
 
     @objc
-    private func openAddAccountFromMenu(_ sender: Any?) {
+    private func openAddAccountFromMenu(_: Any?) {
         presentAddAccountWindow()
     }
 
     @objc
-    private func refreshAllFromMenu(_ sender: Any?) {
+    private func refreshAllFromMenu(_: Any?) {
         Task {
             await model.refreshAll()
+            menuPanelController.reload()
         }
     }
 
     @objc
-    private func quitFromMenu(_ sender: Any?) {
+    private func quitFromMenu(_: Any?) {
         NSApp.terminate(nil)
     }
 }
@@ -195,10 +197,12 @@ final class MenuBarController: NSObject {
 private final class StatusItemPopoverController: MenuBarPopoverManaging {
     private let statusItem: NSStatusItem
     private let popover: NSPopover
+    private let beforePresent: () -> Void
 
-    init(statusItem: NSStatusItem, popover: NSPopover) {
+    init(statusItem: NSStatusItem, popover: NSPopover, beforePresent: @escaping () -> Void) {
         self.statusItem = statusItem
         self.popover = popover
+        self.beforePresent = beforePresent
     }
 
     var isPresented: Bool {
@@ -210,6 +214,7 @@ private final class StatusItemPopoverController: MenuBarPopoverManaging {
             return
         }
 
+        beforePresent()
         NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
