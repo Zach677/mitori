@@ -121,6 +121,31 @@ struct MitoriModelTests {
     }
 
     @Test
+    func menuPresentationDoesNotStartKeychainBackedRefresh() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let accountStore = AccountStore(baseDirectory: tempDirectory)
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+        _ = try await accountStore.upsert(meta)
+
+        let model = MitoriModel(
+            accountStore: accountStore,
+            secretStore: SecretStore(backend: InMemorySecretBackend()),
+            sessionBridge: SessionBridgeStub()
+        )
+
+        await model.menuPresented()
+
+        #expect(model.account(with: meta.id) != nil)
+        #expect(model.refreshState(for: meta.id) == .idle)
+        #expect(model.bannerMessage == nil)
+    }
+
+    @Test
     func refreshAccountMarksReturnedIssueAsFailure() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

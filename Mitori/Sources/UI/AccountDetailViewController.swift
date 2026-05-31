@@ -60,7 +60,7 @@ private extension AccountDetailViewController {
 
         contentStack.orientation = .vertical
         contentStack.alignment = .width
-        contentStack.spacing = 16
+        contentStack.spacing = 14
         contentStack.edgeInsets = NSEdgeInsets(top: 22, left: 22, bottom: 22, right: 22)
         contentStack.translatesAutoresizingMaskIntoConstraints = true
         contentStack.autoresizingMask = [.width]
@@ -98,7 +98,9 @@ private extension AccountDetailViewController {
 
         addFullWidth(makeHeader(account), to: contentStack)
         addFullWidth(makeBalanceSection(account), to: contentStack)
+        addFullWidth(separator(), to: contentStack)
         addFullWidth(makeInfoSection(account), to: contentStack)
+        addFullWidth(separator(), to: contentStack)
         addFullWidth(makeProbeSection(account), to: contentStack)
         addFullWidth(makeReauthSection(), to: contentStack)
 
@@ -136,6 +138,7 @@ private extension AccountDetailViewController {
         identity.spacing = 2
         identity.addArrangedSubview(label(account.displayName, size: 15, weight: .medium))
         identity.addArrangedSubview(label(account.email, size: 12, color: .secondaryLabelColor))
+        identity.addArrangedSubview(label(statusTitle(for: account), size: 12, color: statusTint(for: account)))
 
         stack.addArrangedSubview(avatar)
         stack.addArrangedSubview(identity)
@@ -149,14 +152,14 @@ private extension AccountDetailViewController {
         addFullWidth(label(
             account.balanceSnapshot?.displayText ?? "Unavailable",
             size: 28,
-            weight: .semibold,
+            weight: .medium,
             monospaced: true
         ), to: stack)
         if let lastRefresh = account.lastRefreshAt {
             addFullWidth(label(
                 "Updated \(lastRefresh.formatted(date: .abbreviated, time: .shortened))",
-                size: 11,
-                color: .tertiaryLabelColor
+                size: 12,
+                color: .secondaryLabelColor
             ), to: stack)
         }
         return stack
@@ -283,7 +286,15 @@ private extension AccountDetailViewController {
         stack.wantsLayer = true
         stack.layer?.backgroundColor = NSColor.quaternaryLabelColor.withAlphaComponent(0.08).cgColor
         stack.layer?.cornerRadius = 8
+        stack.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.28).cgColor
+        stack.layer?.borderWidth = 0.5
         return stack
+    }
+
+    func separator() -> NSView {
+        let box = NSBox()
+        box.boxType = .separator
+        return box
     }
 
     func detailRow(_ title: String, value: String) -> NSView {
@@ -297,7 +308,7 @@ private extension AccountDetailViewController {
         titleLabel.widthAnchor.constraint(equalToConstant: 92).isActive = true
 
         let valueLabel = label(value, size: 12)
-        valueLabel.alignment = .right
+        valueLabel.alignment = .left
         valueLabel.maximumNumberOfLines = 3
         valueLabel.lineBreakMode = .byTruncatingMiddle
         valueLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -367,6 +378,30 @@ private extension AccountDetailViewController {
             .systemCyan,
         ]
         return colors[abs(account.email.hashValue) % colors.count]
+    }
+
+    func statusTitle(for account: StoredAccountMeta) -> String {
+        switch account.status {
+        case .normal:
+            return "Ready"
+        case .needsVerification:
+            return "Needs verification"
+        case .sessionExpired:
+            return "Session expired"
+        case .attention:
+            return "Needs attention"
+        }
+    }
+
+    func statusTint(for account: StoredAccountMeta) -> NSColor {
+        switch account.status {
+        case .normal:
+            return .secondaryLabelColor
+        case .needsVerification, .attention:
+            return .systemOrange
+        case .sessionExpired:
+            return NSColor.systemRed.blended(withFraction: 0.2, of: .labelColor) ?? .systemRed
+        }
     }
 
     @objc

@@ -46,7 +46,7 @@ private extension AddAccountViewController {
         let root = NSStackView()
         root.orientation = .vertical
         root.alignment = .width
-        root.spacing = 16
+        root.spacing = 14
         root.translatesAutoresizingMaskIntoConstraints = false
 
         addFullWidth(header, to: root)
@@ -54,6 +54,7 @@ private extension AddAccountViewController {
         addFullWidth(makeTwoFactorSection(), to: root)
         addFullWidth(makeProbeSection(), to: root)
         addFullWidth(makeErrorSection(), to: root)
+        root.addArrangedSubview(NSView())
         addFullWidth(makeActionRow(), to: root)
 
         view.addSubview(root)
@@ -61,7 +62,7 @@ private extension AddAccountViewController {
             root.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             root.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
             root.topAnchor.constraint(equalTo: view.topAnchor, constant: 22),
-            root.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -18),
+            root.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -18),
             view.widthAnchor.constraint(equalToConstant: 430),
         ])
     }
@@ -125,6 +126,7 @@ private extension AddAccountViewController {
 
     func makeTwoFactorSection() -> NSView {
         twoFactorSection.orientation = .vertical
+        twoFactorSection.alignment = .width
         twoFactorSection.spacing = 8
 
         let title = fieldLabel("Two-Factor Authentication")
@@ -147,7 +149,7 @@ private extension AddAccountViewController {
         configureField(probeBundleIDField, placeholder: "Owned app bundle ID")
         addFullWidth(probeBundleIDField, to: stack)
 
-        let help = NSTextField(labelWithString: "Apple's balance API requires a bundle ID from an app this account owns. You can add it later.")
+        let help = NSTextField(labelWithString: "Balance refresh needs a bundle ID from an app this account owns. You can add it later.")
         help.font = .systemFont(ofSize: 12)
         help.textColor = .secondaryLabelColor
         help.lineBreakMode = .byWordWrapping
@@ -183,6 +185,7 @@ private extension AddAccountViewController {
         stack.orientation = .horizontal
         stack.alignment = .centerY
         stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
 
         let cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancel))
         cancelButton.bezelStyle = .rounded
@@ -195,6 +198,7 @@ private extension AddAccountViewController {
         stack.addArrangedSubview(NSView())
         stack.addArrangedSubview(cancelButton)
         stack.addArrangedSubview(submitButton)
+        stack.heightAnchor.constraint(greaterThanOrEqualToConstant: 32).isActive = true
         return stack
     }
 

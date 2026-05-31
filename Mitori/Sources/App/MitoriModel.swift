@@ -34,7 +34,6 @@ final class MitoriModel {
             await reloadAccounts()
             hasLoadedAccounts = true
         }
-        await refreshStaleAccountsIfNeeded()
     }
 
     func account(with id: String?) -> StoredAccountMeta? {
@@ -177,16 +176,6 @@ final class MitoriModel {
             backoffInterval(for: normalized.meta.consecutiveFailureCount)
         )
         return normalized
-    }
-
-    private func refreshStaleAccountsIfNeeded() async {
-        let staleAccountIDs = accounts
-            .filter(shouldAutoRefresh(_:))
-            .map(\.id)
-
-        for accountID in staleAccountIDs {
-            await refreshAccount(id: accountID, isManualRefresh: false)
-        }
     }
 
     private func shouldAutoRefresh(_ meta: StoredAccountMeta) -> Bool {

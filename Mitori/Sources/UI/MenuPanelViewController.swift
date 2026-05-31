@@ -3,7 +3,7 @@ import AppKit
 @MainActor
 final class MenuPanelViewController: NSViewController {
     private enum Metrics {
-        static let width: CGFloat = 352
+        static let width: CGFloat = 360
         static let maxScrollHeight: CGFloat = 420
     }
 
@@ -116,6 +116,7 @@ private extension MenuPanelViewController {
         refreshButton.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh All")
         refreshButton.imagePosition = .imageOnly
         refreshButton.isBordered = false
+        refreshButton.controlSize = .small
         refreshButton.focusRingType = .none
         refreshButton.target = self
         refreshButton.action = #selector(refreshAll)
@@ -125,6 +126,7 @@ private extension MenuPanelViewController {
         addButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "Add Account")
         addButton.imagePosition = .imageOnly
         addButton.isBordered = false
+        addButton.controlSize = .small
         addButton.focusRingType = .none
         addButton.target = self
         addButton.action = #selector(addAccount)
@@ -252,8 +254,10 @@ private extension MenuPanelViewController {
 
         [icon, title, subtitle, button].forEach(stack.addArrangedSubview(_:))
         stack.wantsLayer = true
-        stack.layer?.backgroundColor = NSColor.quaternaryLabelColor.withAlphaComponent(0.08).cgColor
+        stack.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.48).cgColor
         stack.layer?.cornerRadius = 8
+        stack.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.32).cgColor
+        stack.layer?.borderWidth = 0.5
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.widthAnchor.constraint(equalToConstant: Metrics.width - 24).isActive = true
         return stack
@@ -280,7 +284,8 @@ private extension MenuPanelViewController {
     func updateAccountDocumentFrame() {
         let documentWidth = Metrics.width
         let fittingHeight = accountsStack.fittingSize.height
-        let visibleHeight = min(max(fittingHeight, 116), Metrics.maxScrollHeight)
+        let minimumHeight: CGFloat = model.accounts.isEmpty ? 116 : 0
+        let visibleHeight = min(max(fittingHeight, minimumHeight), Metrics.maxScrollHeight)
         accountsStack.frame = NSRect(x: 0, y: 0, width: documentWidth, height: fittingHeight)
         accountScrollView.hasVerticalScroller = fittingHeight > Metrics.maxScrollHeight
         accountScrollHeightConstraint?.constant = visibleHeight
@@ -359,13 +364,15 @@ private final class AccountRowView: NSView {
 
     private func configure() {
         wantsLayer = true
-        layer?.backgroundColor = NSColor.quaternaryLabelColor.withAlphaComponent(0.08).cgColor
+        layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.58).cgColor
         layer?.cornerRadius = 8
+        layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.28).cgColor
+        layer?.borderWidth = 0.5
 
         let stack = NSStackView()
         stack.orientation = .vertical
-        stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        stack.spacing = 7
+        stack.edgeInsets = NSEdgeInsets(top: 11, left: 12, bottom: 11, right: 12)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         let top = NSStackView()
@@ -380,11 +387,16 @@ private final class AccountRowView: NSView {
         identity.addArrangedSubview(label(account.displayName, size: 12, weight: .medium))
         identity.addArrangedSubview(label(account.email, size: 11, color: .secondaryLabelColor))
 
-        let status = label(statusTitle, size: 10, weight: .medium, color: statusTint)
+        let status = label(statusTitle, size: 11, weight: .medium, color: statusTint)
+        let chevron = NSImageView()
+        chevron.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
+        chevron.symbolConfiguration = .init(pointSize: 9, weight: .medium)
+        chevron.contentTintColor = .tertiaryLabelColor
         top.addArrangedSubview(avatar)
         top.addArrangedSubview(identity)
         top.addArrangedSubview(NSView())
         top.addArrangedSubview(status)
+        top.addArrangedSubview(chevron)
 
         let divider = NSBox()
         divider.boxType = .separator
@@ -399,8 +411,8 @@ private final class AccountRowView: NSView {
         balanceStack.spacing = 2
         balanceStack.addArrangedSubview(label(
             account.balanceSnapshot?.displayText ?? "-",
-            size: 20,
-            weight: .semibold,
+            size: 21,
+            weight: .medium,
             color: .labelColor,
             monospaced: true
         ))
@@ -425,6 +437,7 @@ private final class AccountRowView: NSView {
             )
             button.imagePosition = .imageOnly
             button.isBordered = false
+            button.controlSize = .small
             button.focusRingType = .none
             button.toolTip = "Refresh"
             button.isEnabled = !isRefreshing
@@ -479,7 +492,7 @@ private final class AccountRowView: NSView {
 
         switch account.status {
         case .normal:
-            return "OK"
+            return "Ready"
         case .needsVerification:
             return "2FA"
         case .sessionExpired:
@@ -496,7 +509,7 @@ private final class AccountRowView: NSView {
 
         switch account.status {
         case .normal:
-            return .systemGreen
+            return .secondaryLabelColor
         case .needsVerification:
             return .systemOrange
         case .sessionExpired:
