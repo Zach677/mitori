@@ -5,8 +5,6 @@ import Testing
 @testable import Mitori
 
 struct AccountStoreTests {
-    private static let legacyDirectoryName = ["Store", "Peek"].joined()
-
     @Test
     func persistsAndDeletesAccounts() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
@@ -27,28 +25,6 @@ struct AccountStoreTests {
         let remainingAccounts = try await store.deleteAccount(id: meta.id)
         #expect(remainingAccounts.isEmpty)
     }
-
-    @Test
-    func migratesLegacyAccountsIntoMitoriDirectory() async throws {
-        let tempDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let legacyDirectory = tempDirectory.appendingPathComponent(Self.legacyDirectoryName, isDirectory: true)
-        let currentDirectory = tempDirectory.appendingPathComponent("Mitori", isDirectory: true)
-        let legacyStore = AccountStore(baseDirectory: legacyDirectory)
-        let meta = StoredAccountMeta(
-            account: sampleAccount(),
-            deviceIdentifier: "ABCDEF123456",
-            probeBundleID: "com.example.probe"
-        )
-
-        _ = try await legacyStore.upsert(meta)
-
-        let store = AccountStore(baseDirectory: currentDirectory, legacyBaseDirectory: legacyDirectory)
-        let loadedAccounts = try await store.loadAccounts()
-
-        #expect(loadedAccounts == [meta])
-        #expect(FileManager.default.fileExists(atPath: currentDirectory.appendingPathComponent("accounts.json").path))
-    }
 }
 
 struct SecretStoreTests {
@@ -62,23 +38,6 @@ struct SecretStoreTests {
         let restored = try await store.loadSecret(for: secret.account.email.lowercased())
 
         #expect(restored == secret)
-    }
-
-    @Test
-    func migratesLegacySecretsIntoMitoriService() async throws {
-        let currentBackend = InMemorySecretBackend()
-        let legacyBackend = InMemorySecretBackend()
-        let legacyStore = SecretStore(backend: legacyBackend)
-        let accountID = sampleAccount().email.lowercased()
-        let secret = StoredAccountSecret(account: sampleAccount())
-
-        try await legacyStore.save(secret, for: accountID)
-
-        let store = SecretStore(backend: currentBackend, legacyBackend: legacyBackend)
-        let restored = try await store.loadSecret(for: accountID)
-
-        #expect(restored == secret)
-        #expect(try currentBackend.data(for: "account.\(accountID)") != nil)
     }
 }
 
@@ -299,21 +258,11 @@ struct BalanceParserTests {
     }
 }
 
-private final class FixtureBundleToken: NSObject {}
-
 private enum FixtureLoader {
     static func data(named resourceName: String) throws -> Data {
-        let urls = [
-            Bundle.module.url(forResource: resourceName, withExtension: "plist"),
-            Bundle.module.url(forResource: resourceName, withExtension: "plist", subdirectory: "Fixtures"),
-            Bundle(for: FixtureBundleToken.self).url(forResource: resourceName, withExtension: "plist"),
-            Bundle(for: FixtureBundleToken.self).url(forResource: resourceName, withExtension: "plist", subdirectory: "Fixtures"),
-        ]
-
-        guard let url = urls.compactMap({ $0 }).first else {
+        guard let url = Bundle.module.url(forResource: resourceName, withExtension: "plist") else {
             throw NSError(domain: "FixtureLoader", code: 404)
         }
-
         return try Data(contentsOf: url)
     }
 }

@@ -25,10 +25,6 @@ final class MitoriModel {
         self.sessionBridge = sessionBridge
     }
 
-    static func live() -> MitoriModel {
-        MitoriModel()
-    }
-
     func menuPresented() async {
         if !hasLoadedAccounts {
             await reloadAccounts()

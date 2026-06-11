@@ -1,8 +1,6 @@
 import Foundation
 import KeychainAccess
 
-private let legacySecretStoreServiceName = ["dev", "zach", ["store", "peek"].joined(), "accounts"].joined(separator: ".")
-
 protocol SecretKeyValueStore {
     func data(for key: String) throws -> Data?
     func set(_ data: Data, for key: String) throws
@@ -47,24 +45,14 @@ final class InMemorySecretBackend: SecretKeyValueStore {
 
 actor SecretStore {
     private let backend: any SecretKeyValueStore
-    private let legacyBackend: (any SecretKeyValueStore)?
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
     init(
         service: String = "dev.zach.mitori.accounts",
-        legacyService: String? = legacySecretStoreServiceName,
-        backend: (any SecretKeyValueStore)? = nil,
-        legacyBackend: (any SecretKeyValueStore)? = nil
+        backend: (any SecretKeyValueStore)? = nil
     ) {
         self.backend = backend ?? KeychainSecretBackend(service: service)
-        if let legacyBackend {
-            self.legacyBackend = legacyBackend
-        } else if backend == nil, let legacyService {
-            self.legacyBackend = KeychainSecretBackend(service: legacyService)
-        } else {
-            self.legacyBackend = nil
-        }
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -74,20 +62,10 @@ actor SecretStore {
     }
 
     func loadSecret(for accountID: String) throws -> StoredAccountSecret? {
-        let key = storageKey(for: accountID)
-
-        if let data = try backend.data(for: key) {
-            return try decodeSecret(from: data)
-        }
-
-        guard let legacyBackend,
-              let legacyData = try legacyBackend.data(for: key)
-        else {
+        guard let data = try backend.data(for: storageKey(for: accountID)) else {
             return nil
         }
-
-        try backend.set(legacyData, for: key)
-        return try decodeSecret(from: legacyData)
+        return try decodeSecret(from: data)
     }
 
     func save(_ secret: StoredAccountSecret, for accountID: String) throws {

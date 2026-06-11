@@ -114,7 +114,6 @@ private extension AddAccountViewController {
         let stack = section(title: "Apple ID")
         configureField(emailField, placeholder: "Email")
         configureField(passwordField, placeholder: "Password")
-        emailField.placeholderString = "Email"
         emailField.target = self
         emailField.action = #selector(focusPassword)
         passwordField.target = self

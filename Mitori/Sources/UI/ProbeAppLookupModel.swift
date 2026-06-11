@@ -13,10 +13,6 @@ final class ProbeAppLookupModel {
         self.searchService = searchService
     }
 
-    var canSearch: Bool {
-        !isSearching && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
     func search(countryCode: String?) async {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else { return }

@@ -34,9 +34,6 @@ let package = Package(
             ],
             sources: [
                 "Sources",
-            ],
-            resources: [
-                .process("Resources"),
             ]
         ),
         .testTarget(

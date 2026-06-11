@@ -3,7 +3,7 @@ import Foundation
 
 @MainActor
 final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
-    private let model = MitoriModel.live()
+    private let model = MitoriModel()
     private lazy var menuBarController = MenuBarController(model: model)
 
     func applicationDidFinishLaunching(_: Notification) {

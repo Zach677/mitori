@@ -5,7 +5,6 @@ struct BalanceSnapshot: Codable, Equatable, Sendable {
     enum Source: String, Codable, Sendable {
         case authentication
         case probe
-        case cached
     }
 
     var displayText: String
