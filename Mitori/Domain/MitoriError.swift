@@ -45,6 +45,9 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
         if normalized.contains("unsupported store identifier") {
             return .unsupportedStorefront(message)
         }
+        if (error as NSError).domain == NSOSStatusErrorDomain {
+            return .storage(message)
+        }
         if normalized.contains("keychain") || normalized.contains("storage") {
             return .storage(message)
         }

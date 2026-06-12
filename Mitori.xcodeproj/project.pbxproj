@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		AA0000000000000000000017 /* ApplePackage in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000015 /* ApplePackage */; };
-		AA0000000000000000000018 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000016 /* KeychainAccess */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,7 +57,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA0000000000000000000017 /* ApplePackage in Frameworks */,
-				AA0000000000000000000018 /* KeychainAccess in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -111,7 +109,6 @@
 			name = Mitori;
 			packageProductDependencies = (
 				AA0000000000000000000015 /* ApplePackage */,
-				AA0000000000000000000016 /* KeychainAccess */,
 			);
 			productName = Mitori;
 			productReference = AA0000000000000000000006 /* Mitori.app */;
@@ -165,7 +162,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				AA0000000000000000000013 /* XCRemoteSwiftPackageReference "ApplePackage" */,
-				AA0000000000000000000014 /* XCRemoteSwiftPackageReference "KeychainAccess" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = AA0000000000000000000005 /* Products */;
@@ -419,14 +415,6 @@
 				revision = 6925a6c2459aa649d223051bc6e561cb8b31b2d4;
 			};
 		};
-		AA0000000000000000000014 /* XCRemoteSwiftPackageReference "KeychainAccess" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kishikawakatsumi/KeychainAccess.git";
-			requirement = {
-				kind = exactVersion;
-				version = 4.2.2;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -434,11 +422,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA0000000000000000000013 /* XCRemoteSwiftPackageReference "ApplePackage" */;
 			productName = ApplePackage;
-		};
-		AA0000000000000000000016 /* KeychainAccess */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AA0000000000000000000014 /* XCRemoteSwiftPackageReference "KeychainAccess" */;
-			productName = KeychainAccess;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

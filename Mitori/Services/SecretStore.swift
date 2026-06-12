@@ -1,5 +1,5 @@
 import Foundation
-import KeychainAccess
+import Security
 
 protocol SecretKeyValueStore {
     func data(for key: String) throws -> Data?
@@ -7,23 +7,74 @@ protocol SecretKeyValueStore {
     func removeValue(for key: String) throws
 }
 
+// Items are standard kSecClassGenericPassword entries keyed by
+// service + account, so secrets written by the previous KeychainAccess
+// backend stay readable without migration.
 final class KeychainSecretBackend: SecretKeyValueStore {
-    private let keychain: Keychain
+    private let service: String
 
     init(service: String) {
-        keychain = Keychain(service: service).synchronizable(false)
+        self.service = service
     }
 
     func data(for key: String) throws -> Data? {
-        try keychain.getData(key)
+        var query = baseQuery(for: key)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        switch status {
+        case errSecSuccess:
+            return result as? Data
+        case errSecItemNotFound:
+            return nil
+        default:
+            throw keychainError(status)
+        }
     }
 
     func set(_ data: Data, for key: String) throws {
-        try keychain.set(data, key: key)
+        var attributes = baseQuery(for: key)
+        attributes[kSecValueData as String] = data
+        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+
+        let status = SecItemAdd(attributes as CFDictionary, nil)
+        if status == errSecDuplicateItem {
+            let update = [kSecValueData as String: data]
+            let updateStatus = SecItemUpdate(baseQuery(for: key) as CFDictionary, update as CFDictionary)
+            guard updateStatus == errSecSuccess else {
+                throw keychainError(updateStatus)
+            }
+            return
+        }
+        guard status == errSecSuccess else {
+            throw keychainError(status)
+        }
     }
 
     func removeValue(for key: String) throws {
-        try keychain.remove(key)
+        let status = SecItemDelete(baseQuery(for: key) as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw keychainError(status)
+        }
+    }
+
+    private func baseQuery(for key: String) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+        ]
+    }
+
+    private func keychainError(_ status: OSStatus) -> Error {
+        let message = SecCopyErrorMessageString(status, nil) as String? ?? "Keychain error \(status)"
+        return NSError(
+            domain: NSOSStatusErrorDomain,
+            code: Int(status),
+            userInfo: [NSLocalizedDescriptionKey: message]
+        )
     }
 }
 

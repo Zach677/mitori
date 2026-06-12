@@ -27,6 +27,29 @@ struct AccountStoreTests {
     }
 }
 
+struct KeychainSecretBackendTests {
+    @Test
+    func roundTripsDataThroughRealKeychain() throws {
+        let backend = KeychainSecretBackend(service: "dev.zach.mitori.tests.\(UUID().uuidString)")
+        let key = "account.demo@example.com"
+        defer { try? backend.removeValue(for: key) }
+
+        #expect(try backend.data(for: key) == nil)
+
+        try backend.set(Data("first".utf8), for: key)
+        #expect(try backend.data(for: key) == Data("first".utf8))
+
+        try backend.set(Data("second".utf8), for: key)
+        #expect(try backend.data(for: key) == Data("second".utf8))
+
+        try backend.removeValue(for: key)
+        #expect(try backend.data(for: key) == nil)
+
+        // Deleting a missing item must stay silent, not throw.
+        try backend.removeValue(for: key)
+    }
+}
+
 struct SecretStoreTests {
     @Test
     func roundTripsSecretsThroughInjectedBackend() async throws {
