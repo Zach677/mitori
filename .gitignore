@@ -51,18 +51,15 @@ DerivedData/
 *.perspectivev3
 !default.perspectivev3
 
-### Projects ###
-*.xcodeproj
-*.xcworkspace
-
 ### Local build output ###
 graph.dot
 Derived/
 .xcodebuild/
 .app-build/
 
-### SwiftPM managed dependencies ###
+### Stale SwiftPM output ###
 .build/
+.swiftpm/
 
 ### Local agent state ###
 .codex/

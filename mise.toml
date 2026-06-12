@@ -14,7 +14,7 @@ description = "Alias for build-macos"
 run = [{ task = "build-macos" }]
 
 [tasks.build-macos]
-description = "Build the SwiftPM executable and package a local .app bundle"
+description = "Build the app with xcodebuild and stage the local .app bundle"
 run = "bash scripts/build-macos.sh"
 
 [tasks.run]
@@ -30,9 +30,9 @@ description = "Alias for test-macos"
 run = [{ task = "test-macos" }]
 
 [tasks.test-macos]
-description = "Run SwiftPM tests"
+description = "Run tests with xcodebuild"
 run = "bash scripts/test-macos.sh"
 
 [tasks.clean]
-description = "Remove SwiftPM and app build output"
-run = "rm -rf .build .app-build"
+description = "Remove local build output and stale SwiftPM/Tuist artifacts"
+run = "rm -rf .build .app-build .xcodebuild Derived .swiftpm .cache/tuist .cache/tuist-state"

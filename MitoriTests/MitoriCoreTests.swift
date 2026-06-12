@@ -392,9 +392,11 @@ struct BalanceParserTests {
     }
 }
 
+private final class FixtureBundleToken {}
+
 private enum FixtureLoader {
     static func data(named resourceName: String) throws -> Data {
-        guard let url = Bundle.module.url(forResource: resourceName, withExtension: "plist") else {
+        guard let url = Bundle(for: FixtureBundleToken.self).url(forResource: resourceName, withExtension: "plist") else {
             throw NSError(domain: "FixtureLoader", code: 404)
         }
         return try Data(contentsOf: url)

@@ -14,10 +14,10 @@ PRODUCT_NAME="Mitori"
 
 case "$CONFIGURATION" in
     debug|Debug)
-        CONFIGURATION="debug"
+        CONFIGURATION="Debug"
         ;;
     release|Release)
-        CONFIGURATION="release"
+        CONFIGURATION="Release"
         ;;
     *)
         echo "Unsupported CONFIGURATION: $CONFIGURATION" >&2
@@ -27,29 +27,20 @@ esac
 
 cd "$ROOT_DIR"
 
-if [[ "$CONFIGURATION" == "release" ]]; then
-    swift build -c release
-    EXECUTABLE_PATH="$(swift build -c release --show-bin-path)/$PRODUCT_NAME"
-else
-    swift build
-    EXECUTABLE_PATH="$(swift build --show-bin-path)/$PRODUCT_NAME"
-fi
+xcodebuild \
+    -project "$PRODUCT_NAME.xcodeproj" \
+    -scheme "$PRODUCT_NAME" \
+    -configuration "$CONFIGURATION" \
+    -derivedDataPath .xcodebuild \
+    -quiet \
+    build
 
-APP_ROOT="$ROOT_DIR/.app-build/$CONFIGURATION/$PRODUCT_NAME.app"
-CONTENTS_DIR="$APP_ROOT/Contents"
-MACOS_DIR="$CONTENTS_DIR/MacOS"
-RESOURCES_DIR="$CONTENTS_DIR/Resources"
+BUILT_APP="$ROOT_DIR/.xcodebuild/Build/Products/$CONFIGURATION/$PRODUCT_NAME.app"
+OUTPUT_CONFIGURATION="$(printf '%s' "$CONFIGURATION" | tr '[:upper:]' '[:lower:]')"
+APP_ROOT="$ROOT_DIR/.app-build/$OUTPUT_CONFIGURATION/$PRODUCT_NAME.app"
 
 rm -rf "$APP_ROOT"
-mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
-
-cp "$EXECUTABLE_PATH" "$MACOS_DIR/$PRODUCT_NAME"
-chmod +x "$MACOS_DIR/$PRODUCT_NAME"
-cp "$ROOT_DIR/Mitori/Resources/Info.plist" "$CONTENTS_DIR/Info.plist"
-
-RESOURCE_BUNDLE="$(dirname "$EXECUTABLE_PATH")/${PRODUCT_NAME}_${PRODUCT_NAME}.bundle"
-if [[ -d "$RESOURCE_BUNDLE" ]]; then
-    cp -R "$RESOURCE_BUNDLE" "$RESOURCES_DIR/"
-fi
+mkdir -p "$(dirname "$APP_ROOT")"
+cp -R "$BUILT_APP" "$APP_ROOT"
 
 echo "$APP_ROOT"

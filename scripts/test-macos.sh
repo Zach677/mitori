@@ -11,4 +11,9 @@ done
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-swift test
+xcodebuild \
+    -project Mitori.xcodeproj \
+    -scheme Mitori \
+    -destination "platform=macOS" \
+    -derivedDataPath .xcodebuild \
+    test
