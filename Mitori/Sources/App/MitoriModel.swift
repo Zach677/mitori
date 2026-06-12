@@ -6,6 +6,7 @@ final class MitoriModel {
     private let accountStore: AccountStore
     private let secretStore: SecretStore
     private let sessionBridge: any AppleSessionBridging
+    private let settings: RefreshSettingsStore
 
     private(set) var accounts: [StoredAccountMeta] = []
     private(set) var refreshStates: [String: RefreshState] = [:]
@@ -18,17 +19,26 @@ final class MitoriModel {
     init(
         accountStore: AccountStore = AccountStore(),
         secretStore: SecretStore = SecretStore(),
-        sessionBridge: any AppleSessionBridging = AppleSessionBridge()
+        sessionBridge: any AppleSessionBridging = AppleSessionBridge(),
+        settings: RefreshSettingsStore = RefreshSettingsStore()
     ) {
         self.accountStore = accountStore
         self.secretStore = secretStore
         self.sessionBridge = sessionBridge
+        self.settings = settings
     }
 
     func menuPresented() async {
-        if !hasLoadedAccounts {
-            await reloadAccounts()
-            hasLoadedAccounts = true
+        await ensureAccountsLoaded()
+    }
+
+    func autoRefreshTick() async {
+        guard settings.isAutoRefreshEnabled else { return }
+        await ensureAccountsLoaded()
+        guard !accounts.isEmpty, !isRefreshingAll else { return }
+
+        for accountID in accounts.map(\.id) {
+            await refreshAccount(id: accountID, isManualRefresh: false)
         }
     }
 
@@ -138,6 +148,13 @@ final class MitoriModel {
         }
     }
 
+    private func ensureAccountsLoaded() async {
+        if !hasLoadedAccounts {
+            await reloadAccounts()
+            hasLoadedAccounts = true
+        }
+    }
+
     private func reloadAccounts() async {
         do {
             accounts = try await accountStore.loadAccounts()
@@ -188,7 +205,7 @@ final class MitoriModel {
             return meta.balanceSnapshot == nil
         }
 
-        return now.timeIntervalSince(lastRefreshAt) >= 15 * 60
+        return now.timeIntervalSince(lastRefreshAt) >= settings.autoRefreshInterval
     }
 
     private func backoffInterval(for failureCount: Int) -> TimeInterval {

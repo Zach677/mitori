@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class MenuBarController: NSObject {
     private let model: MitoriModel
+    private let settings: RefreshSettingsStore
     private let statusItem: NSStatusItem
     private let popover: NSPopover
     private lazy var menuPanelController = MenuPanelViewController(
@@ -63,8 +64,19 @@ final class MenuBarController: NSObject {
 
     private lazy var accountDetailWindowPresenter = WindowPresentationCoordinator(window: accountDetailWindowController)
 
-    init(model: MitoriModel) {
+    private lazy var settingsWindowController = AppWindowController(
+        title: { "Settings" },
+        size: NSSize(width: 380, height: 190),
+        autosaveName: "dev.zach.mitori.settings"
+    ) { [unowned self] in
+        SettingsViewController(settings: settings)
+    }
+
+    private lazy var settingsWindowPresenter = WindowPresentationCoordinator(window: settingsWindowController)
+
+    init(model: MitoriModel, settings: RefreshSettingsStore) {
         self.model = model
+        self.settings = settings
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         popover = NSPopover()
 
@@ -123,6 +135,16 @@ final class MenuBarController: NSObject {
 
         menu.addItem(.separator())
 
+        let settingsItem = NSMenuItem(
+            title: "Settings...",
+            action: #selector(openSettingsFromMenu(_:)),
+            keyEquivalent: ""
+        )
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
+        menu.addItem(.separator())
+
         let quitItem = NSMenuItem(
             title: "Quit Mitori",
             action: #selector(quitFromMenu(_:)),
@@ -143,11 +165,24 @@ final class MenuBarController: NSObject {
     func presentAddAccountWindowForDebugging() {
         presentAddAccountWindow()
     }
+
+    func presentSettingsWindowForDebugging() {
+        presentSettingsWindow()
+    }
     #endif
 
     private func closeAddAccountWindow() {
         addAccountWindowController.close()
         menuPanelController.reload()
+    }
+
+    func reloadPanel() {
+        menuPanelController.reload()
+    }
+
+    private func presentSettingsWindow() {
+        popover.performClose(nil)
+        settingsWindowPresenter.present()
     }
 
     private func presentAccountDetailWindow(for accountID: String) {
@@ -177,6 +212,11 @@ final class MenuBarController: NSObject {
     @objc
     private func openAddAccountFromMenu(_: Any?) {
         presentAddAccountWindow()
+    }
+
+    @objc
+    private func openSettingsFromMenu(_: Any?) {
+        presentSettingsWindow()
     }
 
     @objc
