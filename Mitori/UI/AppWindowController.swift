@@ -6,17 +6,21 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
     private let contentProvider: () -> NSViewController
     private let defaultSize: NSSize
     private let autosaveName: String?
+    private let windowLevel: NSWindow.Level
+    private var currentViewController: NSViewController?
 
     init(
         title: @escaping () -> String,
         size: NSSize,
         autosaveName: String? = nil,
+        windowLevel: NSWindow.Level = .normal,
         content: @escaping () -> NSViewController
     ) {
         titleProvider = title
         contentProvider = content
         defaultSize = size
         self.autosaveName = autosaveName
+        self.windowLevel = windowLevel
         super.init(window: nil)
     }
 
@@ -55,7 +59,7 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
 
         let createdWindow = NSWindow(
             contentRect: NSRect(origin: .zero, size: defaultSize),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -64,10 +68,17 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         createdWindow.delegate = self
         createdWindow.tabbingMode = .disallowed
         createdWindow.minSize = defaultSize
+        createdWindow.level = windowLevel
+        createdWindow.isOpaque = false
+        createdWindow.backgroundColor = .clear
+        createdWindow.hasShadow = true
+        createdWindow.titlebarAppearsTransparent = true
+        createdWindow.titleVisibility = .hidden
 
         if let autosaveName {
             createdWindow.setFrameAutosaveName(autosaveName)
         }
+        createdWindow.setContentSize(defaultSize)
 
         window = createdWindow
         return createdWindow
@@ -75,6 +86,10 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
 
     private func refresh(_ window: NSWindow) {
         window.title = titleProvider()
-        window.contentViewController = contentProvider()
+        let vc = contentProvider()
+        currentViewController = vc
+        let glass = NSGlassEffectView()
+        glass.contentView = vc.view
+        window.contentView = glass
     }
 }
