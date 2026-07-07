@@ -37,7 +37,7 @@ final class KeychainSecretBackend: SecretKeyValueStore {
     func set(_ data: Data, for key: String) throws {
         var attributes = baseQuery(for: key)
         attributes[kSecValueData as String] = data
-        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
 
         let status = SecItemAdd(attributes as CFDictionary, nil)
         if status == errSecDuplicateItem {

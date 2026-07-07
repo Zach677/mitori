@@ -1,4 +1,5 @@
 import ApplePackage
+import CoreGraphics
 import Foundation
 
 @MainActor
@@ -34,6 +35,7 @@ final class MitoriModel {
 
     func autoRefreshTick() async {
         guard settings.isAutoRefreshEnabled else { return }
+        guard !isScreenLocked() else { return }
         await ensureAccountsLoaded()
         guard !accounts.isEmpty, !isRefreshingAll else { return }
 
@@ -189,6 +191,12 @@ final class MitoriModel {
             backoffInterval(for: normalized.meta.consecutiveFailureCount)
         )
         return normalized
+    }
+
+    private func isScreenLocked() -> Bool {
+        guard let dict = CGSessionCopyCurrentDictionary() as? [String: Any] else { return true }
+        // kCGSSessionOnConsoleKey is not Swift-exported; use its stable string value.
+        return !(dict["kCGSSessionOnConsoleKey"] as? Bool ?? true)
     }
 
     private func shouldAutoRefresh(_ meta: StoredAccountMeta) -> Bool {
