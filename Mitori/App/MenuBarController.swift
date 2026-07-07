@@ -38,7 +38,8 @@ final class MenuBarController: NSObject {
     private lazy var addAccountWindowController = AppWindowController(
         title: { "Add Account" },
         size: NSSize(width: 430, height: 430),
-        autosaveName: "dev.zach.mitori.add-account"
+        autosaveName: "dev.zach.mitori.add-account",
+        windowLevel: .floating
     ) { [unowned self] in
         AddAccountViewController(
             model: model,
@@ -52,8 +53,9 @@ final class MenuBarController: NSObject {
         title: { [unowned self] in
             model.account(with: detailAccountID)?.displayName ?? "Account Details"
         },
-        size: NSSize(width: 500, height: 620),
-        autosaveName: "dev.zach.mitori.account-detail"
+        size: NSSize(width: 500, height: 580),
+        autosaveName: "dev.zach.mitori.account-detail",
+        windowLevel: .floating
     ) { [unowned self] in
         AccountDetailViewController(
             model: model,
@@ -194,6 +196,14 @@ final class MenuBarController: NSObject {
     private func closeAccountDetailWindow() {
         accountDetailWindowController.close()
         menuPanelController.reload()
+        guard let button = statusItem.button else { return }
+        menuPanelController.prepareForPresentation()
+        if let preferredContentSize = popover.contentViewController?.preferredContentSize,
+           preferredContentSize != .zero {
+            popover.contentSize = preferredContentSize
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
 
     @objc
