@@ -47,34 +47,26 @@ final class AccountDetailViewController: NSViewController {
 
     override func viewDidLayout() {
         super.viewDidLayout()
-        updateDocumentFrame()
     }
 }
 
 private extension AccountDetailViewController {
     func configureLayout() {
-        scrollView.hasVerticalScroller = false
-        scrollView.drawsBackground = false
-        scrollView.borderType = .noBorder
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-
         contentStack.orientation = .vertical
         contentStack.alignment = .width
-        contentStack.spacing = 14
-        contentStack.edgeInsets = NSEdgeInsets(top: 22, left: 22, bottom: 22, right: 22)
-        contentStack.translatesAutoresizingMaskIntoConstraints = true
-        contentStack.autoresizingMask = [.width]
+        contentStack.spacing = 24
+        contentStack.edgeInsets = NSEdgeInsets(top: 24, left: 24, bottom: 16, right: 24)
+        contentStack.translatesAutoresizingMaskIntoConstraints = false
 
-        scrollView.documentView = contentStack
-        view.addSubview(scrollView)
+        view.addSubview(contentStack)
 
         configureErrorLabel()
 
         NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            contentStack.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            contentStack.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            contentStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            contentStack.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor),
             view.widthAnchor.constraint(equalToConstant: 500),
             view.heightAnchor.constraint(greaterThanOrEqualToConstant: 520),
         ])
@@ -88,7 +80,6 @@ private extension AccountDetailViewController {
 
         guard let account else {
             addFullWidth(label("Account removed", size: 14, weight: .medium), to: contentStack)
-            updateDocumentFrame()
             return
         }
 
@@ -96,21 +87,16 @@ private extension AccountDetailViewController {
             probeBundleIDField.stringValue = account.probeBundleID
         }
 
-        addFullWidth(makeHeader(account), to: contentStack)
         addFullWidth(makeBalanceSection(account), to: contentStack)
-        addFullWidth(separator(), to: contentStack)
         addFullWidth(makeInfoSection(account), to: contentStack)
-        addFullWidth(separator(), to: contentStack)
-        addFullWidth(makeProbeSection(account), to: contentStack)
         addFullWidth(makeReauthSection(), to: contentStack)
+        addFullWidth(makeProbeSection(account), to: contentStack)
 
         errorLabel.stringValue = errorMessage ?? ""
         errorLabel.isHidden = errorMessage == nil
         if errorMessage != nil {
             addFullWidth(errorLabel, to: contentStack)
         }
-        addFullWidth(makeActionsSection(), to: contentStack)
-        updateDocumentFrame()
     }
 
     func makeHeader(_ account: StoredAccountMeta) -> NSView {
@@ -119,47 +105,36 @@ private extension AccountDetailViewController {
         stack.alignment = .centerY
         stack.spacing = 12
 
-        let avatar = NSTextField(labelWithString: String(account.displayName.prefix(1)).uppercased())
-        avatar.font = .systemFont(ofSize: 18, weight: .medium)
-        avatar.textColor = .white
-        avatar.alignment = .center
-        avatar.wantsLayer = true
-        avatar.layer?.backgroundColor = avatarColor(for: account).cgColor
-        avatar.layer?.cornerRadius = 10
-        avatar.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            avatar.widthAnchor.constraint(equalToConstant: 40),
-            avatar.heightAnchor.constraint(equalToConstant: 40),
-        ])
-
         let identity = NSStackView()
         identity.orientation = .vertical
-        identity.alignment = .width
+        identity.alignment = .leading
         identity.spacing = 2
-        identity.addArrangedSubview(label(account.displayName, size: 15, weight: .medium))
-        identity.addArrangedSubview(label(account.email, size: 12, color: .secondaryLabelColor))
-        identity.addArrangedSubview(label(statusTitle(for: account), size: 12, color: statusTint(for: account)))
+        identity.addArrangedSubview(label(account.displayName, size: 14, weight: .semibold))
+        identity.addArrangedSubview(label(account.email, size: 11, color: .secondaryLabelColor))
+        identity.addArrangedSubview(label(statusTitle(for: account), size: 11, color: statusTint(for: account)))
 
-        stack.addArrangedSubview(avatar)
         stack.addArrangedSubview(identity)
         stack.addArrangedSubview(NSView())
         return stack
     }
 
     func makeBalanceSection(_ account: StoredAccountMeta) -> NSView {
-        let stack = boxedStack()
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .width
+        stack.spacing = 8
         addFullWidth(label("Balance", size: 11, weight: .medium, color: .secondaryLabelColor), to: stack)
         addFullWidth(label(
             account.balanceSnapshot?.displayText ?? "Unavailable",
-            size: 28,
+            size: 18,
             weight: .medium,
             monospaced: true
         ), to: stack)
         if let lastRefresh = account.lastRefreshAt {
             addFullWidth(label(
                 "Updated \(lastRefresh.formatted(date: .abbreviated, time: .shortened))",
-                size: 12,
-                color: .secondaryLabelColor
+                size: 11,
+                color: .tertiaryLabelColor
             ), to: stack)
         }
         return stack
@@ -171,12 +146,12 @@ private extension AccountDetailViewController {
         addFullWidth(detailRow("Region", value: account.regionLabel.isEmpty ? "Unknown" : account.regionLabel), to: stack)
         addFullWidth(detailRow("Pod", value: account.pod ?? "Unavailable"), to: stack)
         addFullWidth(detailRow("Credentials", value: "Stored in Keychain"), to: stack)
-        addFullWidth(detailRow("Device ID", value: String(account.deviceIdentifier.prefix(12)) + "..."), to: stack)
+        addFullWidth(detailRow("Device ID", value: String(account.deviceIdentifier.prefix(12)) + "…"), to: stack)
         return stack
     }
 
     func makeProbeSection(_ account: StoredAccountMeta) -> NSView {
-        let stack = section(title: "Probe Bundle ID")
+        let stack = section(title: "Probe App")
         probeBundleIDField.placeholderString = "Owned app bundle ID"
         probeBundleIDField.font = .systemFont(ofSize: 13)
         addFullWidth(probeBundleIDField, to: stack)
@@ -193,12 +168,14 @@ private extension AccountDetailViewController {
 
         let searchButton = NSButton(title: "Search", target: self, action: #selector(searchProbeApps))
         searchButton.bezelStyle = .rounded
+        searchButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+        searchButton.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         searchRow.addArrangedSubview(probeSearchField)
         searchRow.addArrangedSubview(searchButton)
         addFullWidth(searchRow, to: stack)
 
         if let searchError = probeLookup.errorMessage {
-            addFullWidth(label(searchError, size: 11, color: .systemOrange), to: stack)
+            addFullWidth(label(searchError, size: 11, color: NSColor.systemOrange.blended(withFraction: 0.3, of: .labelColor) ?? .systemOrange), to: stack)
         }
 
         probeResultsStack.orientation = .vertical
@@ -214,13 +191,32 @@ private extension AccountDetailViewController {
             addFullWidth(probeResultsStack, to: stack)
         }
 
-        addFullWidth(label("Pick any app this Apple ID already owns in \(account.countryCode ?? "US").", size: 12, color: .secondaryLabelColor), to: stack)
+        addFullWidth(label("Pick any app this Apple ID already owns in \(account.countryCode ?? "US").", size: 11, color: .secondaryLabelColor), to: stack)
 
         saveProbeButton.target = self
         saveProbeButton.action = #selector(saveProbeBundleID)
         saveProbeButton.bezelStyle = .rounded
         saveProbeButton.isEnabled = !isSavingProbe
-        addFullWidth(buttonRow(trailing: saveProbeButton), to: stack)
+        saveProbeButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        deleteButton.target = self
+        deleteButton.action = #selector(deleteAccount)
+        deleteButton.bezelStyle = .rounded
+        deleteButton.contentTintColor = NSColor.systemRed.blended(withFraction: 0.25, of: .labelColor)
+        deleteButton.isEnabled = !isDeleting
+        deleteButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        let actionRow = NSStackView()
+        actionRow.orientation = .horizontal
+        actionRow.alignment = .centerY
+        actionRow.spacing = 8
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        spacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        actionRow.addArrangedSubview(spacer)
+        actionRow.addArrangedSubview(deleteButton)
+        actionRow.addArrangedSubview(saveProbeButton)
+        addFullWidth(actionRow, to: stack)
         return stack
     }
 
@@ -250,7 +246,7 @@ private extension AccountDetailViewController {
         deleteButton.target = self
         deleteButton.action = #selector(deleteAccount)
         deleteButton.bezelStyle = .rounded
-        deleteButton.contentTintColor = NSColor.systemRed.blended(withFraction: 0.2, of: .labelColor)
+        deleteButton.contentTintColor = NSColor.systemRed.blended(withFraction: 0.25, of: .labelColor)
         deleteButton.isEnabled = !isDeleting
 
         row.addArrangedSubview(refreshButton)
@@ -273,21 +269,7 @@ private extension AccountDetailViewController {
         stack.orientation = .vertical
         stack.alignment = .width
         stack.spacing = 8
-        addFullWidth(label(title, size: 12, weight: .medium, color: .secondaryLabelColor), to: stack)
-        return stack
-    }
-
-    func boxedStack() -> NSStackView {
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .width
-        stack.spacing = 6
-        stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
-        stack.wantsLayer = true
-        stack.layer?.backgroundColor = NSColor.quaternaryLabelColor.withAlphaComponent(0.08).cgColor
-        stack.layer?.cornerRadius = 8
-        stack.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.28).cgColor
-        stack.layer?.borderWidth = 0.5
+        addFullWidth(label(title, size: 11, weight: .medium, color: .secondaryLabelColor), to: stack)
         return stack
     }
 
@@ -300,12 +282,13 @@ private extension AccountDetailViewController {
     func detailRow(_ title: String, value: String) -> NSView {
         let row = NSStackView()
         row.orientation = .horizontal
-        row.alignment = .top
+        row.alignment = .firstBaseline
         row.spacing = 12
 
         let titleLabel = label(title, size: 12, color: .secondaryLabelColor)
+        titleLabel.alignment = .right
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.widthAnchor.constraint(equalToConstant: 92).isActive = true
+        titleLabel.widthAnchor.constraint(equalToConstant: 100).isActive = true
 
         let valueLabel = label(value, size: 12)
         valueLabel.alignment = .left
@@ -322,14 +305,18 @@ private extension AccountDetailViewController {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.addArrangedSubview(NSView())
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        spacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        button.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        row.addArrangedSubview(spacer)
         row.addArrangedSubview(button)
         return row
     }
 
     func configureErrorLabel() {
         errorLabel.font = .systemFont(ofSize: 12)
-        errorLabel.textColor = NSColor.systemRed.blended(withFraction: 0.15, of: .labelColor)
+        errorLabel.textColor = NSColor.systemRed.blended(withFraction: 0.25, of: .labelColor)
         errorLabel.lineBreakMode = .byWordWrapping
         errorLabel.maximumNumberOfLines = 4
         errorLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -337,9 +324,10 @@ private extension AccountDetailViewController {
 
     func updateDocumentFrame() {
         let width = max(view.bounds.width, 500)
-        let height = max(contentStack.fittingSize.height, view.bounds.height)
-        contentStack.frame = NSRect(x: 0, y: 0, width: width, height: height)
-        scrollView.hasVerticalScroller = contentStack.fittingSize.height > scrollView.contentSize.height
+        let fittingHeight = contentStack.fittingSize.height
+        let viewHeight = scrollView.contentView.bounds.height
+        let y = max(0, viewHeight - fittingHeight)
+        contentStack.frame = NSRect(x: 0, y: y, width: width, height: fittingHeight)
     }
 
     func addFullWidth(_ view: NSView, to stack: NSStackView) {
@@ -398,9 +386,9 @@ private extension AccountDetailViewController {
         case .normal:
             return .secondaryLabelColor
         case .needsVerification, .attention:
-            return .systemOrange
+            return NSColor.systemOrange.blended(withFraction: 0.3, of: .labelColor) ?? .systemOrange
         case .sessionExpired:
-            return NSColor.systemRed.blended(withFraction: 0.2, of: .labelColor) ?? .systemRed
+            return NSColor.systemRed.blended(withFraction: 0.25, of: .labelColor) ?? .systemRed
         }
     }
 
@@ -410,15 +398,16 @@ private extension AccountDetailViewController {
         isSavingProbe = true
         reload()
 
-        Task {
+        Task { [weak self] in
+            guard let self else { return }
             do {
                 try await model.saveProbeBundleID(probeBundleIDField.stringValue, for: accountID)
-                reload()
+                onClose()
             } catch {
                 reload(errorMessage: MitoriError.map(error).localizedDescription)
+                isSavingProbe = false
+                reload()
             }
-            isSavingProbe = false
-            reload()
         }
     }
 

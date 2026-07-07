@@ -11,7 +11,6 @@ final class AddAccountFlowModel {
     var email = ""
     var password = ""
     var verificationCode = ""
-    var probeBundleID = ""
     var errorMessage: String?
     var recoveryLink: RecoveryLink?
     var isSubmitting = false

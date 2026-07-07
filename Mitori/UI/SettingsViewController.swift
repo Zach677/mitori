@@ -76,7 +76,7 @@ private extension SettingsViewController {
         NSLayoutConstraint.activate([
             root.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 22),
             root.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -22),
-            root.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
+            root.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
             root.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -20),
             view.widthAnchor.constraint(equalToConstant: 380),
             view.heightAnchor.constraint(greaterThanOrEqualToConstant: 170),

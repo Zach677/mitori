@@ -80,6 +80,7 @@ private extension MenuPanelViewController {
         ])
 
         contentStack.addArrangedSubview(makeHeader())
+        contentStack.addArrangedSubview(makeSeparator())
         contentStack.addArrangedSubview(configureAccountScrollView())
 
         bannerLabel.font = .systemFont(ofSize: 11)
@@ -87,8 +88,9 @@ private extension MenuPanelViewController {
         bannerLabel.lineBreakMode = .byWordWrapping
         bannerLabel.maximumNumberOfLines = 2
         bannerLabel.translatesAutoresizingMaskIntoConstraints = false
-        contentStack.addArrangedSubview(wrapped(bannerLabel, horizontal: 16, vertical: 4))
+        contentStack.addArrangedSubview(wrapped(bannerLabel, horizontal: 16, vertical: 6))
 
+        contentStack.addArrangedSubview(makeSeparator())
         contentStack.addArrangedSubview(makeFooter())
     }
 
@@ -100,18 +102,8 @@ private extension MenuPanelViewController {
         stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let icon = NSImageView()
-        icon.image = NSImage(systemSymbolName: "creditcard.and.123", accessibilityDescription: "Mitori")
-        icon.symbolConfiguration = .init(pointSize: 14, weight: .medium)
-        icon.contentTintColor = .controlAccentColor
-
         let title = NSTextField(labelWithString: "Mitori")
-        title.font = .systemFont(ofSize: 14, weight: .medium)
-
-        let titleStack = NSStackView(views: [icon, title])
-        titleStack.orientation = .horizontal
-        titleStack.alignment = .centerY
-        titleStack.spacing = 8
+        title.font = .systemFont(ofSize: 13, weight: .semibold)
 
         refreshButton.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh All")
         refreshButton.imagePosition = .imageOnly
@@ -132,7 +124,7 @@ private extension MenuPanelViewController {
         addButton.action = #selector(addAccount)
         addButton.toolTip = "Add Account"
 
-        stack.addArrangedSubview(titleStack)
+        stack.addArrangedSubview(title)
         stack.addArrangedSubview(NSView())
         stack.addArrangedSubview(refreshButton)
         stack.addArrangedSubview(addButton)
@@ -141,10 +133,10 @@ private extension MenuPanelViewController {
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 16),
             stack.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -16),
-            stack.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 14),
+            stack.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 12),
             stack.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor, constant: -10),
-            refreshButton.widthAnchor.constraint(equalToConstant: 28),
-            addButton.widthAnchor.constraint(equalToConstant: 28),
+            refreshButton.widthAnchor.constraint(equalToConstant: 24),
+            addButton.widthAnchor.constraint(equalToConstant: 24),
         ])
 
         return wrapper
@@ -153,8 +145,7 @@ private extension MenuPanelViewController {
     func configureAccountScrollView() -> NSView {
         accountsStack.orientation = .vertical
         accountsStack.alignment = .width
-        accountsStack.spacing = 8
-        accountsStack.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 4, right: 12)
+        accountsStack.spacing = 0
         accountsStack.translatesAutoresizingMaskIntoConstraints = true
 
         accountScrollView.hasVerticalScroller = false
@@ -179,7 +170,7 @@ private extension MenuPanelViewController {
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         summaryLabel.font = .systemFont(ofSize: 11)
-        summaryLabel.textColor = .tertiaryLabelColor
+        summaryLabel.textColor = .secondaryLabelColor
 
         let quitButton = NSButton(title: "Quit", target: self, action: #selector(quit))
         quitButton.bezelStyle = .inline
@@ -193,7 +184,7 @@ private extension MenuPanelViewController {
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 16),
             stack.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -16),
-            stack.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 10),
+            stack.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 8),
             stack.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor, constant: -10),
         ])
 
@@ -212,7 +203,7 @@ private extension MenuPanelViewController {
             return
         }
 
-        for account in model.accounts {
+        for (index, account) in model.accounts.enumerated() {
             accountsStack.addArrangedSubview(AccountRowView(
                 account: account,
                 refreshState: model.refreshState(for: account.id),
@@ -223,6 +214,9 @@ private extension MenuPanelViewController {
                     self?.refreshAccount(account.id)
                 }
             ))
+            if index < model.accounts.count - 1 {
+                accountsStack.addArrangedSubview(makeRowSeparator())
+            }
         }
         updateAccountDocumentFrame()
     }
@@ -231,18 +225,13 @@ private extension MenuPanelViewController {
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .centerX
-        stack.spacing = 10
-        stack.edgeInsets = NSEdgeInsets(top: 24, left: 12, bottom: 24, right: 12)
-
-        let icon = NSImageView()
-        icon.image = NSImage(systemSymbolName: "person.crop.circle.badge.plus", accessibilityDescription: nil)
-        icon.symbolConfiguration = .init(pointSize: 30, weight: .light)
-        icon.contentTintColor = .tertiaryLabelColor
+        stack.spacing = 8
+        stack.edgeInsets = NSEdgeInsets(top: 28, left: 16, bottom: 28, right: 16)
 
         let title = NSTextField(labelWithString: "No accounts yet")
         title.font = .systemFont(ofSize: 13, weight: .medium)
 
-        let subtitle = NSTextField(labelWithString: "Add an Apple ID to start tracking balances.")
+        let subtitle = NSTextField(wrappingLabelWithString: "Add an Apple ID to start tracking balances.")
         subtitle.font = .systemFont(ofSize: 12)
         subtitle.textColor = .secondaryLabelColor
         subtitle.alignment = .center
@@ -252,14 +241,9 @@ private extension MenuPanelViewController {
         button.bezelStyle = .rounded
         button.controlSize = .small
 
-        [icon, title, subtitle, button].forEach(stack.addArrangedSubview(_:))
-        stack.wantsLayer = true
-        stack.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.48).cgColor
-        stack.layer?.cornerRadius = 8
-        stack.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.32).cgColor
-        stack.layer?.borderWidth = 0.5
+        [title, subtitle, button].forEach(stack.addArrangedSubview(_:))
         stack.translatesAutoresizingMaskIntoConstraints = false
-        stack.widthAnchor.constraint(equalToConstant: Metrics.width - 24).isActive = true
+        stack.widthAnchor.constraint(equalToConstant: Metrics.width - 32).isActive = true
         return stack
     }
 
@@ -284,17 +268,39 @@ private extension MenuPanelViewController {
     func updateAccountDocumentFrame() {
         let documentWidth = Metrics.width
         let fittingHeight = accountsStack.fittingSize.height
-        let minimumHeight: CGFloat = model.accounts.isEmpty ? 116 : 0
+        let minimumHeight: CGFloat = model.accounts.isEmpty ? 120 : 0
         let visibleHeight = min(max(fittingHeight, minimumHeight), Metrics.maxScrollHeight)
         accountsStack.frame = NSRect(x: 0, y: 0, width: documentWidth, height: fittingHeight)
-        accountScrollView.hasVerticalScroller = fittingHeight > Metrics.maxScrollHeight
         accountScrollHeightConstraint?.constant = visibleHeight
     }
 
     func updatePanelSize() {
         view.layoutSubtreeIfNeeded()
-        let height = min(max(contentStack.fittingSize.height, 180), 560)
+        let height = min(max(contentStack.fittingSize.height, 160), 540)
         preferredContentSize = NSSize(width: Metrics.width, height: height)
+    }
+
+    func makeSeparator() -> NSView {
+        let line = NSBox()
+        line.boxType = .separator
+        line.translatesAutoresizingMaskIntoConstraints = false
+        return line
+    }
+
+    func makeRowSeparator() -> NSView {
+        let wrapper = NSView()
+        let line = NSBox()
+        line.boxType = .separator
+        line.translatesAutoresizingMaskIntoConstraints = false
+        wrapper.addSubview(line)
+        NSLayoutConstraint.activate([
+            line.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 14),
+            line.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -14),
+            line.topAnchor.constraint(equalTo: wrapper.topAnchor),
+            line.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor),
+            wrapper.heightAnchor.constraint(equalToConstant: 1),
+        ])
+        return wrapper
     }
 
     func wrapped(_ view: NSView, horizontal: CGFloat, vertical: CGFloat) -> NSView {
@@ -363,97 +369,35 @@ private final class AccountRowView: NSView {
     }
 
     private func configure() {
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.58).cgColor
-        layer?.cornerRadius = 8
-        layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.28).cgColor
-        layer?.borderWidth = 0.5
-
         let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.spacing = 7
-        stack.edgeInsets = NSEdgeInsets(top: 11, left: 12, bottom: 11, right: 12)
+        stack.orientation = .horizontal
+        stack.alignment = .centerY
+        stack.spacing = 10
+        stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let top = NSStackView()
-        top.orientation = .horizontal
-        top.alignment = .centerY
-        top.spacing = 8
-
-        let avatar = makeAvatar()
         let identity = NSStackView()
         identity.orientation = .vertical
+        identity.alignment = .leading
         identity.spacing = 1
         identity.addArrangedSubview(label(account.displayName, size: 12, weight: .medium))
         identity.addArrangedSubview(label(account.email, size: 11, color: .secondaryLabelColor))
 
-        let status = label(statusTitle, size: 11, weight: .medium, color: statusTint)
-        let chevron = NSImageView()
-        chevron.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
-        chevron.symbolConfiguration = .init(pointSize: 9, weight: .medium)
-        chevron.contentTintColor = .tertiaryLabelColor
-        top.addArrangedSubview(avatar)
-        top.addArrangedSubview(identity)
-        top.addArrangedSubview(NSView())
-        top.addArrangedSubview(status)
-        top.addArrangedSubview(chevron)
-
-        let divider = NSBox()
-        divider.boxType = .separator
-
-        let bottom = NSStackView()
-        bottom.orientation = .horizontal
-        bottom.alignment = .centerY
-        bottom.spacing = 8
-
-        let balanceStack = NSStackView()
-        balanceStack.orientation = .vertical
-        balanceStack.spacing = 2
-        balanceStack.addArrangedSubview(label(
-            account.balanceSnapshot?.displayText ?? "-",
-            size: 21,
-            weight: .medium,
-            color: .labelColor,
-            monospaced: true
-        ))
-        if !account.regionLabel.isEmpty {
-            balanceStack.addArrangedSubview(label(account.regionLabel, size: 11, color: .tertiaryLabelColor))
+        let trailing = NSStackView()
+        trailing.orientation = .vertical
+        trailing.alignment = .trailing
+        trailing.spacing = 1
+        trailing.addArrangedSubview(balanceLabel)
+        if let hint {
+            trailing.addArrangedSubview(label(hint, size: 11, color: hintColor))
         }
 
-        let button = NSButton(
-            title: account.requiresProbeConfiguration ? "Configure" : "",
-            target: self,
-            action: #selector(refresh)
-        )
-        if account.requiresProbeConfiguration {
-            button.target = self
-            button.action = #selector(open)
-            button.bezelStyle = .rounded
-            button.controlSize = .small
-        } else {
-            button.image = NSImage(
-                systemSymbolName: refreshIconName,
-                accessibilityDescription: "Refresh"
-            )
-            button.imagePosition = .imageOnly
-            button.isBordered = false
-            button.controlSize = .small
-            button.focusRingType = .none
-            button.toolTip = "Refresh"
-            button.isEnabled = !isRefreshing
-        }
+        let button = makeActionButton()
 
-        bottom.addArrangedSubview(balanceStack)
-        bottom.addArrangedSubview(NSView())
-        bottom.addArrangedSubview(button)
-
-        stack.addArrangedSubview(top)
-        stack.addArrangedSubview(divider)
-        stack.addArrangedSubview(bottom)
-
-        if let warningText {
-            stack.addArrangedSubview(label(warningText, size: 11, color: .systemOrange))
-        }
+        stack.addArrangedSubview(identity)
+        stack.addArrangedSubview(NSView())
+        stack.addArrangedSubview(trailing)
+        stack.addArrangedSubview(button)
 
         addSubview(stack)
         addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(open)))
@@ -465,17 +409,38 @@ private final class AccountRowView: NSView {
         ])
     }
 
-    private var warningText: String? {
-        if account.requiresProbeConfiguration {
-            return "Needs an owned app bundle ID to refresh balance."
-        } else if let issue = account.lastIssue {
-            return issue.message
+    private var balanceLabel: NSTextField {
+        let text: String
+        if isRefreshing {
+            text = "…"
+        } else {
+            text = account.balanceSnapshot?.displayText ?? "—"
         }
-        return nil
+        return label(text, size: 15, weight: .medium, monospaced: true)
     }
 
-    private var refreshIconName: String {
-        isRefreshing ? "hourglass" : "arrow.clockwise"
+    private var hint: String? {
+        if isRefreshing { return nil }
+        if account.requiresProbeConfiguration { return "Set up probe app" }
+        switch account.status {
+        case .normal:
+            return nil
+        case .needsVerification:
+            return "2FA required"
+        case .sessionExpired:
+            return "Session expired"
+        case .attention:
+            return "Needs attention"
+        }
+    }
+
+    private var hintColor: NSColor {
+        switch account.status {
+        case .sessionExpired:
+            return NSColor.systemRed.blended(withFraction: 0.25, of: .labelColor) ?? .systemRed
+        default:
+            return NSColor.systemOrange.blended(withFraction: 0.3, of: .labelColor) ?? .systemOrange
+        }
     }
 
     private var isRefreshing: Bool {
@@ -485,52 +450,49 @@ private final class AccountRowView: NSView {
         return false
     }
 
-    private var statusTitle: String {
-        if isRefreshing {
-            return "Syncing"
-        }
+    private func makeActionButton() -> NSButton {
+        let button = NSButton()
+        button.imagePosition = .imageOnly
+        button.isBordered = false
+        button.controlSize = .small
+        button.focusRingType = .none
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.widthAnchor.constraint(equalToConstant: 22).isActive = true
 
-        switch account.status {
-        case .normal:
-            return "Ready"
-        case .needsVerification:
-            return "2FA"
-        case .sessionExpired:
-            return "Expired"
-        case .attention:
-            return "Attention"
+        if account.requiresProbeConfiguration {
+            button.title = "Set Up"
+            button.font = .systemFont(ofSize: 11, weight: .medium)
+            button.isBordered = true
+            button.bezelStyle = .rounded
+            button.controlSize = .small
+            button.target = self
+            button.action = #selector(open)
+        } else {
+            button.image = NSImage(systemSymbolName: refreshIconName, accessibilityDescription: "Refresh")
+            button.toolTip = "Refresh"
+            button.target = self
+            button.action = #selector(refresh)
+            button.isEnabled = !isRefreshing
         }
+        return button
     }
 
-    private var statusTint: NSColor {
-        if isRefreshing {
-            return .controlAccentColor
-        }
-
-        switch account.status {
-        case .normal:
-            return .secondaryLabelColor
-        case .needsVerification:
-            return .systemOrange
-        case .sessionExpired:
-            return .systemRed
-        case .attention:
-            return .systemYellow
-        }
+    private var refreshIconName: String {
+        isRefreshing ? "hourglass" : "arrow.clockwise"
     }
 
     private func makeAvatar() -> NSView {
         let view = NSTextField(labelWithString: String(account.displayName.prefix(1)).uppercased())
-        view.font = .systemFont(ofSize: 12, weight: .medium)
+        view.font = .systemFont(ofSize: 12, weight: .semibold)
         view.textColor = .white
         view.alignment = .center
         view.wantsLayer = true
         view.translatesAutoresizingMaskIntoConstraints = false
         view.layer?.backgroundColor = avatarColor.cgColor
-        view.layer?.cornerRadius = 7
+        view.layer?.cornerRadius = 12
         NSLayoutConstraint.activate([
-            view.widthAnchor.constraint(equalToConstant: 28),
-            view.heightAnchor.constraint(equalToConstant: 28),
+            view.widthAnchor.constraint(equalToConstant: 24),
+            view.heightAnchor.constraint(equalToConstant: 24),
         ])
         return view
     }

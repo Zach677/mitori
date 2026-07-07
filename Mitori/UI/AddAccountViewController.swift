@@ -9,7 +9,6 @@ final class AddAccountViewController: NSViewController, NSTextFieldDelegate {
     private let emailField = NSTextField()
     private let passwordField = NSSecureTextField()
     private let verificationCodeField = NSTextField()
-    private let probeBundleIDField = NSTextField()
     private let twoFactorMessageLabel = NSTextField(labelWithString: "")
     private let errorLabel = NSTextField(labelWithString: "")
     private let recoveryButton = NSButton(title: "Open account.apple.com", target: nil, action: nil)
@@ -46,13 +45,12 @@ private extension AddAccountViewController {
         let root = NSStackView()
         root.orientation = .vertical
         root.alignment = .width
-        root.spacing = 14
+        root.spacing = 16
         root.translatesAutoresizingMaskIntoConstraints = false
 
-        addFullWidth(header, to: root)
+        addFullWidth(makeHeader(), to: root)
         addFullWidth(makeCredentialsSection(), to: root)
         addFullWidth(makeTwoFactorSection(), to: root)
-        addFullWidth(makeProbeSection(), to: root)
         addFullWidth(makeErrorSection(), to: root)
         root.addArrangedSubview(NSView())
         addFullWidth(makeActionRow(), to: root)
@@ -61,52 +59,30 @@ private extension AddAccountViewController {
         NSLayoutConstraint.activate([
             root.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             root.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
-            root.topAnchor.constraint(equalTo: view.topAnchor, constant: 22),
-            root.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -18),
+            root.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 24),
+            root.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
             view.widthAnchor.constraint(equalToConstant: 430),
         ])
     }
 
-    var header: NSView {
+    func makeHeader() -> NSView {
         let stack = NSStackView()
-        stack.orientation = .horizontal
-        stack.alignment = .top
-        stack.spacing = 12
-
-        let icon = NSImageView()
-        icon.image = NSImage(systemSymbolName: "person.crop.circle.badge.plus", accessibilityDescription: nil)
-        icon.symbolConfiguration = .init(pointSize: 22, weight: .regular)
-        icon.contentTintColor = .controlAccentColor
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            icon.widthAnchor.constraint(equalToConstant: 30),
-            icon.heightAnchor.constraint(equalToConstant: 30),
-        ])
-
-        let textStack = NSStackView()
-        textStack.orientation = .vertical
-        textStack.alignment = .width
-        textStack.spacing = 5
-        textStack.translatesAutoresizingMaskIntoConstraints = false
-        textStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 4
 
         let title = NSTextField(labelWithString: "Add Apple Account")
-        title.font = .systemFont(ofSize: 16, weight: .medium)
+        title.font = .systemFont(ofSize: 15, weight: .semibold)
         title.alignment = .left
 
-        let subtitle = NSTextField(labelWithString: "Sign in with your Apple ID. If Apple asks for two-factor authentication, enter the code and submit again.")
+        let subtitle = NSTextField(wrappingLabelWithString: "Sign in with your Apple ID. If Apple asks for two-factor authentication, enter the code and submit again.")
         subtitle.font = .systemFont(ofSize: 12)
         subtitle.alignment = .left
         subtitle.textColor = .secondaryLabelColor
-        subtitle.lineBreakMode = .byWordWrapping
-        subtitle.maximumNumberOfLines = 3
         subtitle.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        addFullWidth(title, to: textStack)
-        addFullWidth(subtitle, to: textStack)
-        stack.addArrangedSubview(icon)
-        stack.addArrangedSubview(textStack)
-        textStack.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -42).isActive = true
+        stack.addArrangedSubview(title)
+        stack.addArrangedSubview(subtitle)
         return stack
     }
 
@@ -128,34 +104,20 @@ private extension AddAccountViewController {
         twoFactorSection.alignment = .width
         twoFactorSection.spacing = 8
 
-        let title = fieldLabel("Two-Factor Authentication")
+        addFullWidth(fieldLabel("Two-Factor Authentication"), to: twoFactorSection)
+
         twoFactorMessageLabel.font = .systemFont(ofSize: 12)
         twoFactorMessageLabel.textColor = .secondaryLabelColor
-        twoFactorMessageLabel.maximumNumberOfLines = 3
         twoFactorMessageLabel.lineBreakMode = .byWordWrapping
+        twoFactorMessageLabel.maximumNumberOfLines = 3
+        twoFactorMessageLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        addFullWidth(twoFactorMessageLabel, to: twoFactorSection)
+
         configureField(verificationCodeField, placeholder: "Verification Code")
         verificationCodeField.target = self
         verificationCodeField.action = #selector(submit)
-
-        addFullWidth(title, to: twoFactorSection)
-        addFullWidth(twoFactorMessageLabel, to: twoFactorSection)
         addFullWidth(verificationCodeField, to: twoFactorSection)
         return twoFactorSection
-    }
-
-    func makeProbeSection() -> NSView {
-        let stack = section(title: "Balance Probe")
-        configureField(probeBundleIDField, placeholder: "Owned app bundle ID")
-        addFullWidth(probeBundleIDField, to: stack)
-
-        let help = NSTextField(labelWithString: "Balance refresh needs a bundle ID from an app this account owns. You can add it later.")
-        help.font = .systemFont(ofSize: 12)
-        help.textColor = .secondaryLabelColor
-        help.lineBreakMode = .byWordWrapping
-        help.maximumNumberOfLines = 3
-        help.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        addFullWidth(help, to: stack)
-        return stack
     }
 
     func makeErrorSection() -> NSView {
@@ -164,7 +126,7 @@ private extension AddAccountViewController {
         errorSection.spacing = 6
 
         errorLabel.font = .systemFont(ofSize: 12)
-        errorLabel.textColor = NSColor.systemRed.blended(withFraction: 0.15, of: .labelColor)
+        errorLabel.textColor = NSColor.systemRed.blended(withFraction: 0.25, of: .labelColor)
         errorLabel.lineBreakMode = .byWordWrapping
         errorLabel.maximumNumberOfLines = 4
         errorLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -212,7 +174,7 @@ private extension AddAccountViewController {
 
     func fieldLabel(_ title: String) -> NSTextField {
         let label = NSTextField(labelWithString: title)
-        label.font = .systemFont(ofSize: 12, weight: .medium)
+        label.font = .systemFont(ofSize: 11, weight: .medium)
         label.textColor = .secondaryLabelColor
         return label
     }
@@ -227,15 +189,13 @@ private extension AddAccountViewController {
     func addFullWidth(_ view: NSView, to stack: NSStackView) {
         stack.addArrangedSubview(view)
         view.translatesAutoresizingMaskIntoConstraints = false
-        let horizontalInsets = stack.edgeInsets.left + stack.edgeInsets.right
-        view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -horizontalInsets).isActive = true
+        view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
     }
 
     func reload() {
         flow.email = emailField.stringValue
         flow.password = passwordField.stringValue
         flow.verificationCode = verificationCodeField.stringValue
-        flow.probeBundleID = probeBundleIDField.stringValue
 
         twoFactorSection.isHidden = !flow.requiresVerificationCode
         twoFactorMessageLabel.stringValue = flow.twoFactorMessage
@@ -266,7 +226,7 @@ private extension AddAccountViewController {
                     password: flow.password,
                     code: flow.verificationCode,
                     deviceIdentifier: flow.deviceIdentifier,
-                    probeBundleID: flow.probeBundleID
+                    probeBundleID: ""
                 )
                 onClose()
             } catch {
@@ -291,7 +251,6 @@ private extension AddAccountViewController {
     func cancel() {
         onClose()
     }
-
 }
 
 extension AddAccountViewController {
