@@ -87,13 +87,12 @@ actor AppleSessionBridge: AppleSessionBridging {
         probeBundleID: String,
         existing: StoredAccountMeta?
     ) async throws -> SessionRefreshResult {
-        Configuration.deviceIdentifier = deviceIdentifier
-
         let authenticatedAccount = try await Authenticator.authenticate(
             email: email.trimmingCharacters(in: .whitespacesAndNewlines),
             password: password,
             code: code.trimmingCharacters(in: .whitespacesAndNewlines),
-            cookies: cookies
+            cookies: cookies,
+            deviceIdentifier: deviceIdentifier
         )
 
         var meta = StoredAccountMeta(

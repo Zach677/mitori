@@ -11,7 +11,7 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
 - App resources live in `Mitori/Resources`.
 - Tests live in `MitoriTests/`.
 - The app target is `Mitori`; the test target is `MitoriTests`.
-- Dependencies (ApplePackage fork, KeychainAccess) come in as SPM package references inside the Xcode project.
+- Dependencies: the `ApplePackage` fork (`Zach677/ApplePackage`) is an SPM package reference inside the Xcode project. Credentials use the native Security framework (`SecItem`), not a third-party keychain wrapper.
 - The app uses AppKit for UI and Swift Testing (`import Testing`) for tests.
 
 ## Working Rules

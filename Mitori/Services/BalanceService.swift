@@ -38,7 +38,6 @@ final class BalanceProbeClient {
         deviceIdentifier: String
     ) async throws -> ProbePayloadResult {
         var account = account
-        Configuration.deviceIdentifier = deviceIdentifier
 
         guard let countryCode = Configuration.countryCode(for: account.store) else {
             throw MitoriError.unsupportedStorefront(account.store)
