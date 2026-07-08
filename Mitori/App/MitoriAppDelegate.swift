@@ -27,6 +27,14 @@ final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
                 menuBarController.presentSettingsWindowForDebugging()
             }
         }
+        if ProcessInfo.processInfo.environment["MITORI_OPEN_DETAIL"] == "1" {
+            Task { @MainActor in
+                await model.menuPresented()
+                if let first = model.accounts.first {
+                    menuBarController.presentAccountDetailWindowForDebugging(accountID: first.id)
+                }
+            }
+        }
         #endif
     }
 

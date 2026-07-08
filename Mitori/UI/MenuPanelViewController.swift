@@ -335,6 +335,8 @@ private extension MenuPanelViewController {
     }
 
     func refreshAccount(_ accountID: String) {
+        model.startRefresh(accountID: accountID)
+        reload()
         Task {
             await model.refreshAccount(id: accountID, isManualRefresh: true)
             reload()

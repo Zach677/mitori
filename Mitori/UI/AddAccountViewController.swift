@@ -4,6 +4,7 @@ import AppKit
 final class AddAccountViewController: NSViewController, NSTextFieldDelegate {
     private let model: MitoriModel
     private let onClose: () -> Void
+    private let onLoginSuccess: (String) -> Void
     private let flow = AddAccountFlowModel()
 
     private let emailField = NSTextField()
@@ -16,9 +17,10 @@ final class AddAccountViewController: NSViewController, NSTextFieldDelegate {
     private let twoFactorSection = NSStackView()
     private let errorSection = NSStackView()
 
-    init(model: MitoriModel, onClose: @escaping () -> Void) {
+    init(model: MitoriModel, onClose: @escaping () -> Void, onLoginSuccess: @escaping (String) -> Void) {
         self.model = model
         self.onClose = onClose
+        self.onLoginSuccess = onLoginSuccess
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -221,14 +223,14 @@ private extension AddAccountViewController {
 
         Task {
             do {
-                try await model.addAccount(
+                let accountID = try await model.addAccount(
                     email: flow.email,
                     password: flow.password,
                     code: flow.verificationCode,
                     deviceIdentifier: flow.deviceIdentifier,
                     probeBundleID: ""
                 )
-                onClose()
+                onLoginSuccess(accountID)
             } catch {
                 flow.handleFailure(error)
                 reload()

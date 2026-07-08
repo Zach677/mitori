@@ -43,7 +43,10 @@ final class MenuBarController: NSObject {
     ) { [unowned self] in
         AddAccountViewController(
             model: model,
-            onClose: closeAddAccountWindow
+            onClose: closeAddAccountWindow,
+            onLoginSuccess: { [weak self] accountID in
+                self?.addAccountDidSucceed(accountID: accountID)
+            }
         )
     }
 
@@ -53,14 +56,15 @@ final class MenuBarController: NSObject {
         title: { [unowned self] in
             model.account(with: detailAccountID)?.displayName ?? "Account Details"
         },
-        size: NSSize(width: 500, height: 580),
+        size: NSSize(width: 500, height: 400),
         autosaveName: "dev.zach.mitori.account-detail",
         windowLevel: .floating
     ) { [unowned self] in
         AccountDetailViewController(
             model: model,
             accountID: detailAccountID ?? "",
-            onClose: closeAccountDetailWindow
+            onClose: closeAccountDetailWindow,
+            onProbeSaved: { [weak self] changed in self?.probeDidSave(probeChanged: changed) }
         )
     }
 
@@ -171,11 +175,20 @@ final class MenuBarController: NSObject {
     func presentSettingsWindowForDebugging() {
         presentSettingsWindow()
     }
+
+    func presentAccountDetailWindowForDebugging(accountID: String) {
+        presentAccountDetailWindow(for: accountID)
+    }
     #endif
 
     private func closeAddAccountWindow() {
         addAccountWindowController.close()
         menuPanelController.reload()
+    }
+
+    private func addAccountDidSucceed(accountID: String) {
+        addAccountWindowController.close()
+        presentAccountDetailWindow(for: accountID)
     }
 
     func reloadPanel() {
@@ -193,8 +206,7 @@ final class MenuBarController: NSObject {
         accountDetailWindowPresenter.present()
     }
 
-    private func closeAccountDetailWindow() {
-        accountDetailWindowController.close()
+    private func presentPopover() {
         menuPanelController.reload()
         guard let button = statusItem.button else { return }
         menuPanelController.prepareForPresentation()
@@ -204,6 +216,23 @@ final class MenuBarController: NSObject {
         }
         NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    }
+
+    private func closeAccountDetailWindow() {
+        accountDetailWindowController.close()
+        presentPopover()
+    }
+
+    private func probeDidSave(probeChanged: Bool) {
+        let accountID = detailAccountID
+        accountDetailWindowController.close()
+        if probeChanged, let accountID { model.startRefresh(accountID: accountID) }
+        presentPopover()
+        guard probeChanged, let accountID else { return }
+        Task {
+            await model.refreshAccount(id: accountID, isManualRefresh: true)
+            menuPanelController.reload()
+        }
     }
 
     @objc

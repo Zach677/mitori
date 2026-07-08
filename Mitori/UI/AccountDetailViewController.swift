@@ -5,6 +5,7 @@ final class AccountDetailViewController: NSViewController {
     private let model: MitoriModel
     private let accountID: String
     private let onClose: () -> Void
+    private let onProbeSaved: (Bool) -> Void
 
     private var probeLookup = ProbeAppLookupModel()
     private var isSavingProbe = false
@@ -16,7 +17,6 @@ final class AccountDetailViewController: NSViewController {
     private let errorLabel = NSTextField(labelWithString: "")
     private let probeBundleIDField = NSTextField()
     private let probeSearchField = NSTextField()
-    private let probeResultsStack = NSStackView()
     private let verificationCodeField = NSTextField()
     private let saveProbeButton = NSButton(title: "Save", target: nil, action: nil)
     private let reauthButton = NSButton(title: "Re-authenticate", target: nil, action: nil)
@@ -26,10 +26,11 @@ final class AccountDetailViewController: NSViewController {
         model.account(with: accountID)
     }
 
-    init(model: MitoriModel, accountID: String, onClose: @escaping () -> Void) {
+    init(model: MitoriModel, accountID: String, onClose: @escaping () -> Void, onProbeSaved: @escaping (Bool) -> Void) {
         self.model = model
         self.accountID = accountID
         self.onClose = onClose
+        self.onProbeSaved = onProbeSaved
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -68,7 +69,7 @@ private extension AccountDetailViewController {
             contentStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             contentStack.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor),
             view.widthAnchor.constraint(equalToConstant: 500),
-            view.heightAnchor.constraint(greaterThanOrEqualToConstant: 520),
+            view.heightAnchor.constraint(greaterThanOrEqualToConstant: 300),
         ])
     }
 
@@ -96,6 +97,12 @@ private extension AccountDetailViewController {
         errorLabel.isHidden = errorMessage == nil
         if errorMessage != nil {
             addFullWidth(errorLabel, to: contentStack)
+        }
+        contentStack.invalidateIntrinsicContentSize()
+        view.layoutSubtreeIfNeeded()
+        if let window = view.window {
+            let contentHeight = contentStack.fittingSize.height + view.safeAreaInsets.top + 16
+            window.setContentSize(NSSize(width: window.contentView?.bounds.width ?? 500, height: contentHeight))
         }
     }
 
@@ -178,17 +185,14 @@ private extension AccountDetailViewController {
             addFullWidth(label(searchError, size: 11, color: NSColor.systemOrange.blended(withFraction: 0.3, of: .labelColor) ?? .systemOrange), to: stack)
         }
 
-        probeResultsStack.orientation = .vertical
-        probeResultsStack.spacing = 4
-        probeResultsStack.arrangedSubviews.forEach { view in
-            probeResultsStack.removeArrangedSubview(view)
-            view.removeFromSuperview()
-        }
+        let resultsStack = NSStackView()
+        resultsStack.orientation = .vertical
+        resultsStack.spacing = 4
         for result in probeLookup.results {
-            probeResultsStack.addArrangedSubview(resultButton(result))
+            resultsStack.addArrangedSubview(resultButton(result))
         }
         if !probeLookup.results.isEmpty {
-            addFullWidth(probeResultsStack, to: stack)
+            addFullWidth(resultsStack, to: stack)
         }
 
         addFullWidth(label("Pick any app this Apple ID already owns in \(account.countryCode ?? "US").", size: 11, color: .secondaryLabelColor), to: stack)
@@ -395,6 +399,8 @@ private extension AccountDetailViewController {
     @objc
     func saveProbeBundleID() {
         guard !isSavingProbe else { return }
+        let oldProbe = (account?.probeBundleID ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let newProbe = probeBundleIDField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         isSavingProbe = true
         reload()
 
@@ -402,7 +408,7 @@ private extension AccountDetailViewController {
             guard let self else { return }
             do {
                 try await model.saveProbeBundleID(probeBundleIDField.stringValue, for: accountID)
-                onClose()
+                onProbeSaved(oldProbe != newProbe)
             } catch {
                 reload(errorMessage: MitoriError.map(error).localizedDescription)
                 isSavingProbe = false

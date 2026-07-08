@@ -59,7 +59,7 @@ final class MitoriModel {
         code: String,
         deviceIdentifier: String,
         probeBundleID: String
-    ) async throws {
+    ) async throws -> String {
         let result = try await sessionBridge.login(
             email: email,
             password: password,
@@ -69,6 +69,7 @@ final class MitoriModel {
         )
         try await persist(normalized(result))
         bannerMessage = result.meta.lastIssue?.message
+        return result.meta.id
     }
 
     func refreshAll() async {
@@ -82,10 +83,15 @@ final class MitoriModel {
         }
     }
 
+    func startRefresh(accountID: String) {
+        guard account(with: accountID) != nil else { return }
+        refreshStates[accountID] = .refreshing
+    }
+
     func refreshAccount(id: String, isManualRefresh: Bool) async {
         guard let meta = account(with: id) else { return }
         if !isManualRefresh, !shouldAutoRefresh(meta) { return }
-        if case .refreshing = refreshState(for: id) { return }
+        if !isManualRefresh, case .refreshing = refreshState(for: id) { return }
 
         refreshStates[id] = .refreshing
 
