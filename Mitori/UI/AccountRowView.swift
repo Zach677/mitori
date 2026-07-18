@@ -67,7 +67,7 @@ final class AccountRowView: NSView {
 
     private var balanceLabel: NSTextField {
         label(
-            isRefreshing ? "…" : account.balanceSnapshot?.displayText ?? "—",
+            isRefreshing ? "…" : account.balanceDisplayText ?? "—",
             size: 15,
             weight: .medium,
             monospaced: true

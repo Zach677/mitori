@@ -113,7 +113,7 @@ private extension AccountDetailViewController {
         stack.spacing = 8
         addFullWidth(label("Balance", size: 11, weight: .medium, color: .secondaryLabelColor), to: stack)
         addFullWidth(label(
-            account.balanceSnapshot?.displayText ?? "Unavailable",
+            account.balanceDisplayText ?? "Unavailable",
             size: 18,
             weight: .medium,
             monospaced: true

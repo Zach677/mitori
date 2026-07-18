@@ -12,6 +12,32 @@ struct BalanceSnapshot: Codable, Equatable, Sendable {
     var fetchedAt: Date
     var source: Source
     var rawFieldPath: String
+
+    func localizedDisplayText(countryCode: String?) -> String {
+        guard let numericValue,
+              let regionCode = countryCode?
+              .trimmingCharacters(in: .whitespacesAndNewlines)
+              .uppercased(),
+              regionCode.count == 2
+        else {
+            return displayText
+        }
+
+        let locale = Locale(identifier: "en_\(regionCode)")
+        let responseCurrencyCode = currencyCode?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+        guard let resolvedCurrencyCode = responseCurrencyCode?.count == 3
+            ? responseCurrencyCode
+            : locale.currency?.identifier
+        else {
+            return displayText
+        }
+
+        return numericValue.formatted(
+            .currency(code: resolvedCurrencyCode).locale(locale)
+        )
+    }
 }
 
 enum RefreshIssueKind: String, Codable, Sendable {
@@ -63,6 +89,9 @@ struct StoredAccountMeta: Codable, Equatable, Identifiable, Sendable {
     var displayName: String {
         let pieces = [firstName, lastName].filter { !$0.isEmpty }
         return pieces.isEmpty ? email : pieces.joined(separator: " ")
+    }
+    var balanceDisplayText: String? {
+        balanceSnapshot?.localizedDisplayText(countryCode: countryCode)
     }
     var regionLabel: String {
         [countryCode, storefront].compactMap { value in

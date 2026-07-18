@@ -263,6 +263,38 @@ struct BalanceParserTests {
         #expect(snapshot.numericValue == Decimal(string: "88.00"))
         #expect(snapshot.rawFieldPath == "songList[0].creditBalance")
     }
+
+    @Test
+    func formatsBalanceForAccountRegion() {
+        let snapshot = BalanceSnapshot(
+            displayText: "12.34",
+            numericValue: Decimal(string: "12.34"),
+            currencyCode: nil,
+            fetchedAt: Date(),
+            source: .probe,
+            rawFieldPath: "creditDisplay"
+        )
+
+        #expect(snapshot.localizedDisplayText(countryCode: "TR") == "₺12,34")
+        #expect(snapshot.localizedDisplayText(countryCode: "US") == "$12.34")
+    }
+
+    @Test
+    func preservesAppleCurrencyAndRawFallback() {
+        var snapshot = BalanceSnapshot(
+            displayText: "USD 12.34",
+            numericValue: Decimal(string: "12.34"),
+            currencyCode: "USD",
+            fetchedAt: Date(),
+            source: .probe,
+            rawFieldPath: "creditDisplay"
+        )
+
+        #expect(snapshot.localizedDisplayText(countryCode: "TR") == "$12,34")
+
+        snapshot.numericValue = nil
+        #expect(snapshot.localizedDisplayText(countryCode: "TR") == "USD 12.34")
+    }
 }
 
 private final class FixtureBundleToken {}
