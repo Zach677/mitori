@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 @MainActor
 final class MenuBarController: NSObject {
@@ -6,6 +7,7 @@ final class MenuBarController: NSObject {
     private let settings: RefreshSettingsStore
     private let statusItem: NSStatusItem
     private let popover: NSPopover
+    private var modelChangeCancellable: AnyCancellable?
     private lazy var menuPanelController = MenuPanelViewController(
         model: model,
         onAddAccount: { [weak self] in
@@ -28,12 +30,13 @@ final class MenuBarController: NSObject {
         )
         let contextMenuPresenter = StatusItemContextMenuPresenter(
             statusItem: statusItem,
-            menuProvider: makeContextMenu
+            menuProvider: { [unowned self] in makeContextMenu() }
         )
         return MenuBarInteractionController(popover: popoverPresenter, contextMenu: contextMenuPresenter)
     }()
 
     private var detailAccountID: String?
+    private weak var accountDetailViewController: AccountDetailViewController?
 
     private lazy var addAccountWindowController = AppWindowController(
         title: { "Add Account" },
@@ -60,12 +63,17 @@ final class MenuBarController: NSObject {
         autosaveName: "dev.zach.mitori.account-detail",
         windowLevel: .floating
     ) { [unowned self] in
-        AccountDetailViewController(
+        let accountID = detailAccountID ?? ""
+        let controller = AccountDetailViewController(
             model: model,
-            accountID: detailAccountID ?? "",
+            accountID: accountID,
             onClose: closeAccountDetailWindow,
-            onProbeSaved: { [weak self] changed in self?.probeDidSave(probeChanged: changed) }
+            onProbeSaved: { [weak self] changed in
+                self?.probeDidSave(accountID: accountID, probeChanged: changed)
+            }
         )
+        accountDetailViewController = controller
+        return controller
     }
 
     private lazy var accountDetailWindowPresenter = WindowPresentationCoordinator(window: accountDetailWindowController)
@@ -89,6 +97,9 @@ final class MenuBarController: NSObject {
         super.init()
         configureStatusItem()
         configurePopover()
+        modelChangeCancellable = model.changes.sink { [weak self] in
+            self?.reloadVisibleViews()
+        }
     }
 
     private func configureStatusItem() {
@@ -191,10 +202,6 @@ final class MenuBarController: NSObject {
         presentAccountDetailWindow(for: accountID)
     }
 
-    func reloadPanel() {
-        menuPanelController.reload()
-    }
-
     private func presentSettingsWindow() {
         popover.performClose(nil)
         settingsWindowPresenter.present()
@@ -223,15 +230,19 @@ final class MenuBarController: NSObject {
         presentPopover()
     }
 
-    private func probeDidSave(probeChanged: Bool) {
-        let accountID = detailAccountID
+    private func probeDidSave(accountID: String, probeChanged: Bool) {
         accountDetailWindowController.close()
-        if probeChanged, let accountID { model.startRefresh(accountID: accountID) }
         presentPopover()
-        guard probeChanged, let accountID else { return }
+        guard probeChanged else { return }
         Task {
             await model.refreshAccount(id: accountID, isManualRefresh: true)
-            menuPanelController.reload()
+        }
+    }
+
+    private func reloadVisibleViews() {
+        menuPanelController.reload()
+        if accountDetailWindowController.isVisible {
+            accountDetailViewController?.reload()
         }
     }
 
@@ -262,7 +273,6 @@ final class MenuBarController: NSObject {
     private func refreshAllFromMenu(_: Any?) {
         Task {
             await model.refreshAll()
-            menuPanelController.reload()
         }
     }
 
@@ -276,9 +286,13 @@ final class MenuBarController: NSObject {
 private final class StatusItemPopoverController: MenuBarPopoverManaging {
     private let statusItem: NSStatusItem
     private let popover: NSPopover
-    private let beforePresent: () -> Void
+    private let beforePresent: @MainActor () -> Void
 
-    init(statusItem: NSStatusItem, popover: NSPopover, beforePresent: @escaping () -> Void) {
+    init(
+        statusItem: NSStatusItem,
+        popover: NSPopover,
+        beforePresent: @escaping @MainActor () -> Void
+    ) {
         self.statusItem = statusItem
         self.popover = popover
         self.beforePresent = beforePresent
@@ -310,9 +324,12 @@ private final class StatusItemPopoverController: MenuBarPopoverManaging {
 @MainActor
 private final class StatusItemContextMenuPresenter: MenuBarContextMenuManaging {
     private let statusItem: NSStatusItem
-    private let menuProvider: () -> NSMenu
+    private let menuProvider: @MainActor @Sendable () -> NSMenu
 
-    init(statusItem: NSStatusItem, menuProvider: @escaping () -> NSMenu) {
+    init(
+        statusItem: NSStatusItem,
+        menuProvider: @escaping @MainActor @Sendable () -> NSMenu
+    ) {
         self.statusItem = statusItem
         self.menuProvider = menuProvider
     }

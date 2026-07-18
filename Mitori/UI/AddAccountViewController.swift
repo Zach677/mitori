@@ -3,8 +3,8 @@ import AppKit
 @MainActor
 final class AddAccountViewController: NSViewController, NSTextFieldDelegate {
     private let model: MitoriModel
-    private let onClose: () -> Void
-    private let onLoginSuccess: (String) -> Void
+    private let onClose: @MainActor () -> Void
+    private let onLoginSuccess: @MainActor (String) -> Void
     private let flow = AddAccountFlowModel()
 
     private let emailField = NSTextField()
@@ -17,7 +17,11 @@ final class AddAccountViewController: NSViewController, NSTextFieldDelegate {
     private let twoFactorSection = NSStackView()
     private let errorSection = NSStackView()
 
-    init(model: MitoriModel, onClose: @escaping () -> Void, onLoginSuccess: @escaping (String) -> Void) {
+    init(
+        model: MitoriModel,
+        onClose: @escaping @MainActor () -> Void,
+        onLoginSuccess: @escaping @MainActor (String) -> Void
+    ) {
         self.model = model
         self.onClose = onClose
         self.onLoginSuccess = onLoginSuccess

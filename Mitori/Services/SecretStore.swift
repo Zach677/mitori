@@ -7,9 +7,6 @@ protocol SecretKeyValueStore {
     func removeValue(for key: String) throws
 }
 
-// Items are standard kSecClassGenericPassword entries keyed by
-// service + account, so secrets written by the previous KeychainAccess
-// backend stay readable without migration.
 final class KeychainSecretBackend: SecretKeyValueStore {
     private let service: String
 
@@ -18,7 +15,55 @@ final class KeychainSecretBackend: SecretKeyValueStore {
     }
 
     func data(for key: String) throws -> Data? {
-        var query = baseQuery(for: key)
+        if let data = try copyData(matching: protectedQuery(for: key)) {
+            try delete(matching: legacyQuery(for: key))
+            return data
+        }
+        guard let legacyData = try copyData(matching: legacyQuery(for: key)) else {
+            return nil
+        }
+
+        try set(legacyData, for: key)
+        return legacyData
+    }
+
+    func set(_ data: Data, for key: String) throws {
+        let query = protectedQuery(for: key)
+        var attributes = query
+        attributes[kSecValueData as String] = data
+        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+
+        let status = SecItemAdd(attributes as CFDictionary, nil)
+        if status == errSecDuplicateItem {
+            let update: [String: Any] = [
+                kSecValueData as String: data,
+                kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+            ]
+            let updateStatus = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+            guard updateStatus == errSecSuccess else {
+                throw keychainError(updateStatus)
+            }
+        } else if status != errSecSuccess {
+            throw keychainError(status)
+        }
+
+        guard try copyData(matching: query) == data else {
+            throw NSError(
+                domain: NSOSStatusErrorDomain,
+                code: Int(errSecDecode),
+                userInfo: [NSLocalizedDescriptionKey: "Keychain write verification failed."]
+            )
+        }
+        try delete(matching: legacyQuery(for: key))
+    }
+
+    func removeValue(for key: String) throws {
+        try delete(matching: protectedQuery(for: key))
+        try delete(matching: legacyQuery(for: key))
+    }
+
+    private func copyData(matching baseQuery: [String: Any]) throws -> Data? {
+        var query = baseQuery
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -34,37 +79,25 @@ final class KeychainSecretBackend: SecretKeyValueStore {
         }
     }
 
-    func set(_ data: Data, for key: String) throws {
-        var attributes = baseQuery(for: key)
-        attributes[kSecValueData as String] = data
-        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-
-        let status = SecItemAdd(attributes as CFDictionary, nil)
-        if status == errSecDuplicateItem {
-            let update = [kSecValueData as String: data]
-            let updateStatus = SecItemUpdate(baseQuery(for: key) as CFDictionary, update as CFDictionary)
-            guard updateStatus == errSecSuccess else {
-                throw keychainError(updateStatus)
-            }
-            return
-        }
-        guard status == errSecSuccess else {
-            throw keychainError(status)
-        }
-    }
-
-    func removeValue(for key: String) throws {
-        let status = SecItemDelete(baseQuery(for: key) as CFDictionary)
+    private func delete(matching query: [String: Any]) throws {
+        let status = SecItemDelete(query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw keychainError(status)
         }
     }
 
-    private func baseQuery(for key: String) -> [String: Any] {
+    private func protectedQuery(for key: String) -> [String: Any] {
+        var query = legacyQuery(for: key)
+        query[kSecUseDataProtectionKeychain as String] = true
+        return query
+    }
+
+    private func legacyQuery(for key: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
+            kSecUseDataProtectionKeychain as String: false,
         ]
     }
 
@@ -76,6 +109,11 @@ final class KeychainSecretBackend: SecretKeyValueStore {
             userInfo: [NSLocalizedDescriptionKey: message]
         )
     }
+}
+
+func isKeychainInteractionNotAllowed(_ error: Error) -> Bool {
+    let error = error as NSError
+    return error.domain == NSOSStatusErrorDomain && error.code == Int(errSecInteractionNotAllowed)
 }
 
 final class InMemorySecretBackend: SecretKeyValueStore {

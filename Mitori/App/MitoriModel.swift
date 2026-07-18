@@ -1,32 +1,51 @@
-import ApplePackage
+import Combine
 import CoreGraphics
 import Foundation
 
 @MainActor
 final class MitoriModel {
-    private let accountStore: AccountStore
-    private let secretStore: SecretStore
+    private let repository: AccountRepository
     private let sessionBridge: any AppleSessionBridging
     private let settings: RefreshSettingsStore
+    private let now: () -> Date
+    private let screenIsLocked: @MainActor () -> Bool
 
-    private(set) var accounts: [StoredAccountMeta] = []
-    private(set) var refreshStates: [String: RefreshState] = [:]
+    private(set) var accounts: [StoredAccountMeta] = [] {
+        didSet { changeSubject.send() }
+    }
+    private(set) var refreshStates: [String: RefreshState] = [:] {
+        didSet { changeSubject.send() }
+    }
 
-    var bannerMessage: String?
-    var isRefreshingAll = false
+    var bannerMessage: String? {
+        didSet { changeSubject.send() }
+    }
+    var isRefreshingAll = false {
+        didSet { changeSubject.send() }
+    }
+    var changes: AnyPublisher<Void, Never> {
+        changeSubject.eraseToAnyPublisher()
+    }
 
+    private let changeSubject = PassthroughSubject<Void, Never>()
     private var hasLoadedAccounts = false
+    private var accountGenerations: [String: Int] = [:]
+    private var mutatingAccountIDs: Set<String> = []
+    private var pendingLoginGenerations: [String: Int] = [:]
 
     init(
         accountStore: AccountStore = AccountStore(),
         secretStore: SecretStore = SecretStore(),
         sessionBridge: any AppleSessionBridging = AppleSessionBridge(),
-        settings: RefreshSettingsStore = RefreshSettingsStore()
+        settings: RefreshSettingsStore = RefreshSettingsStore(),
+        now: @escaping () -> Date = Date.init,
+        screenIsLocked: @escaping @MainActor () -> Bool = MitoriModel.currentScreenIsLocked
     ) {
-        self.accountStore = accountStore
-        self.secretStore = secretStore
+        repository = AccountRepository(accountStore: accountStore, secretStore: secretStore)
         self.sessionBridge = sessionBridge
         self.settings = settings
+        self.now = now
+        self.screenIsLocked = screenIsLocked
     }
 
     func menuPresented() async {
@@ -35,7 +54,7 @@ final class MitoriModel {
 
     func autoRefreshTick() async {
         guard settings.isAutoRefreshEnabled else { return }
-        guard !isScreenLocked() else { return }
+        guard !screenIsLocked() else { return }
         await ensureAccountsLoaded()
         guard !accounts.isEmpty, !isRefreshingAll else { return }
 
@@ -60,16 +79,43 @@ final class MitoriModel {
         deviceIdentifier: String,
         probeBundleID: String
     ) async throws -> String {
-        let result = try await sessionBridge.login(
+        let accountID = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !mutatingAccountIDs.contains(accountID), pendingLoginGenerations[accountID] == nil else {
+            throw MitoriError.operationInProgress
+        }
+        let generation = nextGeneration(for: accountID)
+        pendingLoginGenerations[accountID] = generation
+        refreshStates[accountID] = .idle
+        defer {
+            if pendingLoginGenerations[accountID] == generation {
+                pendingLoginGenerations[accountID] = nil
+            }
+        }
+
+        let result = normalized(try await sessionBridge.login(
             email: email,
             password: password,
             code: code,
             deviceIdentifier: deviceIdentifier.trimmingCharacters(in: .whitespacesAndNewlines),
             probeBundleID: probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
-        )
-        try await persist(normalized(result))
+        ))
+        guard result.meta.id == accountID else {
+            throw MitoriError.unknown("Authenticated account does not match the requested email.")
+        }
+        guard operationIsCurrent(for: accountID, generation: generation) else {
+            throw MitoriError.operationSuperseded
+        }
+        pendingLoginGenerations[accountID] = nil
+        mutatingAccountIDs.insert(accountID)
+        defer { finishMutation(for: accountID) }
+
+        let updatedAccounts = try await repository.commit(result)
+        guard operationIsCurrent(for: accountID, generation: generation) else {
+            throw MitoriError.operationSuperseded
+        }
+        accounts = updatedAccounts
         bannerMessage = result.meta.lastIssue?.message
-        return result.meta.id
+        return accountID
     }
 
     func refreshAll() async {
@@ -77,67 +123,100 @@ final class MitoriModel {
         isRefreshingAll = true
         defer { isRefreshingAll = false }
 
-        let accountIDs = accounts.map(\.id)
-        for accountID in accountIDs {
+        for accountID in accounts.map(\.id) {
             await refreshAccount(id: accountID, isManualRefresh: true)
         }
-    }
-
-    func startRefresh(accountID: String) {
-        guard account(with: accountID) != nil else { return }
-        refreshStates[accountID] = .refreshing
     }
 
     func refreshAccount(id: String, isManualRefresh: Bool) async {
         guard let meta = account(with: id) else { return }
         if !isManualRefresh, !shouldAutoRefresh(meta) { return }
-        if !isManualRefresh, case .refreshing = refreshState(for: id) { return }
-
-        refreshStates[id] = .refreshing
+        guard let generation = beginOperation(for: id) else { return }
 
         do {
-            guard let secret = try await secretStore.loadSecret(for: id) else {
+            guard let secret = try await repository.loadSecret(for: id) else {
                 throw MitoriError.missingSecret
             }
-            let result = try await sessionBridge.refreshBalance(meta: meta, secret: secret)
-            try await persist(normalized(result))
+            guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else { return }
+            let result = normalized(try await sessionBridge.refreshBalance(meta: meta, secret: secret))
+            guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else { return }
+            let updatedAccounts = try await repository.commit(result)
+            guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else { return }
+            accounts = updatedAccounts
             applyPostRefreshState(for: id, using: result)
         } catch {
-            let storedError = MitoriError.map(error)
-            try? await persistFailure(for: meta, error: storedError)
-            refreshStates[id] = .failed(storedError.issueKind)
-            bannerMessage = storedError.localizedDescription
+            if !isManualRefresh, isKeychainInteractionNotAllowed(error) {
+                if operationIsCurrent(for: id, generation: generation, requireAccount: true) {
+                    refreshStates[id] = .idle
+                }
+                return
+            }
+            guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else { return }
+
+            let refreshError = MitoriError.map(error)
+            let storageError = await recordFailure(for: meta, error: refreshError, generation: generation)
+            guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else { return }
+            refreshStates[id] = .failed(refreshError.issueKind)
+            bannerMessage = storageError?.localizedDescription ?? refreshError.localizedDescription
         }
     }
 
     func reauthenticateAccount(id: String, code: String) async throws {
         guard let meta = account(with: id) else { return }
-        guard let secret = try await secretStore.loadSecret(for: id) else {
-            throw MitoriError.missingSecret
+        guard let generation = beginOperation(for: id) else {
+            throw MitoriError.operationInProgress
         }
 
-        refreshStates[id] = .refreshing
-        let result = try await sessionBridge.reauthenticate(meta: meta, secret: secret, code: code)
-        try await persist(normalized(result))
-        if let error = applyPostRefreshState(for: id, using: result) {
-            throw error
+        do {
+            guard let secret = try await repository.loadSecret(for: id) else {
+                throw MitoriError.missingSecret
+            }
+            guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else {
+                throw MitoriError.operationSuperseded
+            }
+            let result = normalized(try await sessionBridge.reauthenticate(meta: meta, secret: secret, code: code))
+            guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else {
+                throw MitoriError.operationSuperseded
+            }
+            let updatedAccounts = try await repository.commit(result)
+            guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else {
+                throw MitoriError.operationSuperseded
+            }
+            accounts = updatedAccounts
+            if let error = applyPostRefreshState(for: id, using: result) {
+                throw error
+            }
+        } catch {
+            let mappedError = MitoriError.map(error)
+            if operationIsCurrent(for: id, generation: generation, requireAccount: true) {
+                refreshStates[id] = .failed(mappedError.issueKind)
+                bannerMessage = mappedError.localizedDescription
+            }
+            throw mappedError
         }
     }
 
     func saveProbeBundleID(_ probeBundleID: String, for accountID: String) async throws {
-        guard var meta = account(with: accountID) else { return }
+        guard account(with: accountID) != nil else { return }
+        let generation = try beginMutation(for: accountID)
+        defer { finishMutation(for: accountID) }
         let trimmedProbeBundleID = probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
-        meta.probeBundleID = trimmedProbeBundleID
+        let currentDate = now()
+        let updatedAccounts = try await repository.updateMeta(id: accountID) { latest in
+            var updated = latest
+            updated.probeBundleID = trimmedProbeBundleID
 
-        if trimmedProbeBundleID.isEmpty {
-            meta.lastIssue = MitoriError.missingProbeBundleID.refreshIssue()
-        } else if meta.lastIssue?.kind == .probeConfigurationMissing {
-            meta.lastIssue = nil
-            meta.nextEligibleRefreshAt = nil
-            meta.consecutiveFailureCount = 0
+            if trimmedProbeBundleID.isEmpty {
+                updated.lastIssue = MitoriError.missingProbeBundleID.refreshIssue(at: currentDate)
+            } else if updated.lastIssue?.kind == .probeConfigurationMissing {
+                updated.lastIssue = nil
+                updated.nextEligibleRefreshAt = nil
+                updated.consecutiveFailureCount = 0
+            }
+            return updated
         }
-
-        accounts = try await accountStore.upsert(meta)
+        guard operationIsCurrent(for: accountID, generation: generation) else { return }
+        accounts = updatedAccounts
 
         if trimmedProbeBundleID.isEmpty {
             bannerMessage = MitoriError.missingProbeBundleID.localizedDescription
@@ -146,13 +225,20 @@ final class MitoriModel {
         }
     }
 
-    func deleteAccount(id: String) async {
+    func deleteAccount(id: String) async throws {
+        guard account(with: id) != nil else { return }
+        let generation = try beginMutation(for: id)
+        defer { finishMutation(for: id) }
         do {
-            accounts = try await accountStore.deleteAccount(id: id)
-            try await secretStore.deleteSecret(for: id)
+            let remainingAccounts = try await repository.deleteAccount(id: id)
+            guard operationIsCurrent(for: id, generation: generation) else { return }
+            accounts = remainingAccounts
+            refreshStates[id] = nil
             bannerMessage = nil
         } catch {
-            bannerMessage = MitoriError.map(error).localizedDescription
+            let mappedError = MitoriError.map(error)
+            bannerMessage = mappedError.localizedDescription
+            throw mappedError
         }
     }
 
@@ -165,23 +251,38 @@ final class MitoriModel {
 
     private func reloadAccounts() async {
         do {
-            accounts = try await accountStore.loadAccounts()
+            accounts = try await repository.loadAccounts()
         } catch {
             bannerMessage = MitoriError.map(error).localizedDescription
         }
     }
 
-    private func persist(_ result: SessionRefreshResult) async throws {
-        try await secretStore.save(result.secret, for: result.meta.id)
-        accounts = try await accountStore.upsert(result.meta)
-    }
-
-    private func persistFailure(for meta: StoredAccountMeta, error: MitoriError) async throws {
+    private func recordFailure(
+        for meta: StoredAccountMeta,
+        error: MitoriError,
+        generation: Int
+    ) async -> MitoriError? {
         var failed = meta
-        failed.lastIssue = error.refreshIssue()
+        let currentDate = now()
+        failed.lastIssue = error.refreshIssue(at: currentDate)
         failed.consecutiveFailureCount += 1
-        failed.nextEligibleRefreshAt = Date().addingTimeInterval(backoffInterval(for: failed.consecutiveFailureCount))
-        accounts = try await accountStore.upsert(failed)
+        failed.nextEligibleRefreshAt = currentDate.addingTimeInterval(
+            backoffInterval(for: failed.consecutiveFailureCount)
+        )
+
+        if let index = accounts.firstIndex(where: { $0.id == meta.id }) {
+            accounts[index] = failed
+        }
+
+        do {
+            let updatedAccounts = try await repository.upsert(failed)
+            if operationIsCurrent(for: meta.id, generation: generation, requireAccount: true) {
+                accounts = updatedAccounts
+            }
+            return nil
+        } catch {
+            return MitoriError.map(error)
+        }
     }
 
     private func normalized(_ result: SessionRefreshResult) -> SessionRefreshResult {
@@ -193,16 +294,19 @@ final class MitoriModel {
         }
 
         normalized.meta.consecutiveFailureCount = max(1, normalized.meta.consecutiveFailureCount)
-        normalized.meta.nextEligibleRefreshAt = Date().addingTimeInterval(
+        normalized.meta.nextEligibleRefreshAt = now().addingTimeInterval(
             backoffInterval(for: normalized.meta.consecutiveFailureCount)
         )
         return normalized
     }
 
-    private func isScreenLocked() -> Bool {
-        guard let dict = CGSessionCopyCurrentDictionary() as? [String: Any] else { return true }
-        // kCGSSessionOnConsoleKey is not Swift-exported; use its stable string value.
-        return !(dict["kCGSSessionOnConsoleKey"] as? Bool ?? true)
+    private static func currentScreenIsLocked() -> Bool {
+        guard let dictionary = CGSessionCopyCurrentDictionary() as? [String: Any],
+              let isLocked = dictionary["CGSSessionScreenIsLocked"] as? Bool
+        else {
+            return true
+        }
+        return isLocked
     }
 
     private func shouldAutoRefresh(_ meta: StoredAccountMeta) -> Bool {
@@ -210,8 +314,8 @@ final class MitoriModel {
             return false
         }
 
-        let now = Date()
-        if let nextEligibleRefreshAt = meta.nextEligibleRefreshAt, nextEligibleRefreshAt > now {
+        let currentDate = now()
+        if let nextEligibleRefreshAt = meta.nextEligibleRefreshAt, nextEligibleRefreshAt > currentDate {
             return false
         }
 
@@ -219,7 +323,7 @@ final class MitoriModel {
             return meta.balanceSnapshot == nil
         }
 
-        return now.timeIntervalSince(lastRefreshAt) >= settings.autoRefreshInterval
+        return currentDate.timeIntervalSince(lastRefreshAt) >= settings.autoRefreshInterval
     }
 
     private func backoffInterval(for failureCount: Int) -> TimeInterval {
@@ -233,15 +337,59 @@ final class MitoriModel {
         }
     }
 
+    private func beginOperation(for accountID: String) -> Int? {
+        guard !mutatingAccountIDs.contains(accountID) else { return nil }
+        guard pendingLoginGenerations[accountID] == nil else { return nil }
+        if case .refreshing = refreshState(for: accountID) {
+            return nil
+        }
+        let generation = nextGeneration(for: accountID)
+        refreshStates[accountID] = .refreshing
+        return generation
+    }
+
+    private func beginMutation(for accountID: String) throws -> Int {
+        guard !mutatingAccountIDs.contains(accountID) else {
+            throw MitoriError.operationInProgress
+        }
+        pendingLoginGenerations[accountID] = nil
+        mutatingAccountIDs.insert(accountID)
+        let generation = nextGeneration(for: accountID)
+        refreshStates[accountID] = .idle
+        return generation
+    }
+
+    private func finishMutation(for accountID: String) {
+        mutatingAccountIDs.remove(accountID)
+    }
+
+    private func nextGeneration(for accountID: String) -> Int {
+        let generation = accountGenerations[accountID, default: 0] + 1
+        accountGenerations[accountID] = generation
+        return generation
+    }
+
+    private func operationIsCurrent(
+        for accountID: String,
+        generation: Int,
+        requireAccount: Bool = false
+    ) -> Bool {
+        guard accountGenerations[accountID, default: 0] == generation else { return false }
+        return !requireAccount || account(with: accountID) != nil
+    }
+
     @discardableResult
-    private func applyPostRefreshState(for accountID: String, using result: SessionRefreshResult) -> MitoriError? {
+    private func applyPostRefreshState(
+        for accountID: String,
+        using result: SessionRefreshResult
+    ) -> MitoriError? {
         if let issue = result.meta.lastIssue {
             refreshStates[accountID] = .failed(issue.kind)
             bannerMessage = issue.message
             return MitoriError.from(refreshIssue: issue)
         }
 
-        refreshStates[accountID] = .succeeded(result.meta.lastRefreshAt ?? Date())
+        refreshStates[accountID] = .succeeded(result.meta.lastRefreshAt ?? now())
         bannerMessage = nil
         return nil
     }

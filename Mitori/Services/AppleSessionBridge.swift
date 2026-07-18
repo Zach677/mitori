@@ -1,7 +1,7 @@
 import ApplePackage
 import Foundation
 
-protocol AppleSessionBridging {
+protocol AppleSessionBridging: Sendable {
     func login(
         email: String,
         password: String,
@@ -56,7 +56,7 @@ actor AppleSessionBridge: AppleSessionBridging {
             email: meta.email,
             password: secret.password,
             code: code,
-            cookies: secret.cookies,
+            cookies: secret.cookies.map(\.appleCookie),
             deviceIdentifier: meta.deviceIdentifier,
             probeBundleID: meta.probeBundleID,
             existing: meta
@@ -70,7 +70,7 @@ actor AppleSessionBridge: AppleSessionBridging {
         do {
             return try await refreshBalanceOnly(meta: meta, secret: secret)
         } catch {
-            let mappedError = MitoriError.map(error)
+            let mappedError = MitoriError.mapApplePackage(error)
             if case .sessionExpired = mappedError {
                 return try await reauthenticate(meta: meta, secret: secret)
             }
@@ -87,13 +87,18 @@ actor AppleSessionBridge: AppleSessionBridging {
         probeBundleID: String,
         existing: StoredAccountMeta?
     ) async throws -> SessionRefreshResult {
-        let authenticatedAccount = try await Authenticator.authenticate(
-            email: email.trimmingCharacters(in: .whitespacesAndNewlines),
-            password: password,
-            code: code.trimmingCharacters(in: .whitespacesAndNewlines),
-            cookies: cookies,
-            deviceIdentifier: deviceIdentifier
-        )
+        let authenticatedAccount: Account
+        do {
+            authenticatedAccount = try await Authenticator.authenticate(
+                email: email.trimmingCharacters(in: .whitespacesAndNewlines),
+                password: password,
+                code: code.trimmingCharacters(in: .whitespacesAndNewlines),
+                cookies: cookies,
+                deviceIdentifier: deviceIdentifier
+            )
+        } catch {
+            throw MitoriError.mapApplePackage(error)
+        }
 
         var meta = StoredAccountMeta(
             account: authenticatedAccount,
@@ -109,10 +114,10 @@ actor AppleSessionBridge: AppleSessionBridging {
 
         do {
             let balanceResult = try await balanceService.refreshBalance(for: meta, secret: secret)
-            meta = updatedMeta(from: meta, account: balanceResult.secret.account, snapshot: balanceResult.snapshot)
-            return SessionRefreshResult(meta: meta, secret: balanceResult.secret)
+            meta = updatedMeta(from: meta, account: balanceResult.account, snapshot: balanceResult.snapshot)
+            return SessionRefreshResult(meta: meta, secret: StoredAccountSecret(account: balanceResult.account))
         } catch {
-            meta.lastIssue = MitoriError.map(error).refreshIssue()
+            meta.lastIssue = MitoriError.mapApplePackage(error).refreshIssue()
             return SessionRefreshResult(meta: meta, secret: secret)
         }
     }
@@ -122,8 +127,11 @@ actor AppleSessionBridge: AppleSessionBridging {
         secret: StoredAccountSecret
     ) async throws -> SessionRefreshResult {
         let balanceResult = try await balanceService.refreshBalance(for: meta, secret: secret)
-        let updatedMeta = updatedMeta(from: meta, account: balanceResult.secret.account, snapshot: balanceResult.snapshot)
-        return SessionRefreshResult(meta: updatedMeta, secret: balanceResult.secret)
+        let updatedMeta = updatedMeta(from: meta, account: balanceResult.account, snapshot: balanceResult.snapshot)
+        return SessionRefreshResult(
+            meta: updatedMeta,
+            secret: StoredAccountSecret(account: balanceResult.account)
+        )
     }
 
     private func updatedMeta(
@@ -144,5 +152,93 @@ actor AppleSessionBridge: AppleSessionBridging {
         updated.nextEligibleRefreshAt = nil
         updated.consecutiveFailureCount = 0
         return updated
+    }
+}
+
+private extension MitoriError {
+    static func mapApplePackage(_ error: Error) -> MitoriError {
+        if let error = error as? ApplePackageError {
+            switch error {
+            case .licenseRequired:
+                return .probeAppNotOwned
+            }
+        }
+        return map(error)
+    }
+}
+
+extension StoredAccountMeta {
+    init(
+        account: Account,
+        deviceIdentifier: String,
+        probeBundleID: String,
+        balanceSnapshot: BalanceSnapshot? = nil,
+        lastIssue: RefreshIssue? = nil,
+        lastRefreshAt: Date? = nil,
+        nextEligibleRefreshAt: Date? = nil,
+        consecutiveFailureCount: Int = 0
+    ) {
+        email = account.email
+        appleID = account.appleId
+        firstName = account.firstName
+        lastName = account.lastName
+        storefront = account.store
+        countryCode = Configuration.countryCode(for: account.store)
+        pod = account.pod
+        self.deviceIdentifier = deviceIdentifier
+        self.probeBundleID = probeBundleID
+        self.balanceSnapshot = balanceSnapshot
+        self.lastIssue = lastIssue
+        self.lastRefreshAt = lastRefreshAt
+        self.nextEligibleRefreshAt = nextEligibleRefreshAt
+        self.consecutiveFailureCount = consecutiveFailureCount
+    }
+}
+
+extension StoredAccountSecret {
+    init(account: Account) {
+        password = account.password
+        cookies = account.cookie.map(StoredCookie.init)
+        passwordToken = account.passwordToken
+        directoryServicesIdentifier = account.directoryServicesIdentifier
+    }
+
+    func restoredAccount(meta: StoredAccountMeta) -> Account {
+        Account(
+            email: meta.email,
+            password: password,
+            appleId: meta.appleID,
+            store: meta.storefront,
+            firstName: meta.firstName,
+            lastName: meta.lastName,
+            passwordToken: passwordToken,
+            directoryServicesIdentifier: directoryServicesIdentifier,
+            cookie: cookies.map(\.appleCookie),
+            pod: meta.pod
+        )
+    }
+}
+
+private extension StoredCookie {
+    init(_ cookie: Cookie) {
+        name = cookie.name
+        value = cookie.value
+        path = cookie.path
+        domain = cookie.domain
+        expiresAt = cookie.expiresAt
+        httpOnly = cookie.httpOnly
+        secure = cookie.secure
+    }
+
+    var appleCookie: Cookie {
+        Cookie(
+            name: name,
+            value: value,
+            path: path,
+            domain: domain,
+            expiresAt: expiresAt,
+            httpOnly: httpOnly,
+            secure: secure
+        )
     }
 }

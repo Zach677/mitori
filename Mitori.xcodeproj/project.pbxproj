@@ -319,9 +319,11 @@
 		AA000000000000000000001C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_ENTITLEMENTS = Mitori/Resources/Mitori.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = T6RF76Q2M9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Mitori/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -336,9 +338,11 @@
 		AA000000000000000000001D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_ENTITLEMENTS = Mitori/Resources/Mitori.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = T6RF76Q2M9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Mitori/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

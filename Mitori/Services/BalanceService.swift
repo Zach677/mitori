@@ -1,4 +1,4 @@
-import ApplePackage
+@preconcurrency import ApplePackage
 import Foundation
 
 actor BalanceService {
@@ -15,13 +15,18 @@ actor BalanceService {
         }
 
         let probeResult = try await probeClient.fetchProbePayload(
-            account: secret.restoredAccount(),
+            account: secret.restoredAccount(meta: meta),
             probeBundleID: probeBundleID,
             deviceIdentifier: meta.deviceIdentifier
         )
         let snapshot = try BalanceParser.parse(plistData: probeResult.payload, source: .probe)
-        return BalanceResult(snapshot: snapshot, secret: StoredAccountSecret(account: probeResult.account))
+        return BalanceResult(snapshot: snapshot, account: probeResult.account)
     }
+}
+
+struct BalanceResult: Sendable {
+    var snapshot: BalanceSnapshot
+    var account: Account
 }
 
 struct ProbePayloadResult: Sendable {
@@ -29,7 +34,7 @@ struct ProbePayloadResult: Sendable {
     var account: Account
 }
 
-final class BalanceProbeClient {
+actor BalanceProbeClient {
     private let maxRedirectCount = 3
 
     func fetchProbePayload(
@@ -70,11 +75,10 @@ final class BalanceProbeClient {
                     throw MitoriError.network("Apple returned too many redirects.")
                 }
                 guard let location = response.value(forHTTPHeaderField: "Location"),
-                      let redirectURL = URL(string: location, relativeTo: url)?.absoluteURL
-                else {
+                      !location.isEmpty else {
                     throw MitoriError.network("Apple returned a redirect without a Location header.")
                 }
-                url = redirectURL
+                url = try Self.validatedRedirectURL(location: location, relativeTo: url)
                 redirectCount += 1
                 continue
             }
@@ -100,7 +104,35 @@ final class BalanceProbeClient {
         guard let url = components.url else {
             throw MitoriError.unknown("Failed to build Apple balance probe URL.")
         }
+        guard Self.isTrustedStoreHost(url.host) else {
+            throw MitoriError.network("Apple returned an invalid store host.")
+        }
         return url
+    }
+
+    static func validatedRedirectURL(location: String, relativeTo baseURL: URL) throws -> URL {
+        guard let url = URL(string: location, relativeTo: baseURL)?.absoluteURL,
+              url.scheme?.lowercased() == "https",
+              url.user == nil,
+              url.password == nil,
+              url.port == nil || url.port == 443,
+              isTrustedStoreHost(url.host)
+        else {
+            throw MitoriError.network("Apple returned an untrusted redirect URL.")
+        }
+        return url
+    }
+
+    private static func isTrustedStoreHost(_ host: String?) -> Bool {
+        guard let host = host?.lowercased() else { return false }
+        if host == "buy.itunes.apple.com" || host == "downloaddispatch.itunes.apple.com" {
+            return true
+        }
+
+        let suffix = "-buy.itunes.apple.com"
+        guard host.hasPrefix("p"), host.hasSuffix(suffix) else { return false }
+        let pod = host.dropFirst().dropLast(suffix.count)
+        return !pod.isEmpty && pod.allSatisfy { ("0" ... "9").contains($0) }
     }
 
     private func makeRequestBody(deviceIdentifier: String, adamID: Int64) throws -> Data {

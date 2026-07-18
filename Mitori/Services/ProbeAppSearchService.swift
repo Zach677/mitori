@@ -24,7 +24,7 @@ struct ProbeAppCandidate: Equatable, Identifiable, Sendable {
     }
 }
 
-protocol ProbeAppSearching {
+protocol ProbeAppSearching: Sendable {
     func searchApps(matching term: String, countryCode: String, limit: Int) async throws -> [ProbeAppCandidate]
 }
 

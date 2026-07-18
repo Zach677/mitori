@@ -1,4 +1,3 @@
-import ApplePackage
 import Foundation
 
 enum MitoriError: LocalizedError, Equatable, Sendable {
@@ -9,6 +8,8 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
     case probeAppNotOwned
     case balanceNotFound
     case missingSecret
+    case operationInProgress
+    case operationSuperseded
     case unsupportedStorefront(String)
     case network(String)
     case storage(String)
@@ -17,13 +18,6 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
     static func map(_ error: Error) -> MitoriError {
         if let error = error as? MitoriError {
             return error
-        }
-
-        if let error = error as? ApplePackageError {
-            switch error {
-            case .licenseRequired:
-                return .probeAppNotOwned
-            }
         }
 
         if let error = error as? URLError {
@@ -46,6 +40,12 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
             return .unsupportedStorefront(message)
         }
         if (error as NSError).domain == NSOSStatusErrorDomain {
+            return .storage(message)
+        }
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain,
+           CocoaError(CocoaError.Code(rawValue: nsError.code)).isFileError
+        {
             return .storage(message)
         }
         if normalized.contains("keychain") || normalized.contains("storage") {
@@ -88,7 +88,7 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
             return .balanceUnavailable
         case .network:
             return .network
-        case .missingSecret, .storage, .unknown:
+        case .missingSecret, .operationInProgress, .operationSuperseded, .storage, .unknown:
             return .unknown
         }
     }
@@ -113,6 +113,10 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
             return "Apple responded, but no balance field could be parsed."
         case .missingSecret:
             return "Stored credentials are missing for this account."
+        case .operationInProgress:
+            return "Another operation is already running for this account."
+        case .operationSuperseded:
+            return "A newer account change replaced this operation."
         case let .unsupportedStorefront(message):
             return "Unsupported storefront: \(message)"
         case let .network(message):

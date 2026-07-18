@@ -5,12 +5,17 @@ actor AccountStore {
     private let fileURL: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let writeData: @Sendable (Data, URL) throws -> Void
 
     init(
         fileManager: FileManager = .default,
-        baseDirectory: URL? = nil
+        baseDirectory: URL? = nil,
+        writeData: @escaping @Sendable (Data, URL) throws -> Void = {
+            try $0.write(to: $1, options: .atomic)
+        }
     ) {
         self.fileManager = fileManager
+        self.writeData = writeData
         let applicationSupportDirectory = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
 
         let rootDirectory = baseDirectory
@@ -56,7 +61,7 @@ actor AccountStore {
     private func persist(_ accounts: [StoredAccountMeta]) throws {
         try ensureDirectoryExists()
         let data = try encoder.encode(accounts)
-        try data.write(to: fileURL, options: .atomic)
+        try writeData(data, fileURL)
     }
 
     private func ensureDirectoryExists() throws {

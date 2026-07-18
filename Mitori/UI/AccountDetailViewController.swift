@@ -4,15 +4,14 @@ import AppKit
 final class AccountDetailViewController: NSViewController {
     private let model: MitoriModel
     private let accountID: String
-    private let onClose: () -> Void
-    private let onProbeSaved: (Bool) -> Void
+    private let onClose: @MainActor () -> Void
+    private let onProbeSaved: @MainActor (Bool) -> Void
 
     private var probeLookup = ProbeAppLookupModel()
     private var isSavingProbe = false
     private var isReauthing = false
     private var isDeleting = false
 
-    private let scrollView = NSScrollView()
     private let contentStack = NSStackView()
     private let errorLabel = NSTextField(labelWithString: "")
     private let probeBundleIDField = NSTextField()
@@ -26,7 +25,12 @@ final class AccountDetailViewController: NSViewController {
         model.account(with: accountID)
     }
 
-    init(model: MitoriModel, accountID: String, onClose: @escaping () -> Void, onProbeSaved: @escaping (Bool) -> Void) {
+    init(
+        model: MitoriModel,
+        accountID: String,
+        onClose: @escaping @MainActor () -> Void,
+        onProbeSaved: @escaping @MainActor (Bool) -> Void
+    ) {
         self.model = model
         self.accountID = accountID
         self.onClose = onClose
@@ -44,33 +48,6 @@ final class AccountDetailViewController: NSViewController {
         view.translatesAutoresizingMaskIntoConstraints = false
         configureLayout()
         reload()
-    }
-
-    override func viewDidLayout() {
-        super.viewDidLayout()
-    }
-}
-
-private extension AccountDetailViewController {
-    func configureLayout() {
-        contentStack.orientation = .vertical
-        contentStack.alignment = .width
-        contentStack.spacing = 24
-        contentStack.edgeInsets = NSEdgeInsets(top: 24, left: 24, bottom: 16, right: 24)
-        contentStack.translatesAutoresizingMaskIntoConstraints = false
-
-        view.addSubview(contentStack)
-
-        configureErrorLabel()
-
-        NSLayoutConstraint.activate([
-            contentStack.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            contentStack.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            contentStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            contentStack.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor),
-            view.widthAnchor.constraint(equalToConstant: 500),
-            view.heightAnchor.constraint(greaterThanOrEqualToConstant: 300),
-        ])
     }
 
     func reload(errorMessage: String? = nil) {
@@ -105,24 +82,28 @@ private extension AccountDetailViewController {
             window.setContentSize(NSSize(width: window.contentView?.bounds.width ?? 500, height: contentHeight))
         }
     }
+}
 
-    func makeHeader(_ account: StoredAccountMeta) -> NSView {
-        let stack = NSStackView()
-        stack.orientation = .horizontal
-        stack.alignment = .centerY
-        stack.spacing = 12
+private extension AccountDetailViewController {
+    func configureLayout() {
+        contentStack.orientation = .vertical
+        contentStack.alignment = .width
+        contentStack.spacing = 24
+        contentStack.edgeInsets = NSEdgeInsets(top: 24, left: 24, bottom: 16, right: 24)
+        contentStack.translatesAutoresizingMaskIntoConstraints = false
 
-        let identity = NSStackView()
-        identity.orientation = .vertical
-        identity.alignment = .leading
-        identity.spacing = 2
-        identity.addArrangedSubview(label(account.displayName, size: 14, weight: .semibold))
-        identity.addArrangedSubview(label(account.email, size: 11, color: .secondaryLabelColor))
-        identity.addArrangedSubview(label(statusTitle(for: account), size: 11, color: statusTint(for: account)))
+        view.addSubview(contentStack)
 
-        stack.addArrangedSubview(identity)
-        stack.addArrangedSubview(NSView())
-        return stack
+        configureErrorLabel()
+
+        NSLayoutConstraint.activate([
+            contentStack.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            contentStack.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            contentStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            contentStack.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor),
+            view.widthAnchor.constraint(equalToConstant: 500),
+            view.heightAnchor.constraint(greaterThanOrEqualToConstant: 300),
+        ])
     }
 
     func makeBalanceSection(_ account: StoredAccountMeta) -> NSView {
@@ -200,14 +181,14 @@ private extension AccountDetailViewController {
         saveProbeButton.target = self
         saveProbeButton.action = #selector(saveProbeBundleID)
         saveProbeButton.bezelStyle = .rounded
-        saveProbeButton.isEnabled = !isSavingProbe
+        saveProbeButton.isEnabled = !isSavingProbe && !isReauthing && !isDeleting
         saveProbeButton.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         deleteButton.target = self
         deleteButton.action = #selector(deleteAccount)
         deleteButton.bezelStyle = .rounded
         deleteButton.contentTintColor = NSColor.systemRed.blended(withFraction: 0.25, of: .labelColor)
-        deleteButton.isEnabled = !isDeleting
+        deleteButton.isEnabled = !isDeleting && !isSavingProbe && !isReauthing
         deleteButton.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         let actionRow = NSStackView()
@@ -233,30 +214,8 @@ private extension AccountDetailViewController {
         reauthButton.target = self
         reauthButton.action = #selector(reauthenticate)
         reauthButton.bezelStyle = .rounded
-        reauthButton.isEnabled = !isReauthing
+        reauthButton.isEnabled = !isReauthing && !isSavingProbe && !isDeleting
         addFullWidth(buttonRow(trailing: reauthButton), to: stack)
-        return stack
-    }
-
-    func makeActionsSection() -> NSView {
-        let stack = section(title: "Actions")
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.spacing = 8
-
-        let refreshButton = NSButton(title: "Refresh Balance", target: self, action: #selector(refreshBalance))
-        refreshButton.bezelStyle = .rounded
-
-        deleteButton.target = self
-        deleteButton.action = #selector(deleteAccount)
-        deleteButton.bezelStyle = .rounded
-        deleteButton.contentTintColor = NSColor.systemRed.blended(withFraction: 0.25, of: .labelColor)
-        deleteButton.isEnabled = !isDeleting
-
-        row.addArrangedSubview(refreshButton)
-        row.addArrangedSubview(NSView())
-        row.addArrangedSubview(deleteButton)
-        addFullWidth(row, to: stack)
         return stack
     }
 
@@ -275,12 +234,6 @@ private extension AccountDetailViewController {
         stack.spacing = 8
         addFullWidth(label(title, size: 11, weight: .medium, color: .secondaryLabelColor), to: stack)
         return stack
-    }
-
-    func separator() -> NSView {
-        let box = NSBox()
-        box.boxType = .separator
-        return box
     }
 
     func detailRow(_ title: String, value: String) -> NSView {
@@ -326,14 +279,6 @@ private extension AccountDetailViewController {
         errorLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     }
 
-    func updateDocumentFrame() {
-        let width = max(view.bounds.width, 500)
-        let fittingHeight = contentStack.fittingSize.height
-        let viewHeight = scrollView.contentView.bounds.height
-        let y = max(0, viewHeight - fittingHeight)
-        contentStack.frame = NSRect(x: 0, y: y, width: width, height: fittingHeight)
-    }
-
     func addFullWidth(_ view: NSView, to stack: NSStackView) {
         stack.addArrangedSubview(view)
         view.translatesAutoresizingMaskIntoConstraints = false
@@ -358,47 +303,9 @@ private extension AccountDetailViewController {
         return field
     }
 
-    func avatarColor(for account: StoredAccountMeta) -> NSColor {
-        let colors: [NSColor] = [
-            .systemBlue,
-            .systemPurple,
-            .systemPink,
-            .systemOrange,
-            .systemTeal,
-            .systemIndigo,
-            .systemMint,
-            .systemCyan,
-        ]
-        return colors[abs(account.email.hashValue) % colors.count]
-    }
-
-    func statusTitle(for account: StoredAccountMeta) -> String {
-        switch account.status {
-        case .normal:
-            return "Ready"
-        case .needsVerification:
-            return "Needs verification"
-        case .sessionExpired:
-            return "Session expired"
-        case .attention:
-            return "Needs attention"
-        }
-    }
-
-    func statusTint(for account: StoredAccountMeta) -> NSColor {
-        switch account.status {
-        case .normal:
-            return .secondaryLabelColor
-        case .needsVerification, .attention:
-            return NSColor.systemOrange.blended(withFraction: 0.3, of: .labelColor) ?? .systemOrange
-        case .sessionExpired:
-            return NSColor.systemRed.blended(withFraction: 0.25, of: .labelColor) ?? .systemRed
-        }
-    }
-
     @objc
     func saveProbeBundleID() {
-        guard !isSavingProbe else { return }
+        guard !isSavingProbe, !isReauthing, !isDeleting else { return }
         let oldProbe = (account?.probeBundleID ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let newProbe = probeBundleIDField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         isSavingProbe = true
@@ -410,55 +317,51 @@ private extension AccountDetailViewController {
                 try await model.saveProbeBundleID(probeBundleIDField.stringValue, for: accountID)
                 onProbeSaved(oldProbe != newProbe)
             } catch {
-                reload(errorMessage: MitoriError.map(error).localizedDescription)
                 isSavingProbe = false
-                reload()
+                reload(errorMessage: MitoriError.map(error).localizedDescription)
             }
-        }
-    }
-
-    @objc
-    func refreshBalance() {
-        Task {
-            await model.refreshAccount(id: accountID, isManualRefresh: true)
-            reload(errorMessage: model.account(with: accountID)?.lastIssue?.message)
         }
     }
 
     @objc
     func reauthenticate() {
-        guard !isReauthing else { return }
+        guard !isReauthing, !isSavingProbe, !isDeleting else { return }
         isReauthing = true
         reload()
 
         Task {
+            var errorMessage: String?
             do {
                 try await model.reauthenticateAccount(id: accountID, code: verificationCodeField.stringValue)
                 verificationCodeField.stringValue = ""
-                reload()
             } catch {
-                reload(errorMessage: MitoriError.map(error).localizedDescription)
+                errorMessage = MitoriError.map(error).localizedDescription
             }
             isReauthing = false
-            reload()
+            reload(errorMessage: errorMessage)
         }
     }
 
     @objc
     func deleteAccount() {
-        guard !isDeleting else { return }
+        guard !isDeleting, confirmDeletion() else { return }
         isDeleting = true
         reload()
 
         Task {
-            await model.deleteAccount(id: accountID)
-            onClose()
+            do {
+                try await model.deleteAccount(id: accountID)
+                onClose()
+            } catch {
+                isDeleting = false
+                reload(errorMessage: MitoriError.map(error).localizedDescription)
+            }
         }
     }
 
     @objc
     func searchProbeApps() {
-        guard let account else { return }
+        guard let account, !isDeleting else { return }
         probeLookup.query = probeSearchField.stringValue
         Task {
             await probeLookup.search(countryCode: account.countryCode)
@@ -471,6 +374,16 @@ private extension AccountDetailViewController {
         guard let result = sender.result else { return }
         probeBundleIDField.stringValue = probeLookup.select(result)
         reload()
+    }
+
+    func confirmDeletion() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Delete this account?"
+        alert.informativeText = "Mitori will remove the account metadata and stored credentials from this Mac."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
     }
 }
 

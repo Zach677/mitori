@@ -8,39 +8,56 @@ final class ProbeAppLookupModel {
     var results: [ProbeAppCandidate] = []
     var errorMessage: String?
     var isSearching = false
+    private var searchGeneration = 0
 
     init(searchService: any ProbeAppSearching = ProbeAppSearchService()) {
         self.searchService = searchService
     }
 
     func search(countryCode: String?) async {
+        searchGeneration += 1
+        let generation = searchGeneration
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty else { return }
+        guard !trimmedQuery.isEmpty else {
+            results = []
+            errorMessage = nil
+            isSearching = false
+            return
+        }
 
         isSearching = true
         errorMessage = nil
-        defer { isSearching = false }
+        defer {
+            if generation == searchGeneration {
+                isSearching = false
+            }
+        }
 
         do {
-            results = try await searchService.searchApps(
+            let newResults = try await searchService.searchApps(
                 matching: trimmedQuery,
                 countryCode: normalizedCountryCode(countryCode),
                 limit: 5
             )
+            guard generation == searchGeneration else { return }
+            results = newResults
 
             if results.isEmpty {
                 errorMessage = "No matching apps found. Try a more specific name."
             }
         } catch {
+            guard generation == searchGeneration else { return }
             results = []
             errorMessage = MitoriError.map(error).localizedDescription
         }
     }
 
     func select(_ candidate: ProbeAppCandidate) -> String {
+        searchGeneration += 1
         query = candidate.name
         results = []
         errorMessage = nil
+        isSearching = false
         return candidate.bundleID
     }
 

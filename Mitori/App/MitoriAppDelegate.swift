@@ -9,7 +9,6 @@ final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
     private lazy var autoRefreshScheduler = AutoRefreshScheduler { [weak self] in
         guard let self else { return }
         await self.model.autoRefreshTick()
-        self.menuBarController.reloadPanel()
     }
 
     func applicationDidFinishLaunching(_: Notification) {

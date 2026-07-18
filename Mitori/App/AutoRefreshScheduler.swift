@@ -3,12 +3,15 @@ import Foundation
 @MainActor
 final class AutoRefreshScheduler {
     private let tickInterval: TimeInterval
-    private let onTick: () async -> Void
+    private let onTick: @MainActor @Sendable () async -> Void
     private var timer: Timer?
 
     // The timer only wakes the app; whether a refresh actually runs is
     // decided per account by the model, so a short tick stays cheap.
-    init(tickInterval: TimeInterval = 60, onTick: @escaping () async -> Void) {
+    init(
+        tickInterval: TimeInterval = 60,
+        onTick: @escaping @MainActor @Sendable () async -> Void
+    ) {
         self.tickInterval = tickInterval
         self.onTick = onTick
     }
@@ -16,9 +19,10 @@ final class AutoRefreshScheduler {
     func start() {
         guard timer == nil else { return }
 
+        let onTick = onTick
         let timer = Timer(timeInterval: tickInterval, repeats: true) { _ in
-            Task { @MainActor [weak self] in
-                await self?.onTick()
+            Task { @MainActor in
+                await onTick()
             }
         }
         timer.tolerance = tickInterval * 0.1

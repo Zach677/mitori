@@ -1,4 +1,3 @@
-import ApplePackage
 import Foundation
 
 struct BalanceSnapshot: Codable, Equatable, Sendable {
@@ -90,65 +89,24 @@ struct StoredAccountMeta: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-extension StoredAccountMeta {
-    init(
-        account: Account,
-        deviceIdentifier: String,
-        probeBundleID: String,
-        balanceSnapshot: BalanceSnapshot? = nil,
-        lastIssue: RefreshIssue? = nil,
-        lastRefreshAt: Date? = nil,
-        nextEligibleRefreshAt: Date? = nil,
-        consecutiveFailureCount: Int = 0
-    ) {
-        email = account.email
-        appleID = account.appleId
-        firstName = account.firstName
-        lastName = account.lastName
-        storefront = account.store
-        countryCode = Configuration.countryCode(for: account.store)
-        pod = account.pod
-        self.deviceIdentifier = deviceIdentifier
-        self.probeBundleID = probeBundleID
-        self.balanceSnapshot = balanceSnapshot
-        self.lastIssue = lastIssue
-        self.lastRefreshAt = lastRefreshAt
-        self.nextEligibleRefreshAt = nextEligibleRefreshAt
-        self.consecutiveFailureCount = consecutiveFailureCount
-    }
+struct StoredCookie: Codable, Equatable, Sendable {
+    var name: String
+    var value: String
+    var path: String
+    var domain: String?
+    var expiresAt: TimeInterval?
+    var httpOnly: Bool
+    var secure: Bool
 }
 
 struct StoredAccountSecret: Codable, Equatable, Sendable {
     var password: String
-    var cookies: [Cookie]
+    var cookies: [StoredCookie]
     var passwordToken: String
     var directoryServicesIdentifier: String
-    var account: Account
-
-    init(account: Account) {
-        password = account.password
-        cookies = account.cookie
-        passwordToken = account.passwordToken
-        directoryServicesIdentifier = account.directoryServicesIdentifier
-        self.account = account
-    }
-
-    func restoredAccount() -> Account {
-        var restored = account
-        restored.password = password
-        restored.cookie = cookies
-        restored.passwordToken = passwordToken
-        restored.directoryServicesIdentifier = directoryServicesIdentifier
-        return restored
-    }
 }
 
 struct SessionRefreshResult: Sendable {
     var meta: StoredAccountMeta
-    var secret: StoredAccountSecret
-}
-
-struct BalanceResult: Sendable {
-    var snapshot: BalanceSnapshot
     var secret: StoredAccountSecret
 }

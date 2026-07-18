@@ -63,8 +63,30 @@ struct ProbeAppLookupModelTests {
         #expect(model.results.isEmpty)
         #expect(model.errorMessage == "No matching apps found. Try a more specific name.")
     }
+
+    @Test
+    func olderSearchCannotOverwriteNewerResults() async {
+        let gate = SearchGate()
+        let service = OutOfOrderProbeAppSearchService(gate: gate)
+        let model = ProbeAppLookupModel(searchService: service)
+        model.query = "first"
+        let firstSearch = Task {
+            await model.search(countryCode: "US")
+        }
+        await gate.waitUntilStarted()
+
+        model.query = "second"
+        await model.search(countryCode: "US")
+        gate.release()
+        await firstSearch.value
+
+        #expect(model.results.map(\.name) == ["Second"])
+        #expect(model.errorMessage == nil)
+        #expect(model.isSearching == false)
+    }
 }
 
+@MainActor
 private final class ProbeAppSearchServiceStub: ProbeAppSearching {
     let results: [ProbeAppCandidate]
     private(set) var recordedQueries: [(term: String, countryCode: String, limit: Int)] = []
@@ -76,5 +98,50 @@ private final class ProbeAppSearchServiceStub: ProbeAppSearching {
     func searchApps(matching term: String, countryCode: String, limit: Int) async throws -> [ProbeAppCandidate] {
         recordedQueries.append((term, countryCode, limit))
         return results
+    }
+}
+
+@MainActor
+private final class OutOfOrderProbeAppSearchService: ProbeAppSearching {
+    private let gate: SearchGate
+
+    init(gate: SearchGate) {
+        self.gate = gate
+    }
+
+    func searchApps(matching term: String, countryCode _: String, limit _: Int) async throws -> [ProbeAppCandidate] {
+        if term == "first" {
+            await gate.suspend()
+            return [ProbeAppCandidate(id: 1, bundleID: "com.example.first", name: "First", sellerName: "Example")]
+        }
+        return [ProbeAppCandidate(id: 2, bundleID: "com.example.second", name: "Second", sellerName: "Example")]
+    }
+}
+
+@MainActor
+private final class SearchGate {
+    private var hasStarted = false
+    private var startContinuation: CheckedContinuation<Void, Never>?
+    private var releaseContinuation: CheckedContinuation<Void, Never>?
+
+    func suspend() async {
+        hasStarted = true
+        startContinuation?.resume()
+        startContinuation = nil
+        await withCheckedContinuation { continuation in
+            releaseContinuation = continuation
+        }
+    }
+
+    func waitUntilStarted() async {
+        if hasStarted { return }
+        await withCheckedContinuation { continuation in
+            startContinuation = continuation
+        }
+    }
+
+    func release() {
+        releaseContinuation?.resume()
+        releaseContinuation = nil
     }
 }

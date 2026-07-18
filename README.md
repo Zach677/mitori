@@ -9,7 +9,7 @@ Mitori logs into your Apple ID, queries the account's store credit balance throu
 ## Privacy
 
 - All data stays on your machine. Nothing is uploaded to any server other than Apple's own.
-- Account credentials (password, cookies, tokens) are stored in the macOS Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` — readable only while the screen is unlocked, never synced to iCloud.
+- Account credentials (password, cookies, tokens) are stored in the macOS Data Protection Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` — readable only while the screen is unlocked, never synced to iCloud. Existing legacy Keychain items migrate after the first successful read.
 - Account metadata (email, balance snapshot, refresh state) is stored in `~/Library/Application Support/Mitori/accounts.json`.
 - Auto-refresh is skipped while the screen is locked; no background credential access happens on a locked machine.
 
@@ -22,8 +22,8 @@ Mitori logs into your Apple ID, queries the account's store credit balance throu
 
 ## Requirements
 
-- macOS 14.0+
-- Xcode (built with Swift 5)
+- macOS 26.0+
+- Xcode 26+ with an Apple Development signing identity
 - [mise](https://mise.jdx.dev/) for task runners
 
 ## Build & run
@@ -49,7 +49,7 @@ You'll need:
 
 ## Status
 
-Early development (v0.1.0). Not yet signed or notarized. Distribution via GitHub Release + notarization is planned.
+Early development (v0.1.0). Development-signed only; distribution signing and notarization are planned.
 
 ## Dependencies
 

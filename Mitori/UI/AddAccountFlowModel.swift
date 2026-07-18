@@ -1,4 +1,3 @@
-import ApplePackage
 import Foundation
 
 @MainActor
@@ -22,7 +21,7 @@ final class AddAccountFlowModel {
         url: URL(string: "https://account.apple.com")!
     )
 
-    init(deviceIdentifier: String = makeDefaultDeviceIdentifier()) {
+    init(deviceIdentifier: String = DeviceIdentifierProvider.make()) {
         self.deviceIdentifier = deviceIdentifier
     }
 
@@ -66,8 +65,4 @@ final class AddAccountFlowModel {
             errorMessage = mappedError.localizedDescription
         }
     }
-}
-
-private func makeDefaultDeviceIdentifier() -> String {
-    (try? DeviceIdentifier.system()) ?? DeviceIdentifier.random()
 }

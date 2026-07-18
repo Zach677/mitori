@@ -2,19 +2,19 @@ import AppKit
 
 @MainActor
 final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVisibilityManaging {
-    private let titleProvider: () -> String
-    private let contentProvider: () -> NSViewController
+    private let titleProvider: @MainActor () -> String
+    private let contentProvider: @MainActor () -> NSViewController
     private let defaultSize: NSSize
     private let autosaveName: String?
     private let windowLevel: NSWindow.Level
     private var currentViewController: NSViewController?
 
     init(
-        title: @escaping () -> String,
+        title: @escaping @MainActor () -> String,
         size: NSSize,
         autosaveName: String? = nil,
         windowLevel: NSWindow.Level = .normal,
-        content: @escaping () -> NSViewController
+        content: @escaping @MainActor () -> NSViewController
     ) {
         titleProvider = title
         contentProvider = content
