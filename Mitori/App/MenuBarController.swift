@@ -107,11 +107,10 @@ final class MenuBarController: NSObject {
             return
         }
 
-        if let image = NSImage(
-            systemSymbolName: "creditcard.and.123",
-            accessibilityDescription: "Mitori"
-        ) {
+        if let image = NSImage(named: "MitoriStatusIcon") {
             image.isTemplate = true
+            image.size = NSSize(width: 18, height: 18)
+            image.accessibilityDescription = "Mitori"
             button.image = image
         } else {
             button.title = "Mitori"
