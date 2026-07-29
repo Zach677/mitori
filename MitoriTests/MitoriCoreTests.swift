@@ -51,6 +51,23 @@ struct KeychainSecretBackendTests {
     }
 
     @Test
+    func roundTripsDataThroughFileBasedKeychain() throws {
+        let backend = KeychainSecretBackend(
+            service: "dev.zach.mitori.tests.\(UUID().uuidString)",
+            usesDataProtectionKeychain: false
+        )
+        let key = "account.community@example.com"
+        defer { try? backend.removeValue(for: key) }
+
+        try backend.set(Data("community".utf8), for: key)
+        #expect(try backend.data(for: key) == Data("community".utf8))
+
+        try backend.removeValue(for: key)
+        #expect(try backend.data(for: key) == nil)
+    }
+
+#if !MITORI_COMMUNITY_BUILD
+    @Test
     func migratesLegacyItemToDataProtectionKeychain() throws {
         let service = "dev.zach.mitori.tests.\(UUID().uuidString)"
         let key = "account.legacy@example.com"
@@ -121,6 +138,7 @@ struct KeychainSecretBackendTests {
         var legacyResult: AnyObject?
         #expect(SecItemCopyMatching(legacyQuery as CFDictionary, &legacyResult) == errSecItemNotFound)
     }
+#endif
 }
 
 struct SecretStoreTests {

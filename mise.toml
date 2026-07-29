@@ -33,6 +33,14 @@ run = [{ task = "test-macos" }]
 description = "Run tests with xcodebuild"
 run = "bash scripts/test-macos.sh"
 
+[tasks.test-community]
+description = "Run tests with the ad hoc community build settings"
+run = "COMMUNITY_BUILD=1 bash scripts/test-macos.sh"
+
+[tasks.package-community]
+description = "Build and package the ad hoc community DMG"
+run = "bash scripts/package-community.sh"
+
 [tasks.clean]
 description = "Remove local build output and stale SwiftPM/Tuist artifacts"
 run = "rm -rf .build .app-build .xcodebuild Derived .swiftpm .cache/tuist .cache/tuist-state"

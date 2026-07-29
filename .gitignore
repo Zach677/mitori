@@ -56,6 +56,7 @@ graph.dot
 Derived/
 .xcodebuild/
 .app-build/
+dist/
 
 ### Stale SwiftPM output ###
 .build/

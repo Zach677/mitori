@@ -9,7 +9,8 @@ Mitori logs into your Apple ID, queries the account's store credit balance throu
 ## Privacy
 
 - All data stays on your machine. Nothing is uploaded to any server other than Apple's own.
-- Account credentials (password, cookies, tokens) are stored in the macOS Data Protection Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` — readable only while the screen is unlocked, never synced to iCloud. Existing legacy Keychain items migrate after the first successful read.
+- Development-signed builds store account credentials (password, cookies, tokens) in the macOS Data Protection Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` — readable only while the screen is unlocked and never synced to iCloud.
+- Ad hoc community builds use the local file-based login Keychain because Apple restricts Data Protection Keychain access to provisioned apps. These items are also non-synchronizing. A future Developer ID build will migrate them into Data Protection Keychain after the first successful read.
 - Account metadata (email, balance snapshot, refresh state) is stored in `~/Library/Application Support/Mitori/accounts.json`.
 - Auto-refresh is skipped while the screen is locked; no background credential access happens on a locked machine.
 
@@ -23,8 +24,11 @@ Mitori logs into your Apple ID, queries the account's store credit balance throu
 ## Requirements
 
 - macOS 26.0+
-- Xcode 26+ with an Apple Development signing identity
+- Xcode 26+
 - [mise](https://mise.jdx.dev/) for task runners
+- `xcbeautify` (`brew install xcbeautify`) for formatted build and test output
+
+Command-line tasks use ad hoc signing and do not require an Apple Developer account. Builds launched directly from Xcode keep the project's Development signing settings.
 
 ## Build & run
 
@@ -32,11 +36,26 @@ Mitori logs into your Apple ID, queries the account's store credit balance throu
 mise run build-macos   # build and stage the app bundle
 mise run run-macos     # build, then launch
 mise run test-macos    # run tests
+mise run test-community # test without Apple signing credentials
+mise run package-community # build the ad hoc Release DMG
 ```
 
 The staged bundle lands at `.app-build/debug/Mitori.app`.
+Community packages land in `dist/` with a SHA-256 checksum.
 
 To open in Xcode: `open Mitori.xcodeproj`.
+
+## Community releases
+
+Until Mitori has a paid Apple Developer account, the community release workflow produces an ad hoc-signed, Hardened Runtime Release build. It is not notarized, so macOS may block the first launch.
+
+After copying Mitori to `/Applications`, prefer **System Settings → Privacy & Security → Open Anyway**. If that option is unavailable, verify the published SHA-256 checksum and remove the quarantine attributes manually:
+
+```sh
+xattr -cr /Applications/Mitori.app
+```
+
+When a Developer ID certificate becomes available, releases will switch to Developer ID signing and Apple notarization. That build will restore Data Protection Keychain storage and automatically migrate credentials created by community builds.
 
 ## Adding an account
 
@@ -49,7 +68,7 @@ You'll need:
 
 ## Status
 
-Early development (v0.1.0). Development-signed only; distribution signing and notarization are planned.
+Early development (v0.1.0). Tagged community builds are configured to publish as ad hoc-signed prereleases; Developer ID signing and notarization are planned.
 
 ## Dependencies
 
