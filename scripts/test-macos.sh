@@ -20,6 +20,7 @@ XCODEBUILD_ARGUMENTS=(
     -scheme Mitori
     -destination "platform=macOS"
     -derivedDataPath "$DERIVED_DATA_PATH"
+    -parallel-testing-enabled NO
 )
 if [[ "$COMMUNITY_BUILD" == "1" ]]; then
     XCODEBUILD_ARGUMENTS+=(

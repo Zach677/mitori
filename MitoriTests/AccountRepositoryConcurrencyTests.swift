@@ -58,15 +58,19 @@ struct AccountRepositoryConcurrencyTests {
         }.value
         defer { writeGate.release() }
 
+        let (mutationStarted, mutationStartedContinuation) = AsyncStream<Void>.makeStream()
+        let mutationStartedCancellable = model.changes.sink {
+            guard model.refreshState(for: meta.id) != .refreshing else { return }
+            mutationStartedContinuation.yield()
+            mutationStartedContinuation.finish()
+        }
+        defer { mutationStartedCancellable.cancel() }
+
         let probeEdit = Task {
             try await model.saveProbeBundleID("com.example.new-probe", for: meta.id)
         }
-        if model.refreshState(for: meta.id) == .refreshing {
-            for await _ in model.changes.values {
-                if model.refreshState(for: meta.id) != .refreshing {
-                    break
-                }
-            }
+        for await _ in mutationStarted {
+            break
         }
 
         writeGate.release()
