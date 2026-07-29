@@ -67,3 +67,6 @@ dist/
 
 ### Repo-local tool cache ###
 .cache/
+
+### Node.js tooling ###
+node_modules/

@@ -26,7 +26,7 @@ Mitori logs into your Apple ID, queries the account's store credit balance throu
 - macOS 26.0+
 - Xcode 26+
 - [mise](https://mise.jdx.dev/) for task runners
-- `xcbeautify` (`brew install xcbeautify`) for formatted build and test output
+- `xcbeautify` and Node.js (`brew install xcbeautify node`) for formatted build and license output
 
 Command-line tasks use ad hoc signing and do not require an Apple Developer account. Builds launched directly from Xcode keep the project's Development signing settings.
 
@@ -73,6 +73,8 @@ Early development (v0.1.0). Tagged community builds are configured to publish as
 ## Dependencies
 
 - [ApplePackage](https://github.com/Zach677/ApplePackage) (fork) — Apple ID authentication and store API access, via SPM.
+
+`mise run scan-license` regenerates the bundled `OpenSourceLicenses.md` from every resolved Swift package's license and notice files. Generation fails when a dependency has no discoverable license or introduces a GPL-family license that needs manual review.
 
 ## License
 

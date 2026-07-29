@@ -41,6 +41,10 @@ run = "COMMUNITY_BUILD=1 bash scripts/test-macos.sh"
 description = "Build and package the ad hoc community DMG"
 run = "bash scripts/package-community.sh"
 
+[tasks.scan-license]
+description = "Regenerate bundled open-source license notices"
+run = "zsh scripts/scan.license.sh"
+
 [tasks.clean]
 description = "Remove local build output and stale SwiftPM/Tuist artifacts"
 run = "rm -rf .build .app-build .xcodebuild Derived .swiftpm .cache/tuist .cache/tuist-state"

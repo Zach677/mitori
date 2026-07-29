@@ -6,6 +6,7 @@ APP_PATH="$ROOT_DIR/.app-build/community/Mitori.app"
 DIST_DIR="$ROOT_DIR/dist"
 
 cd "$ROOT_DIR"
+zsh scripts/scan.license.sh
 COMMUNITY_BUILD=1 CONFIGURATION=Release bash scripts/build-macos.sh
 
 codesign --force --sign - --options runtime "$APP_PATH"
