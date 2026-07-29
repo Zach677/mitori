@@ -24,6 +24,7 @@ Mitori logs into your Apple ID, queries the account's store credit balance throu
 ## Requirements
 
 - macOS 26.0+
+- Apple silicon or an Intel Mac supported by macOS 26
 - Xcode 26+
 - [mise](https://mise.jdx.dev/) for task runners
 - `xcbeautify` and Node.js (`brew install xcbeautify node`) for formatted build and license output
@@ -42,6 +43,7 @@ mise run package-community # build the ad hoc Release DMG
 
 The staged bundle lands at `.app-build/debug/Mitori.app`.
 Community packages land in `dist/` with a SHA-256 checksum.
+Release DMGs contain both `arm64` and `x86_64` slices. The Intel slice is build-verified but has not been tested on Intel hardware.
 
 To open in Xcode: `open Mitori.xcodeproj`.
 
@@ -71,6 +73,8 @@ You'll need:
 ## Status
 
 Early development (v0.1.0). Tagged community builds are configured to publish as ad hoc-signed prereleases; Developer ID signing and notarization are planned.
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Dependencies
 
