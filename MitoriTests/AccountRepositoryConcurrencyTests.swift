@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import Testing
 
@@ -60,8 +61,12 @@ struct AccountRepositoryConcurrencyTests {
         let probeEdit = Task {
             try await model.saveProbeBundleID("com.example.new-probe", for: meta.id)
         }
-        while model.refreshState(for: meta.id) == .refreshing {
-            await Task.yield()
+        if model.refreshState(for: meta.id) == .refreshing {
+            for await _ in model.changes.values {
+                if model.refreshState(for: meta.id) != .refreshing {
+                    break
+                }
+            }
         }
 
         writeGate.release()
