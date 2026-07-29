@@ -7,37 +7,31 @@ struct MenuBarInteractionControllerTests {
     @Test
     func primaryClickPresentsPopoverWhenHidden() {
         let popover = PopoverSpy(isPresented: false)
-        let contextMenu = ContextMenuSpy()
-        let controller = MenuBarInteractionController(popover: popover, contextMenu: contextMenu)
+        let controller = MenuBarInteractionController(popover: popover)
 
-        controller.handleClick(.primary)
+        controller.handleClick(clickCount: 1)
 
         #expect(popover.events == ["present"])
-        #expect(contextMenu.presentCount == 0)
     }
 
     @Test
     func primaryClickDismissesPopoverWhenVisible() {
         let popover = PopoverSpy(isPresented: true)
-        let contextMenu = ContextMenuSpy()
-        let controller = MenuBarInteractionController(popover: popover, contextMenu: contextMenu)
+        let controller = MenuBarInteractionController(popover: popover)
 
-        controller.handleClick(.primary)
+        controller.handleClick(clickCount: 1)
 
         #expect(popover.events == ["dismiss"])
-        #expect(contextMenu.presentCount == 0)
     }
 
     @Test
-    func secondaryClickDismissesPopoverBeforeShowingContextMenu() {
-        let popover = PopoverSpy(isPresented: true)
-        let contextMenu = ContextMenuSpy()
-        let controller = MenuBarInteractionController(popover: popover, contextMenu: contextMenu)
+    func repeatedClickLeavesPopoverStateUnchanged() {
+        let popover = PopoverSpy(isPresented: false)
+        let controller = MenuBarInteractionController(popover: popover)
 
-        controller.handleClick(.secondary)
+        controller.handleClick(clickCount: 2)
 
-        #expect(popover.events == ["dismiss"])
-        #expect(contextMenu.presentCount == 1)
+        #expect(popover.events.isEmpty)
     }
 }
 
@@ -83,15 +77,6 @@ private final class PopoverSpy: MenuBarPopoverManaging {
     func dismiss() {
         events.append("dismiss")
         isPresented = false
-    }
-}
-
-@MainActor
-private final class ContextMenuSpy: MenuBarContextMenuManaging {
-    private(set) var presentCount = 0
-
-    func present() {
-        presentCount += 1
     }
 }
 

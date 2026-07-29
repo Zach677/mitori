@@ -45,6 +45,8 @@ Community packages land in `dist/` with a SHA-256 checksum.
 
 To open in Xcode: `open Mitori.xcodeproj`.
 
+The [Privacy Policy](https://zaxh.org/mitori/privacy) and resolved third-party license terms are available under **Settings → About**. The policy opens in your browser; license terms remain bundled with the app for offline access.
+
 ## Community releases
 
 Until Mitori has a paid Apple Developer account, the community release workflow produces an ad hoc-signed, Hardened Runtime Release build. It is not notarized, so macOS may block the first launch.

@@ -28,6 +28,13 @@ struct AccountStoreTests {
     }
 }
 
+struct BundledDocumentTests {
+    @Test
+    func loadsOpenSourceLicenses() {
+        #expect(BundledDocument.openSourceLicenses.text().contains("## ApplePackage"))
+    }
+}
+
 struct KeychainSecretBackendTests {
     @Test
     func roundTripsDataThroughRealKeychain() throws {

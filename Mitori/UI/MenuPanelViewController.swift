@@ -10,6 +10,7 @@ final class MenuPanelViewController: NSViewController {
     private let model: MitoriModel
     private let onAddAccount: @MainActor () -> Void
     private let onOpenAccount: @MainActor (String) -> Void
+    private let onOpenSettings: @MainActor () -> Void
     private let onQuit: @MainActor () -> Void
 
     private let contentStack = NSStackView()
@@ -24,11 +25,13 @@ final class MenuPanelViewController: NSViewController {
         model: MitoriModel,
         onAddAccount: @escaping @MainActor () -> Void,
         onOpenAccount: @escaping @MainActor (String) -> Void,
+        onOpenSettings: @escaping @MainActor () -> Void,
         onQuit: @escaping @MainActor () -> Void
     ) {
         self.model = model
         self.onAddAccount = onAddAccount
         self.onOpenAccount = onOpenAccount
+        self.onOpenSettings = onOpenSettings
         self.onQuit = onQuit
         super.init(nibName: nil, bundle: nil)
     }
@@ -123,10 +126,13 @@ private extension MenuPanelViewController {
         addButton.action = #selector(addAccount)
         addButton.toolTip = "Add Account"
 
+        let moreButton = makeMoreButton()
+
         stack.addArrangedSubview(title)
         stack.addArrangedSubview(NSView())
         stack.addArrangedSubview(refreshButton)
         stack.addArrangedSubview(addButton)
+        stack.addArrangedSubview(moreButton)
 
         wrapper.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -136,6 +142,7 @@ private extension MenuPanelViewController {
             stack.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor, constant: -10),
             refreshButton.widthAnchor.constraint(equalToConstant: 24),
             addButton.widthAnchor.constraint(equalToConstant: 24),
+            moreButton.widthAnchor.constraint(equalToConstant: 24),
         ])
 
         return wrapper
@@ -161,33 +168,47 @@ private extension MenuPanelViewController {
     }
 
     func makeFooter() -> NSView {
-        let wrapper = NSView()
-        let stack = NSStackView()
-        stack.orientation = .horizontal
-        stack.alignment = .centerY
-        stack.spacing = 8
-        stack.translatesAutoresizingMaskIntoConstraints = false
-
         summaryLabel.font = .systemFont(ofSize: 11)
         summaryLabel.textColor = .secondaryLabelColor
+        return wrapped(summaryLabel, horizontal: 16, vertical: 9)
+    }
 
-        let quitButton = NSButton(title: "Quit", target: self, action: #selector(quit))
-        quitButton.bezelStyle = .inline
-        quitButton.font = .systemFont(ofSize: 11)
+    func makeMoreButton() -> NSPopUpButton {
+        let button = NSPopUpButton(frame: .zero, pullsDown: true)
+        button.bezelStyle = .inline
+        button.controlSize = .small
+        button.focusRingType = .none
+        button.imagePosition = .imageOnly
+        button.toolTip = "More"
+        button.setAccessibilityLabel("More")
+        (button.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
 
-        stack.addArrangedSubview(summaryLabel)
-        stack.addArrangedSubview(NSView())
-        stack.addArrangedSubview(quitButton)
+        let menu = NSMenu()
+        let labelItem = NSMenuItem()
+        labelItem.image = NSImage(systemSymbolName: "ellipsis", accessibilityDescription: "More")
+        menu.addItem(labelItem)
 
-        wrapper.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -16),
-            stack.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 8),
-            stack.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor, constant: -10),
-        ])
+        let settingsItem = NSMenuItem(
+            title: "Settings...",
+            action: #selector(openSettings),
+            keyEquivalent: ","
+        )
+        settingsItem.keyEquivalentModifierMask = .command
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+        menu.addItem(.separator())
 
-        return wrapper
+        let quitItem = NSMenuItem(
+            title: "Quit Mitori",
+            action: #selector(quit),
+            keyEquivalent: "q"
+        )
+        quitItem.keyEquivalentModifierMask = .command
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        button.menu = menu
+        return button
     }
 
     func reloadAccounts() {
@@ -256,9 +277,11 @@ private extension MenuPanelViewController {
         let count = model.accounts.count
         guard count > 0 else {
             summaryLabel.stringValue = ""
+            summaryLabel.superview?.isHidden = true
             return
         }
 
+        summaryLabel.superview?.isHidden = false
         let refreshedAt = model.accounts.compactMap(\.lastRefreshAt).max()
         let refreshLabel = refreshedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never"
         summaryLabel.stringValue = "\(count) account\(count == 1 ? "" : "s") · \(refreshLabel)"
@@ -325,6 +348,11 @@ private extension MenuPanelViewController {
         Task {
             await model.refreshAll()
         }
+    }
+
+    @objc
+    func openSettings() {
+        onOpenSettings()
     }
 
     @objc

@@ -3,6 +3,8 @@ import Combine
 
 @MainActor
 final class MenuBarController: NSObject {
+    private static let privacyPolicyURL = URL(string: "https://zaxh.org/mitori/privacy")!
+
     private let model: MitoriModel
     private let settings: RefreshSettingsStore
     private let statusItem: NSStatusItem
@@ -16,6 +18,9 @@ final class MenuBarController: NSObject {
         onOpenAccount: { [weak self] accountID in
             self?.presentAccountDetailWindow(for: accountID)
         },
+        onOpenSettings: { [weak self] in
+            self?.presentSettingsWindow()
+        },
         onQuit: {
             NSApp.terminate(nil)
         }
@@ -28,11 +33,7 @@ final class MenuBarController: NSObject {
                 self?.menuPanelController.prepareForPresentation()
             }
         )
-        let contextMenuPresenter = StatusItemContextMenuPresenter(
-            statusItem: statusItem,
-            menuProvider: { [unowned self] in makeContextMenu() }
-        )
-        return MenuBarInteractionController(popover: popoverPresenter, contextMenu: contextMenuPresenter)
+        return MenuBarInteractionController(popover: popoverPresenter)
     }()
 
     private var detailAccountID: String?
@@ -80,13 +81,33 @@ final class MenuBarController: NSObject {
 
     private lazy var settingsWindowController = AppWindowController(
         title: { "Settings" },
-        size: NSSize(width: 380, height: 190),
+        size: NSSize(width: 420, height: 320),
         autosaveName: "dev.zach.mitori.settings"
     ) { [unowned self] in
-        SettingsViewController(settings: settings)
+        SettingsViewController(
+            settings: settings,
+            onOpenPrivacyPolicy: {
+                NSWorkspace.shared.open(Self.privacyPolicyURL)
+            },
+            onOpenSourceLicenses: { [weak self] in
+                self?.presentDocument(.openSourceLicenses)
+            }
+        )
     }
 
     private lazy var settingsWindowPresenter = WindowPresentationCoordinator(window: settingsWindowController)
+
+    private var selectedDocument = BundledDocument.openSourceLicenses
+
+    private lazy var documentWindowController = AppWindowController(
+        title: { [unowned self] in selectedDocument.title },
+        size: NSSize(width: 620, height: 520),
+        autosaveName: "dev.zach.mitori.document"
+    ) { [unowned self] in
+        DocumentViewController(document: selectedDocument)
+    }
+
+    private lazy var documentWindowPresenter = WindowPresentationCoordinator(window: documentWindowController)
 
     init(model: MitoriModel, settings: RefreshSettingsStore) {
         self.model = model
@@ -119,7 +140,7 @@ final class MenuBarController: NSObject {
         button.toolTip = "Mitori"
         button.target = self
         button.action = #selector(handleStatusItemClick(_:))
-        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        button.sendAction(on: [.leftMouseUp])
     }
 
     private func configurePopover() {
@@ -127,49 +148,6 @@ final class MenuBarController: NSObject {
         popover.animates = false
         popover.contentSize = NSSize(width: 360, height: 420)
         popover.contentViewController = menuPanelController
-    }
-
-    private func makeContextMenu() -> NSMenu {
-        let menu = NSMenu()
-
-        let addAccountItem = NSMenuItem(
-            title: "Add Account",
-            action: #selector(openAddAccountFromMenu(_:)),
-            keyEquivalent: ""
-        )
-        addAccountItem.target = self
-        menu.addItem(addAccountItem)
-
-        let refreshItem = NSMenuItem(
-            title: "Refresh All",
-            action: #selector(refreshAllFromMenu(_:)),
-            keyEquivalent: ""
-        )
-        refreshItem.target = self
-        refreshItem.isEnabled = !model.accounts.isEmpty && !model.isRefreshingAll
-        menu.addItem(refreshItem)
-
-        menu.addItem(.separator())
-
-        let settingsItem = NSMenuItem(
-            title: "Settings...",
-            action: #selector(openSettingsFromMenu(_:)),
-            keyEquivalent: ""
-        )
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-
-        menu.addItem(.separator())
-
-        let quitItem = NSMenuItem(
-            title: "Quit Mitori",
-            action: #selector(quitFromMenu(_:)),
-            keyEquivalent: ""
-        )
-        quitItem.target = self
-        menu.addItem(quitItem)
-
-        return menu
     }
 
     private func presentAddAccountWindow() {
@@ -204,6 +182,11 @@ final class MenuBarController: NSObject {
     private func presentSettingsWindow() {
         popover.performClose(nil)
         settingsWindowPresenter.present()
+    }
+
+    private func presentDocument(_ document: BundledDocument) {
+        selectedDocument = document
+        documentWindowPresenter.present()
     }
 
     private func presentAccountDetailWindow(for accountID: String) {
@@ -247,37 +230,7 @@ final class MenuBarController: NSObject {
 
     @objc
     private func handleStatusItemClick(_: Any?) {
-        let clickKind: StatusItemClickKind
-        switch NSApp.currentEvent?.type {
-        case .rightMouseUp:
-            clickKind = .secondary
-        default:
-            clickKind = .primary
-        }
-
-        interactionController.handleClick(clickKind)
-    }
-
-    @objc
-    private func openAddAccountFromMenu(_: Any?) {
-        presentAddAccountWindow()
-    }
-
-    @objc
-    private func openSettingsFromMenu(_: Any?) {
-        presentSettingsWindow()
-    }
-
-    @objc
-    private func refreshAllFromMenu(_: Any?) {
-        Task {
-            await model.refreshAll()
-        }
-    }
-
-    @objc
-    private func quitFromMenu(_: Any?) {
-        NSApp.terminate(nil)
+        interactionController.handleClick(clickCount: NSApp.currentEvent?.clickCount ?? 1)
     }
 }
 
@@ -317,27 +270,5 @@ private final class StatusItemPopoverController: MenuBarPopoverManaging {
 
     func dismiss() {
         popover.performClose(nil)
-    }
-}
-
-@MainActor
-private final class StatusItemContextMenuPresenter: MenuBarContextMenuManaging {
-    private let statusItem: NSStatusItem
-    private let menuProvider: @MainActor @Sendable () -> NSMenu
-
-    init(
-        statusItem: NSStatusItem,
-        menuProvider: @escaping @MainActor @Sendable () -> NSMenu
-    ) {
-        self.statusItem = statusItem
-        self.menuProvider = menuProvider
-    }
-
-    func present() {
-        guard let button = statusItem.button else {
-            return
-        }
-
-        menuProvider().popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.maxY + 4), in: button)
     }
 }
