@@ -60,6 +60,7 @@ final class MenuPanelViewController: NSViewController {
         guard isViewLoaded else { return }
 
         refreshButton.isEnabled = !model.accounts.isEmpty && !model.isRefreshingAll
+        refreshButton.isHidden = model.accounts.count <= 1
         reloadAccounts()
         reloadBanner()
         reloadSummary()
@@ -316,8 +317,8 @@ private extension MenuPanelViewController {
         line.translatesAutoresizingMaskIntoConstraints = false
         wrapper.addSubview(line)
         NSLayoutConstraint.activate([
-            line.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 14),
-            line.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -14),
+            line.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 16),
+            line.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -16),
             line.topAnchor.constraint(equalTo: wrapper.topAnchor),
             line.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor),
             wrapper.heightAnchor.constraint(equalToConstant: 1),

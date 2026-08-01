@@ -31,15 +31,15 @@ final class AccountRowView: NSView {
         stack.orientation = .horizontal
         stack.alignment = .centerY
         stack.spacing = 10
-        stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
+        stack.edgeInsets = NSEdgeInsets(top: 14, left: 16, bottom: 14, right: 16)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         let identity = NSStackView()
         identity.orientation = .vertical
         identity.alignment = .leading
         identity.spacing = 1
-        identity.addArrangedSubview(label(account.displayName, size: 12, weight: .medium))
-        identity.addArrangedSubview(label(account.email, size: 11, color: .secondaryLabelColor))
+        identity.addArrangedSubview(label(account.displayName, size: 13, weight: .medium))
+        identity.addArrangedSubview(label(account.email, size: 12, color: .secondaryLabelColor))
 
         let trailing = NSStackView()
         trailing.orientation = .vertical
