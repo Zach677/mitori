@@ -204,6 +204,7 @@ struct RefreshSettingsStoreTests {
 
         #expect(store.isAutoRefreshEnabled == false)
         #expect(store.autoRefreshInterval == RefreshSettingsStore.defaultInterval)
+        #expect(store.isPersonalInformationHidden == false)
     }
 
     @Test
@@ -223,6 +224,51 @@ struct RefreshSettingsStoreTests {
         // A too-short value written directly to defaults must also be clamped on read.
         defaults.set(120, forKey: "autoRefresh.interval")
         #expect(store.autoRefreshInterval == RefreshSettingsStore.minimumInterval)
+    }
+
+    @Test
+    func persistsPersonalInformationVisibility() {
+        let suiteName = "test.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = RefreshSettingsStore(defaults: defaults)
+        store.isPersonalInformationHidden = true
+
+        #expect(RefreshSettingsStore(defaults: defaults).isPersonalInformationHidden)
+    }
+}
+
+struct AccountPresentationTests {
+    @Test
+    func hidesPersonalAccountIdentifiers() {
+        let account = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF1234567890",
+            probeBundleID: "com.example.probe"
+        )
+        let visible = AccountPresentation(
+            account: account,
+            accountIndex: 1,
+            hidesPersonalInformation: false
+        )
+
+        let hidden = AccountPresentation(
+            account: account,
+            accountIndex: 1,
+            hidesPersonalInformation: true
+        )
+
+        #expect(visible.name == account.displayName)
+        #expect(visible.email == account.email)
+        #expect(visible.windowTitle == account.displayName)
+        #expect(visible.appleID == account.appleID)
+        #expect(visible.deviceIdentifier == "ABCDEF123456…")
+        #expect(hidden.name == "Account 2")
+        #expect(hidden.email == nil)
+        #expect(hidden.windowTitle == "Account Details")
+        #expect(hidden.appleID == "Hidden")
+        #expect(hidden.deviceIdentifier == "Hidden")
     }
 }
 
@@ -286,7 +332,48 @@ struct BalanceParserTests {
         #expect(snapshot.displayText == "CNY 88.00")
         #expect(snapshot.currencyCode == "CNY")
         #expect(snapshot.numericValue == Decimal(string: "88.00"))
-        #expect(snapshot.rawFieldPath == "songList[0].creditBalance")
+        #expect(snapshot.rawFieldPath == "songList[0].balance")
+    }
+
+    @Test
+    func treatsEmptyCreditDisplayAsZeroAndIgnoresSentinelBalances() throws {
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: [
+                "creditDisplay": "",
+                "creditBalance": "1311811",
+                "freeSongBalance": "1311811",
+            ],
+            format: .xml,
+            options: 0
+        )
+
+        let snapshot = try BalanceParser.parse(plistData: data, source: .probe)
+
+        #expect(snapshot.displayText == "0")
+        #expect(snapshot.numericValue == 0)
+        #expect(snapshot.rawFieldPath == "creditDisplay")
+    }
+
+    @Test
+    func prefersStructuredBalanceOverEmptyCreditDisplay() throws {
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: [
+                "creditDisplay": "",
+                "balance": [
+                    "display": "USD 4.20",
+                    "amount": 4.20,
+                    "currency": "USD",
+                ],
+            ],
+            format: .xml,
+            options: 0
+        )
+
+        let snapshot = try BalanceParser.parse(plistData: data, source: .probe)
+
+        #expect(snapshot.displayText == "USD 4.20")
+        #expect(snapshot.numericValue == Decimal(string: "4.2"))
+        #expect(snapshot.rawFieldPath == "balance")
     }
 
     @Test

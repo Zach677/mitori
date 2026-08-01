@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 
 @MainActor
 final class SettingsViewController: NSViewController {
@@ -11,17 +12,22 @@ final class SettingsViewController: NSViewController {
     ]
 
     private let settings: RefreshSettingsStore
+    private let onPersonalInformationVisibilityChanged: @MainActor () -> Void
     private let onOpenPrivacyPolicy: @MainActor () -> Void
     private let onOpenSourceLicenses: @MainActor () -> Void
+    private let openAtLoginSwitch = NSSwitch()
+    private let hidePersonalInformationSwitch = NSSwitch()
     private let autoRefreshSwitch = NSSwitch()
     private let intervalPopUp = NSPopUpButton()
 
     init(
         settings: RefreshSettingsStore,
+        onPersonalInformationVisibilityChanged: @escaping @MainActor () -> Void,
         onOpenPrivacyPolicy: @escaping @MainActor () -> Void,
         onOpenSourceLicenses: @escaping @MainActor () -> Void
     ) {
         self.settings = settings
+        self.onPersonalInformationVisibilityChanged = onPersonalInformationVisibilityChanged
         self.onOpenPrivacyPolicy = onOpenPrivacyPolicy
         self.onOpenSourceLicenses = onOpenSourceLicenses
         super.init(nibName: nil, bundle: nil)
@@ -38,6 +44,7 @@ final class SettingsViewController: NSViewController {
         configureLayout()
         reload()
     }
+
 }
 
 private extension SettingsViewController {
@@ -49,6 +56,7 @@ private extension SettingsViewController {
         root.translatesAutoresizingMaskIntoConstraints = false
 
         addFullWidth(makeHeader(), to: root)
+        addFullWidth(makeGeneralSection(), to: root)
         addFullWidth(makeRefreshSection(), to: root)
         addFullWidth(makeAboutSection(), to: root)
 
@@ -57,9 +65,9 @@ private extension SettingsViewController {
             root.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             root.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
             root.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 24),
-            root.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -24),
+            root.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -24),
             view.widthAnchor.constraint(equalToConstant: 420),
-            view.heightAnchor.constraint(greaterThanOrEqualToConstant: 320),
+            view.heightAnchor.constraint(greaterThanOrEqualToConstant: 420),
         ])
     }
 
@@ -72,12 +80,36 @@ private extension SettingsViewController {
         let title = NSTextField(labelWithString: "Settings")
         title.font = .systemFont(ofSize: 15, weight: .semibold)
 
-        let subtitle = NSTextField(labelWithString: "Manage balance updates and app information.")
+        let subtitle = NSTextField(labelWithString: "Manage startup, privacy, and balance updates.")
         subtitle.font = .systemFont(ofSize: 12)
         subtitle.textColor = .secondaryLabelColor
 
         stack.addArrangedSubview(title)
         stack.addArrangedSubview(subtitle)
+        return stack
+    }
+
+    func makeGeneralSection() -> NSView {
+        let stack = section(title: "General")
+
+        openAtLoginSwitch.target = self
+        openAtLoginSwitch.action = #selector(toggleOpenAtLogin)
+        openAtLoginSwitch.controlSize = .small
+        openAtLoginSwitch.focusRingType = .none
+        addFullWidth(settingRow(title: "Open at login", control: openAtLoginSwitch), to: stack)
+
+        hidePersonalInformationSwitch.target = self
+        hidePersonalInformationSwitch.action = #selector(togglePersonalInformationVisibility)
+        hidePersonalInformationSwitch.controlSize = .small
+        hidePersonalInformationSwitch.focusRingType = .none
+        addFullWidth(settingRow(title: "Hide personal information", control: hidePersonalInformationSwitch), to: stack)
+
+        let help = NSTextField(wrappingLabelWithString: "Hides account names, email addresses, Apple IDs, and device IDs in Mitori.")
+        help.font = .systemFont(ofSize: 11)
+        help.textColor = .secondaryLabelColor
+        help.maximumNumberOfLines = 2
+        help.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        addFullWidth(help, to: stack)
         return stack
     }
 
@@ -182,6 +214,8 @@ private extension SettingsViewController {
     }
 
     func reload() {
+        openAtLoginSwitch.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        hidePersonalInformationSwitch.state = settings.isPersonalInformationHidden ? .on : .off
         autoRefreshSwitch.state = settings.isAutoRefreshEnabled ? .on : .off
         intervalPopUp.isEnabled = settings.isAutoRefreshEnabled
 
@@ -189,6 +223,37 @@ private extension SettingsViewController {
         let index = Self.intervalChoices.firstIndex { $0.interval >= current }
             ?? Self.intervalChoices.indices.last!
         intervalPopUp.selectItem(at: index)
+    }
+
+    @objc
+    func toggleOpenAtLogin() {
+        let service = SMAppService.mainApp
+        do {
+            if openAtLoginSwitch.state == .on {
+                try service.register()
+                if service.status == .requiresApproval {
+                    showLoginItemAlert(
+                        message: "Allow Mitori in System Settings to open it automatically when you log in.",
+                        offersSystemSettings: true
+                    )
+                }
+            } else {
+                try service.unregister()
+            }
+        } catch {
+            showLoginItemAlert(
+                message: error.localizedDescription,
+                offersSystemSettings: service.status == .requiresApproval
+            )
+        }
+        reload()
+    }
+
+    @objc
+    func togglePersonalInformationVisibility() {
+        settings.isPersonalInformationHidden = hidePersonalInformationSwitch.state == .on
+        onPersonalInformationVisibilityChanged()
+        reload()
     }
 
     @objc
@@ -212,5 +277,28 @@ private extension SettingsViewController {
     @objc
     func openSourceLicenses() {
         onOpenSourceLicenses()
+    }
+
+    func showLoginItemAlert(message: String, offersSystemSettings: Bool) {
+        let alert = NSAlert()
+        alert.messageText = "Unable to change login setting"
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        if offersSystemSettings {
+            alert.addButton(withTitle: "Open System Settings")
+        }
+        alert.addButton(withTitle: "OK")
+
+        guard let window = view.window else {
+            if offersSystemSettings, alert.runModal() == .alertFirstButtonReturn {
+                SMAppService.openSystemSettingsLoginItems()
+            }
+            return
+        }
+        alert.beginSheetModal(for: window) { response in
+            if offersSystemSettings, response == .alertFirstButtonReturn {
+                SMAppService.openSystemSettingsLoginItems()
+            }
+        }
     }
 }

@@ -2,7 +2,18 @@ import AppKit
 
 @MainActor
 final class AccountDetailViewController: NSViewController {
+    private enum Metrics {
+        static let width: CGFloat = 500
+        static let minimumHeight: CGFloat = 300
+        static let horizontalInset: CGFloat = 24
+        static let topInset: CGFloat = 8
+        static let bottomInset: CGFloat = 16
+        static let sectionSpacing: CGFloat = 20
+        static let balanceSpacing: CGFloat = 4
+    }
+
     private let model: MitoriModel
+    private let settings: RefreshSettingsStore
     private let accountID: String
     private let onClose: @MainActor () -> Void
     private let onProbeSaved: @MainActor (Bool) -> Void
@@ -27,11 +38,13 @@ final class AccountDetailViewController: NSViewController {
 
     init(
         model: MitoriModel,
+        settings: RefreshSettingsStore,
         accountID: String,
         onClose: @escaping @MainActor () -> Void,
         onProbeSaved: @escaping @MainActor (Bool) -> Void
     ) {
         self.model = model
+        self.settings = settings
         self.accountID = accountID
         self.onClose = onClose
         self.onProbeSaved = onProbeSaved
@@ -78,8 +91,11 @@ final class AccountDetailViewController: NSViewController {
         contentStack.invalidateIntrinsicContentSize()
         view.layoutSubtreeIfNeeded()
         if let window = view.window {
-            let contentHeight = contentStack.fittingSize.height + view.safeAreaInsets.top + 16
-            window.setContentSize(NSSize(width: window.contentView?.bounds.width ?? 500, height: contentHeight))
+            let contentHeight = contentStack.fittingSize.height + view.safeAreaInsets.top
+            window.setContentSize(NSSize(
+                width: window.contentView?.bounds.width ?? Metrics.width,
+                height: contentHeight
+            ))
         }
     }
 }
@@ -88,8 +104,13 @@ private extension AccountDetailViewController {
     func configureLayout() {
         contentStack.orientation = .vertical
         contentStack.alignment = .width
-        contentStack.spacing = 24
-        contentStack.edgeInsets = NSEdgeInsets(top: 24, left: 24, bottom: 16, right: 24)
+        contentStack.spacing = Metrics.sectionSpacing
+        contentStack.edgeInsets = NSEdgeInsets(
+            top: Metrics.topInset,
+            left: Metrics.horizontalInset,
+            bottom: Metrics.bottomInset,
+            right: Metrics.horizontalInset
+        )
         contentStack.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(contentStack)
@@ -101,8 +122,8 @@ private extension AccountDetailViewController {
             contentStack.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             contentStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             contentStack.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor),
-            view.widthAnchor.constraint(equalToConstant: 500),
-            view.heightAnchor.constraint(greaterThanOrEqualToConstant: 300),
+            view.widthAnchor.constraint(equalToConstant: Metrics.width),
+            view.heightAnchor.constraint(greaterThanOrEqualToConstant: Metrics.minimumHeight),
         ])
     }
 
@@ -110,7 +131,7 @@ private extension AccountDetailViewController {
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .width
-        stack.spacing = 8
+        stack.spacing = Metrics.balanceSpacing
         addFullWidth(label("Balance", size: 11, weight: .medium, color: .secondaryLabelColor), to: stack)
         addFullWidth(label(
             account.balanceDisplayText ?? "Unavailable",
@@ -129,12 +150,18 @@ private extension AccountDetailViewController {
     }
 
     func makeInfoSection(_ account: StoredAccountMeta) -> NSView {
+        let accountIndex = model.accounts.firstIndex(where: { $0.id == account.id }) ?? 0
+        let presentation = AccountPresentation(
+            account: account,
+            accountIndex: accountIndex,
+            hidesPersonalInformation: settings.isPersonalInformationHidden
+        )
         let stack = section(title: "Account Info")
-        addFullWidth(detailRow("Apple ID", value: account.appleID), to: stack)
+        addFullWidth(detailRow("Apple ID", value: presentation.appleID), to: stack)
         addFullWidth(detailRow("Region", value: account.regionLabel.isEmpty ? "Unknown" : account.regionLabel), to: stack)
         addFullWidth(detailRow("Pod", value: account.pod ?? "Unavailable"), to: stack)
         addFullWidth(detailRow("Credentials", value: "Stored in Keychain"), to: stack)
-        addFullWidth(detailRow("Device ID", value: String(account.deviceIdentifier.prefix(12)) + "…"), to: stack)
+        addFullWidth(detailRow("Device ID", value: presentation.deviceIdentifier), to: stack)
         return stack
     }
 

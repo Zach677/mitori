@@ -10,6 +10,7 @@ final class RefreshSettingsStore: @unchecked Sendable {
     private enum Keys {
         static let isAutoRefreshEnabled = "autoRefresh.enabled"
         static let autoRefreshInterval = "autoRefresh.interval"
+        static let isPersonalInformationHidden = "privacy.hidePersonalInformation"
     }
 
     private let defaults: UserDefaults
@@ -30,5 +31,10 @@ final class RefreshSettingsStore: @unchecked Sendable {
             return max(stored, Self.minimumInterval)
         }
         set { defaults.set(max(newValue, Self.minimumInterval), forKey: Keys.autoRefreshInterval) }
+    }
+
+    var isPersonalInformationHidden: Bool {
+        get { defaults.bool(forKey: Keys.isPersonalInformationHidden) }
+        set { defaults.set(newValue, forKey: Keys.isPersonalInformationHidden) }
     }
 }

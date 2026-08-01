@@ -5,9 +5,14 @@ final class MenuPanelViewController: NSViewController {
     private enum Metrics {
         static let width: CGFloat = 360
         static let maxScrollHeight: CGFloat = 420
+        static let horizontalInset: CGFloat = 16
+        static let compactInset: CGFloat = 8
+        static let regularInset: CGFloat = 12
+        static let emptyStateInset: CGFloat = 24
     }
 
     private let model: MitoriModel
+    private let settings: RefreshSettingsStore
     private let onAddAccount: @MainActor () -> Void
     private let onOpenAccount: @MainActor (String) -> Void
     private let onOpenSettings: @MainActor () -> Void
@@ -20,15 +25,18 @@ final class MenuPanelViewController: NSViewController {
     private let summaryLabel = NSTextField(labelWithString: "")
     private let refreshButton = NSButton()
     private var accountScrollHeightConstraint: NSLayoutConstraint?
+    private var footerSeparator: NSView?
 
     init(
         model: MitoriModel,
+        settings: RefreshSettingsStore,
         onAddAccount: @escaping @MainActor () -> Void,
         onOpenAccount: @escaping @MainActor (String) -> Void,
         onOpenSettings: @escaping @MainActor () -> Void,
         onQuit: @escaping @MainActor () -> Void
     ) {
         self.model = model
+        self.settings = settings
         self.onAddAccount = onAddAccount
         self.onOpenAccount = onOpenAccount
         self.onOpenSettings = onOpenSettings
@@ -91,9 +99,15 @@ private extension MenuPanelViewController {
         bannerLabel.lineBreakMode = .byWordWrapping
         bannerLabel.maximumNumberOfLines = 2
         bannerLabel.translatesAutoresizingMaskIntoConstraints = false
-        contentStack.addArrangedSubview(wrapped(bannerLabel, horizontal: 16, vertical: 6))
+        contentStack.addArrangedSubview(wrapped(
+            bannerLabel,
+            horizontal: Metrics.horizontalInset,
+            vertical: Metrics.compactInset
+        ))
 
-        contentStack.addArrangedSubview(makeSeparator())
+        let separator = makeSeparator()
+        footerSeparator = separator
+        contentStack.addArrangedSubview(separator)
         contentStack.addArrangedSubview(makeFooter())
     }
 
@@ -137,10 +151,10 @@ private extension MenuPanelViewController {
 
         wrapper.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -16),
-            stack.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 12),
-            stack.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor, constant: -10),
+            stack.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: Metrics.horizontalInset),
+            stack.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -Metrics.horizontalInset),
+            stack.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: Metrics.regularInset),
+            stack.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor, constant: -Metrics.compactInset),
             refreshButton.widthAnchor.constraint(equalToConstant: 24),
             addButton.widthAnchor.constraint(equalToConstant: 24),
             moreButton.widthAnchor.constraint(equalToConstant: 24),
@@ -171,7 +185,11 @@ private extension MenuPanelViewController {
     func makeFooter() -> NSView {
         summaryLabel.font = .systemFont(ofSize: 11)
         summaryLabel.textColor = .secondaryLabelColor
-        return wrapped(summaryLabel, horizontal: 16, vertical: 9)
+        return wrapped(
+            summaryLabel,
+            horizontal: Metrics.horizontalInset,
+            vertical: Metrics.compactInset
+        )
     }
 
     func makeMoreButton() -> NSPopUpButton {
@@ -227,6 +245,11 @@ private extension MenuPanelViewController {
         for (index, account) in model.accounts.enumerated() {
             accountsStack.addArrangedSubview(AccountRowView(
                 account: account,
+                presentation: AccountPresentation(
+                    account: account,
+                    accountIndex: index,
+                    hidesPersonalInformation: settings.isPersonalInformationHidden
+                ),
                 refreshState: model.refreshState(for: account.id),
                 onOpen: { [weak self] in
                     self?.onOpenAccount(account.id)
@@ -247,7 +270,12 @@ private extension MenuPanelViewController {
         stack.orientation = .vertical
         stack.alignment = .centerX
         stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 28, left: 16, bottom: 28, right: 16)
+        stack.edgeInsets = NSEdgeInsets(
+            top: Metrics.emptyStateInset,
+            left: Metrics.horizontalInset,
+            bottom: Metrics.emptyStateInset,
+            right: Metrics.horizontalInset
+        )
 
         let title = NSTextField(labelWithString: "No accounts yet")
         title.font = .systemFont(ofSize: 13, weight: .medium)
@@ -264,14 +292,16 @@ private extension MenuPanelViewController {
 
         [title, subtitle, button].forEach(stack.addArrangedSubview(_:))
         stack.translatesAutoresizingMaskIntoConstraints = false
-        stack.widthAnchor.constraint(equalToConstant: Metrics.width - 32).isActive = true
+        stack.widthAnchor.constraint(
+            equalToConstant: Metrics.width - (Metrics.horizontalInset * 2)
+        ).isActive = true
         return stack
     }
 
     func reloadBanner() {
         let message = model.bannerMessage ?? ""
         bannerLabel.stringValue = message
-        bannerLabel.isHidden = message.isEmpty
+        bannerLabel.superview?.isHidden = message.isEmpty
     }
 
     func reloadSummary() {
@@ -279,10 +309,12 @@ private extension MenuPanelViewController {
         guard count > 0 else {
             summaryLabel.stringValue = ""
             summaryLabel.superview?.isHidden = true
+            footerSeparator?.isHidden = true
             return
         }
 
         summaryLabel.superview?.isHidden = false
+        footerSeparator?.isHidden = false
         let refreshedAt = model.accounts.compactMap(\.lastRefreshAt).max()
         let refreshLabel = refreshedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never"
         summaryLabel.stringValue = "\(count) account\(count == 1 ? "" : "s") · \(refreshLabel)"
@@ -299,7 +331,8 @@ private extension MenuPanelViewController {
 
     func updatePanelSize() {
         view.layoutSubtreeIfNeeded()
-        let height = min(max(contentStack.fittingSize.height, 160), 540)
+        let minimumHeight: CGFloat = model.accounts.isEmpty ? 160 : 0
+        let height = min(max(contentStack.fittingSize.height, minimumHeight), 540)
         preferredContentSize = NSSize(width: Metrics.width, height: height)
     }
 
@@ -307,6 +340,7 @@ private extension MenuPanelViewController {
         let line = NSBox()
         line.boxType = .separator
         line.translatesAutoresizingMaskIntoConstraints = false
+        line.heightAnchor.constraint(equalToConstant: 1).isActive = true
         return line
     }
 
@@ -317,8 +351,8 @@ private extension MenuPanelViewController {
         line.translatesAutoresizingMaskIntoConstraints = false
         wrapper.addSubview(line)
         NSLayoutConstraint.activate([
-            line.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 16),
-            line.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -16),
+            line.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: Metrics.horizontalInset),
+            line.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -Metrics.horizontalInset),
             line.topAnchor.constraint(equalTo: wrapper.topAnchor),
             line.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor),
             wrapper.heightAnchor.constraint(equalToConstant: 1),

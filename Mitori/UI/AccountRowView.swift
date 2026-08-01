@@ -2,18 +2,29 @@ import AppKit
 
 @MainActor
 final class AccountRowView: NSView {
+    private enum Metrics {
+        static let horizontalInset: CGFloat = 16
+        static let verticalInset: CGFloat = 12
+        static let itemSpacing: CGFloat = 8
+        static let lineSpacing: CGFloat = 2
+        static let actionWidth: CGFloat = 24
+    }
+
     private let account: StoredAccountMeta
+    private let presentation: AccountPresentation
     private let refreshState: RefreshState
     private let onOpen: @MainActor () -> Void
     private let onRefresh: @MainActor () -> Void
 
     init(
         account: StoredAccountMeta,
+        presentation: AccountPresentation,
         refreshState: RefreshState,
         onOpen: @escaping @MainActor () -> Void,
         onRefresh: @escaping @MainActor () -> Void
     ) {
         self.account = account
+        self.presentation = presentation
         self.refreshState = refreshState
         self.onOpen = onOpen
         self.onRefresh = onRefresh
@@ -30,21 +41,28 @@ final class AccountRowView: NSView {
         let stack = NSStackView()
         stack.orientation = .horizontal
         stack.alignment = .centerY
-        stack.spacing = 10
-        stack.edgeInsets = NSEdgeInsets(top: 14, left: 16, bottom: 14, right: 16)
+        stack.spacing = Metrics.itemSpacing
+        stack.edgeInsets = NSEdgeInsets(
+            top: Metrics.verticalInset,
+            left: Metrics.horizontalInset,
+            bottom: Metrics.verticalInset,
+            right: Metrics.horizontalInset
+        )
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         let identity = NSStackView()
         identity.orientation = .vertical
         identity.alignment = .leading
-        identity.spacing = 1
-        identity.addArrangedSubview(label(account.displayName, size: 13, weight: .medium))
-        identity.addArrangedSubview(label(account.email, size: 12, color: .secondaryLabelColor))
+        identity.spacing = Metrics.lineSpacing
+        identity.addArrangedSubview(label(presentation.name, size: 13, weight: .medium))
+        if let email = presentation.email {
+            identity.addArrangedSubview(label(email, size: 12, color: .secondaryLabelColor))
+        }
 
         let trailing = NSStackView()
         trailing.orientation = .vertical
         trailing.alignment = .trailing
-        trailing.spacing = 1
+        trailing.spacing = Metrics.lineSpacing
         trailing.addArrangedSubview(balanceLabel)
         if let hint {
             trailing.addArrangedSubview(label(hint, size: 11, color: hintColor))
@@ -112,7 +130,7 @@ final class AccountRowView: NSView {
         button.controlSize = .small
         button.focusRingType = .none
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.widthAnchor.constraint(equalToConstant: 22).isActive = true
+        button.widthAnchor.constraint(equalToConstant: Metrics.actionWidth).isActive = true
 
         if account.requiresProbeConfiguration {
             button.title = "Set Up"

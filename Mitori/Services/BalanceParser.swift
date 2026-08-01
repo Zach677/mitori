@@ -4,7 +4,11 @@ enum BalanceParser {
     static func parse(plistData: Data, source: BalanceSnapshot.Source) throws -> BalanceSnapshot {
         let rootObject = try PropertyListSerialization.propertyList(from: plistData, options: [], format: nil)
 
-        if let candidate = explicitCandidate(in: rootObject) ?? recursiveCandidate(in: rootObject, path: []) {
+        let candidate = explicitCandidate(in: rootObject)
+            ?? recursiveCandidate(in: rootObject, path: [])
+            ?? emptyCreditDisplayPath(in: rootObject, path: []).map { zeroCandidate(path: $0) }
+
+        if let candidate {
             return BalanceSnapshot(
                 displayText: candidate.displayText,
                 numericValue: candidate.numericValue,
@@ -34,24 +38,20 @@ private extension BalanceParser {
 
     static let explicitPaths: [[PathComponent]] = [
         [.key("creditDisplay")],
-        [.key("creditBalance")],
         [.key("balance")],
         [.key("accountInfo"), .key("creditDisplay")],
-        [.key("accountInfo"), .key("creditBalance")],
         [.key("accountInfo"), .key("balance")],
         [.key("songList"), .index(0), .key("creditDisplay")],
-        [.key("songList"), .index(0), .key("creditBalance")],
         [.key("songList"), .index(0), .key("balance")],
         [.key("songList"), .index(0), .key("metadata"), .key("creditDisplay")],
-        [.key("songList"), .index(0), .key("metadata"), .key("creditBalance")],
         [.key("songList"), .index(0), .key("metadata"), .key("balance")],
     ]
 
     static func explicitCandidate(in rootObject: Any) -> Candidate? {
         for path in explicitPaths {
-            if let value = value(at: path, in: rootObject),
-               let candidate = candidate(from: value, path: render(path), force: true)
-            {
+            guard let value = value(at: path, in: rootObject) else { continue }
+            let renderedPath = render(path)
+            if let candidate = candidate(from: value, path: renderedPath, force: true) {
                 return candidate
             }
         }
@@ -64,8 +64,9 @@ private extension BalanceParser {
                 let child = dictionary[key] as Any
                 let nextPath = path + [key]
                 let lowercasedKey = key.lowercased()
-                if lowercasedKey.contains("balance") || lowercasedKey.contains("credit"),
-                   let candidate = candidate(from: child, path: nextPath.joined(separator: "."), force: true)
+                let renderedPath = nextPath.joined(separator: ".")
+                if (lowercasedKey == "creditdisplay" || lowercasedKey == "balance"),
+                   let candidate = candidate(from: child, path: renderedPath, force: true)
                 {
                     return candidate
                 }
@@ -86,6 +87,38 @@ private extension BalanceParser {
         }
 
         return nil
+    }
+
+    static func emptyCreditDisplayPath(in value: Any, path: [String]) -> String? {
+        if let dictionary = value as? [String: Any] {
+            for key in dictionary.keys.sorted() {
+                let child = dictionary[key] as Any
+                let nextPath = path + [key]
+                if key.lowercased() == "creditdisplay",
+                   let display = child as? String,
+                   display.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                {
+                    return nextPath.joined(separator: ".")
+                }
+                if let match = emptyCreditDisplayPath(in: child, path: nextPath) {
+                    return match
+                }
+            }
+        }
+
+        if let array = value as? [Any] {
+            for (index, child) in array.enumerated() {
+                if let match = emptyCreditDisplayPath(in: child, path: path + ["[\(index)]"]) {
+                    return match
+                }
+            }
+        }
+
+        return nil
+    }
+
+    static func zeroCandidate(path: String) -> Candidate {
+        Candidate(displayText: "0", numericValue: 0, currencyCode: nil, path: path)
     }
 
     static func value(at path: [PathComponent], in rootObject: Any) -> Any? {
@@ -162,7 +195,7 @@ private extension BalanceParser {
 
     static func candidate(from dictionary: [String: Any], path: String) -> Candidate? {
         let displayKeys = ["display", "formatted", "formattedValue", "text", "value", "creditDisplay"]
-        let amountKeys = ["amount", "numericValue", "creditBalance", "balance", "value"]
+        let amountKeys = ["amount", "numericValue", "balance", "value"]
         let currencyKeys = ["currency", "currencyCode", "isoCurrencyCode"]
 
         let display = firstString(for: displayKeys, in: dictionary)

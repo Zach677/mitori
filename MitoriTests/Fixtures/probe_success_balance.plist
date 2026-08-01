@@ -5,7 +5,7 @@
     <key>songList</key>
     <array>
         <dict>
-            <key>creditBalance</key>
+            <key>balance</key>
             <dict>
                 <key>display</key>
                 <string>CNY 88.00</string>

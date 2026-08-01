@@ -12,6 +12,7 @@ final class MenuBarController: NSObject {
     private var modelChangeCancellable: AnyCancellable?
     private lazy var menuPanelController = MenuPanelViewController(
         model: model,
+        settings: settings,
         onAddAccount: { [weak self] in
             self?.presentAddAccountWindow()
         },
@@ -58,7 +59,7 @@ final class MenuBarController: NSObject {
 
     private lazy var accountDetailWindowController = AppWindowController(
         title: { [unowned self] in
-            model.account(with: detailAccountID)?.displayName ?? "Account Details"
+            accountDetailWindowTitle
         },
         size: NSSize(width: 500, height: 400),
         autosaveName: "dev.zach.mitori.account-detail",
@@ -67,6 +68,7 @@ final class MenuBarController: NSObject {
         let accountID = detailAccountID ?? ""
         let controller = AccountDetailViewController(
             model: model,
+            settings: settings,
             accountID: accountID,
             onClose: closeAccountDetailWindow,
             onProbeSaved: { [weak self] changed in
@@ -81,11 +83,14 @@ final class MenuBarController: NSObject {
 
     private lazy var settingsWindowController = AppWindowController(
         title: { "Settings" },
-        size: NSSize(width: 420, height: 320),
+        size: NSSize(width: 420, height: 420),
         autosaveName: "dev.zach.mitori.settings"
     ) { [unowned self] in
         SettingsViewController(
             settings: settings,
+            onPersonalInformationVisibilityChanged: { [weak self] in
+                self?.reloadVisibleViews()
+            },
             onOpenPrivacyPolicy: {
                 NSWorkspace.shared.open(Self.privacyPolicyURL)
             },
@@ -224,8 +229,22 @@ final class MenuBarController: NSObject {
     private func reloadVisibleViews() {
         menuPanelController.reload()
         if accountDetailWindowController.isVisible {
+            accountDetailWindowController.window?.title = accountDetailWindowTitle
             accountDetailViewController?.reload()
         }
+    }
+
+    private var accountDetailWindowTitle: String {
+        guard let account = model.account(with: detailAccountID),
+              let accountIndex = model.accounts.firstIndex(where: { $0.id == account.id })
+        else {
+            return "Account Details"
+        }
+        return AccountPresentation(
+            account: account,
+            accountIndex: accountIndex,
+            hidesPersonalInformation: settings.isPersonalInformationHidden
+        ).windowTitle
     }
 
     @objc
