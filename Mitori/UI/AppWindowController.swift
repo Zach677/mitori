@@ -7,6 +7,7 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
     private let defaultSize: NSSize
     private let autosaveName: String?
     private let windowLevel: NSWindow.Level
+    private let titleVisibility: NSWindow.TitleVisibility
     private var currentViewController: NSViewController?
 
     init(
@@ -14,6 +15,7 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         size: NSSize,
         autosaveName: String? = nil,
         windowLevel: NSWindow.Level = .normal,
+        titleVisibility: NSWindow.TitleVisibility = .hidden,
         content: @escaping @MainActor () -> NSViewController
     ) {
         titleProvider = title
@@ -21,6 +23,7 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         defaultSize = size
         self.autosaveName = autosaveName
         self.windowLevel = windowLevel
+        self.titleVisibility = titleVisibility
         super.init(window: nil)
     }
 
@@ -73,7 +76,7 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         createdWindow.backgroundColor = .clear
         createdWindow.hasShadow = true
         createdWindow.titlebarAppearsTransparent = true
-        createdWindow.titleVisibility = .hidden
+        createdWindow.titleVisibility = titleVisibility
 
         if let autosaveName {
             createdWindow.setFrameAutosaveName(autosaveName)

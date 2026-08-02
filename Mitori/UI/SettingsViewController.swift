@@ -19,6 +19,7 @@ final class SettingsViewController: NSViewController {
     private let hidePersonalInformationSwitch = NSSwitch()
     private let autoRefreshSwitch = NSSwitch()
     private let intervalPopUp = NSPopUpButton()
+    private weak var intervalSettingView: NSView?
 
     init(
         settings: RefreshSettingsStore,
@@ -44,7 +45,6 @@ final class SettingsViewController: NSViewController {
         configureLayout()
         reload()
     }
-
 }
 
 private extension SettingsViewController {
@@ -52,10 +52,9 @@ private extension SettingsViewController {
         let root = NSStackView()
         root.orientation = .vertical
         root.alignment = .width
-        root.spacing = 22
+        root.spacing = 18
         root.translatesAutoresizingMaskIntoConstraints = false
 
-        addFullWidth(makeHeader(), to: root)
         addFullWidth(makeGeneralSection(), to: root)
         addFullWidth(makeRefreshSection(), to: root)
         addFullWidth(makeAboutSection(), to: root)
@@ -71,45 +70,22 @@ private extension SettingsViewController {
         ])
     }
 
-    func makeHeader() -> NSView {
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 4
-
-        let title = NSTextField(labelWithString: "Settings")
-        title.font = .systemFont(ofSize: 15, weight: .semibold)
-
-        let subtitle = NSTextField(labelWithString: "Manage startup, privacy, and balance updates.")
-        subtitle.font = .systemFont(ofSize: 12)
-        subtitle.textColor = .secondaryLabelColor
-
-        stack.addArrangedSubview(title)
-        stack.addArrangedSubview(subtitle)
-        return stack
-    }
-
     func makeGeneralSection() -> NSView {
         let stack = section(title: "General")
 
         openAtLoginSwitch.target = self
         openAtLoginSwitch.action = #selector(toggleOpenAtLogin)
         openAtLoginSwitch.controlSize = .small
-        openAtLoginSwitch.focusRingType = .none
-        addFullWidth(settingRow(title: "Open at login", control: openAtLoginSwitch), to: stack)
+        addFullWidth(settingBlock(title: "Open at login", control: openAtLoginSwitch), to: stack)
 
         hidePersonalInformationSwitch.target = self
         hidePersonalInformationSwitch.action = #selector(togglePersonalInformationVisibility)
         hidePersonalInformationSwitch.controlSize = .small
-        hidePersonalInformationSwitch.focusRingType = .none
-        addFullWidth(settingRow(title: "Hide personal information", control: hidePersonalInformationSwitch), to: stack)
-
-        let help = NSTextField(wrappingLabelWithString: "Hides account names, email addresses, Apple IDs, and device IDs in Mitori.")
-        help.font = .systemFont(ofSize: 11)
-        help.textColor = .secondaryLabelColor
-        help.maximumNumberOfLines = 2
-        help.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        addFullWidth(help, to: stack)
+        addFullWidth(settingBlock(
+            title: "Hide personal information",
+            help: "Hides account names, email addresses, Apple IDs, and device IDs in Mitori.",
+            control: hidePersonalInformationSwitch
+        ), to: stack)
         return stack
     }
 
@@ -119,21 +95,22 @@ private extension SettingsViewController {
         autoRefreshSwitch.target = self
         autoRefreshSwitch.action = #selector(toggleAutoRefresh)
         autoRefreshSwitch.controlSize = .small
-        autoRefreshSwitch.focusRingType = .none
-        addFullWidth(settingRow(title: "Refresh balances automatically", control: autoRefreshSwitch), to: stack)
+        addFullWidth(settingBlock(
+            title: "Refresh balances automatically",
+            control: autoRefreshSwitch
+        ), to: stack)
 
         intervalPopUp.addItems(withTitles: Self.intervalChoices.map(\.title))
         intervalPopUp.target = self
         intervalPopUp.action = #selector(selectInterval)
         intervalPopUp.widthAnchor.constraint(equalToConstant: 142).isActive = true
-        addFullWidth(settingRow(title: "Refresh every", control: intervalPopUp), to: stack)
-
-        let help = NSTextField(wrappingLabelWithString: "Apple may flag frequent balance probes. Mitori limits the interval to 15 minutes and backs off after failures.")
-        help.font = .systemFont(ofSize: 11)
-        help.textColor = .secondaryLabelColor
-        help.maximumNumberOfLines = 3
-        help.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        addFullWidth(help, to: stack)
+        let intervalSetting = settingBlock(
+            title: "Refresh every",
+            help: "Minimum 15 minutes. Mitori automatically backs off after failed refreshes.",
+            control: intervalPopUp
+        )
+        intervalSettingView = intervalSetting
+        addFullWidth(intervalSetting, to: stack)
         return stack
     }
 
@@ -166,9 +143,27 @@ private extension SettingsViewController {
 
     func sectionLabel(_ title: String) -> NSTextField {
         let label = NSTextField(labelWithString: title)
-        label.font = .systemFont(ofSize: 11, weight: .medium)
+        label.font = .systemFont(ofSize: 12, weight: .medium)
         label.textColor = .secondaryLabelColor
         return label
+    }
+
+    func settingBlock(title: String, help: String? = nil, control: NSView) -> NSView {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .width
+        stack.spacing = 4
+        addFullWidth(settingRow(title: title, control: control), to: stack)
+
+        if let help {
+            let label = NSTextField(wrappingLabelWithString: help)
+            label.font = .systemFont(ofSize: 12)
+            label.textColor = .secondaryLabelColor
+            label.maximumNumberOfLines = 2
+            label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            addFullWidth(label, to: stack)
+        }
+        return stack
     }
 
     func settingRow(title: String, control: NSView) -> NSView {
@@ -183,7 +178,7 @@ private extension SettingsViewController {
         row.addArrangedSubview(label)
         row.addArrangedSubview(NSView())
         row.addArrangedSubview(control)
-        row.heightAnchor.constraint(greaterThanOrEqualToConstant: 28).isActive = true
+        row.heightAnchor.constraint(greaterThanOrEqualToConstant: 30).isActive = true
         return row
     }
 
@@ -202,6 +197,7 @@ private extension SettingsViewController {
         button.imagePosition = .imageLeading
         button.imageHugsTitle = true
         button.contentTintColor = .labelColor
+        button.focusRingType = .default
         button.setAccessibilityHelp(accessibilityHelp)
         button.heightAnchor.constraint(equalToConstant: 28).isActive = true
         return button
@@ -217,7 +213,9 @@ private extension SettingsViewController {
         openAtLoginSwitch.state = SMAppService.mainApp.status == .enabled ? .on : .off
         hidePersonalInformationSwitch.state = settings.isPersonalInformationHidden ? .on : .off
         autoRefreshSwitch.state = settings.isAutoRefreshEnabled ? .on : .off
-        intervalPopUp.isEnabled = settings.isAutoRefreshEnabled
+        let isAutoRefreshEnabled = settings.isAutoRefreshEnabled
+        intervalPopUp.isEnabled = isAutoRefreshEnabled
+        intervalSettingView?.alphaValue = isAutoRefreshEnabled ? 1 : 0.65
 
         let current = settings.autoRefreshInterval
         let index = Self.intervalChoices.firstIndex { $0.interval >= current }

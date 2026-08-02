@@ -82,9 +82,10 @@ final class MenuBarController: NSObject {
     private lazy var accountDetailWindowPresenter = WindowPresentationCoordinator(window: accountDetailWindowController)
 
     private lazy var settingsWindowController = AppWindowController(
-        title: { "Settings" },
+        title: { "Mitori Settings" },
         size: NSSize(width: 420, height: 420),
-        autosaveName: "dev.zach.mitori.settings"
+        autosaveName: "dev.zach.mitori.settings",
+        titleVisibility: .visible
     ) { [unowned self] in
         SettingsViewController(
             settings: settings,

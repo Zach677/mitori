@@ -15,6 +15,14 @@ final class AccountRowView: NSView {
     private let refreshState: RefreshState
     private let onOpen: @MainActor () -> Void
     private let onRefresh: @MainActor () -> Void
+    private weak var actionButton: NSButton?
+    private var trackingArea: NSTrackingArea?
+    private var isHovered = false {
+        didSet { needsDisplay = true }
+    }
+    private var isPressed = false {
+        didSet { needsDisplay = true }
+    }
 
     init(
         account: StoredAccountMeta,
@@ -29,6 +37,7 @@ final class AccountRowView: NSView {
         self.onOpen = onOpen
         self.onRefresh = onRefresh
         super.init(frame: .zero)
+        focusRingType = .default
         configure()
     }
 
@@ -71,10 +80,13 @@ final class AccountRowView: NSView {
         stack.addArrangedSubview(identity)
         stack.addArrangedSubview(NSView())
         stack.addArrangedSubview(trailing)
-        stack.addArrangedSubview(makeActionButton())
+        stack.addArrangedSubview(makeActionView())
 
         addSubview(stack)
-        addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(open)))
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel("Open \(presentation.name)")
+        setAccessibilityHelp("Open account details")
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -83,9 +95,120 @@ final class AccountRowView: NSView {
         ])
     }
 
+    override var acceptsFirstResponder: Bool {
+        true
+    }
+
+    override var focusRingMaskBounds: NSRect {
+        interactionBounds
+    }
+
+    override func drawFocusRingMask() {
+        NSBezierPath(roundedRect: interactionBounds, xRadius: 7, yRadius: 7).fill()
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(bounds, cursor: .pointingHand)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        let color: NSColor? = if isPressed {
+            .selectedContentBackgroundColor.withAlphaComponent(0.18)
+        } else if isHovered {
+            .labelColor.withAlphaComponent(0.06)
+        } else {
+            nil
+        }
+        if let color {
+            color.setFill()
+            NSBezierPath(roundedRect: interactionBounds, xRadius: 7, yRadius: 7).fill()
+        }
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let localPoint = convert(point, from: superview)
+        guard !isHidden, alphaValue > 0, bounds.contains(localPoint) else { return nil }
+        if let actionButton {
+            let actionPoint = actionButton.convert(localPoint, from: self)
+            if actionButton.bounds.contains(actionPoint) {
+                return actionButton
+            }
+        }
+        return self
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovered = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovered = false
+        isPressed = false
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
+        isPressed = true
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        isPressed = bounds.contains(convert(event.locationInWindow, from: nil))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        let shouldOpen = isPressed && bounds.contains(convert(event.locationInWindow, from: nil))
+        isPressed = false
+        if shouldOpen {
+            onOpen()
+        }
+    }
+
+    override func keyDown(with event: NSEvent) {
+        guard !event.isARepeat,
+              event.charactersIgnoringModifiers == "\r" || event.charactersIgnoringModifiers == " "
+        else {
+            super.keyDown(with: event)
+            return
+        }
+        onOpen()
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let becameFirstResponder = super.becomeFirstResponder()
+        needsDisplay = true
+        return becameFirstResponder
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resignedFirstResponder = super.resignFirstResponder()
+        needsDisplay = true
+        return resignedFirstResponder
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        onOpen()
+        return true
+    }
+
     private var balanceLabel: NSTextField {
         label(
-            isRefreshing ? "…" : account.balanceDisplayText ?? "—",
+            account.balanceDisplayText ?? "—",
             size: 15,
             weight: .medium,
             monospaced: true
@@ -123,33 +246,68 @@ final class AccountRowView: NSView {
         return false
     }
 
-    private func makeActionButton() -> NSButton {
+    private func makeActionView() -> NSView {
+        if account.requiresProbeConfiguration {
+            return makeActionButton(title: "Set Up", action: #selector(open))
+        }
+        if isRefreshing {
+            return makeProgressIndicator()
+        }
+        return makeActionButton(action: #selector(refresh))
+    }
+
+    private func makeActionButton(title: String? = nil, action: Selector) -> NSButton {
         let button = NSButton()
-        button.imagePosition = .imageOnly
         button.isBordered = false
         button.controlSize = .small
-        button.focusRingType = .none
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.widthAnchor.constraint(equalToConstant: Metrics.actionWidth).isActive = true
+        button.widthAnchor.constraint(
+            equalToConstant: title == nil ? Metrics.actionWidth : 54
+        ).isActive = true
 
-        if account.requiresProbeConfiguration {
-            button.title = "Set Up"
+        if let title {
+            button.title = title
             button.font = .systemFont(ofSize: 11, weight: .medium)
             button.isBordered = true
             button.bezelStyle = .rounded
-            button.target = self
-            button.action = #selector(open)
         } else {
+            button.imagePosition = .imageOnly
             button.image = NSImage(
-                systemSymbolName: isRefreshing ? "hourglass" : "arrow.clockwise",
+                systemSymbolName: "arrow.clockwise",
                 accessibilityDescription: "Refresh"
             )
             button.toolTip = "Refresh"
-            button.target = self
-            button.action = #selector(refresh)
-            button.isEnabled = !isRefreshing
         }
+        button.target = self
+        button.action = action
+        actionButton = button
         return button
+    }
+
+    private func makeProgressIndicator() -> NSView {
+        let wrapper = NSView()
+        wrapper.translatesAutoresizingMaskIntoConstraints = false
+        wrapper.widthAnchor.constraint(equalToConstant: Metrics.actionWidth).isActive = true
+
+        let progress = NSProgressIndicator()
+        progress.style = .spinning
+        progress.controlSize = .small
+        progress.isIndeterminate = true
+        progress.setAccessibilityLabel("Refreshing balance")
+        progress.translatesAutoresizingMaskIntoConstraints = false
+        wrapper.addSubview(progress)
+        NSLayoutConstraint.activate([
+            progress.centerXAnchor.constraint(equalTo: wrapper.centerXAnchor),
+            progress.centerYAnchor.constraint(equalTo: wrapper.centerYAnchor),
+            progress.widthAnchor.constraint(equalToConstant: 14),
+            progress.heightAnchor.constraint(equalToConstant: 14),
+        ])
+        progress.startAnimation(nil)
+        return wrapper
+    }
+
+    private var interactionBounds: NSRect {
+        bounds.insetBy(dx: 8, dy: 2)
     }
 
     private func label(
