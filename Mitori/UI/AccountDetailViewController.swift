@@ -22,6 +22,7 @@ final class AccountDetailViewController: NSViewController {
     private var isSavingProbe = false
     private var isReauthing = false
     private var isDeleting = false
+    private weak var copyFeedbackView: NSView?
 
     private let contentStack = NSStackView()
     private let errorLabel = NSTextField(labelWithString: "")
@@ -157,11 +158,20 @@ private extension AccountDetailViewController {
             hidesPersonalInformation: settings.isPersonalInformationHidden
         )
         let stack = section(title: "Account Info")
-        addFullWidth(detailRow("Apple ID", value: presentation.appleID), to: stack)
+        let exposesPersonalInformation = !settings.isPersonalInformationHidden
+        addFullWidth(detailRow(
+            "Apple ID",
+            value: presentation.appleID,
+            copyValue: exposesPersonalInformation ? account.appleID : nil
+        ), to: stack)
         addFullWidth(detailRow("Region", value: account.regionLabel.isEmpty ? "Unknown" : account.regionLabel), to: stack)
         addFullWidth(detailRow("Pod", value: account.pod ?? "Unavailable"), to: stack)
         addFullWidth(detailRow("Credentials", value: "Stored in Keychain"), to: stack)
-        addFullWidth(detailRow("Device ID", value: presentation.deviceIdentifier), to: stack)
+        addFullWidth(detailRow(
+            "Device ID",
+            value: presentation.deviceIdentifier,
+            copyValue: exposesPersonalInformation ? account.deviceIdentifier : nil
+        ), to: stack)
         return stack
     }
 
@@ -263,7 +273,7 @@ private extension AccountDetailViewController {
         return stack
     }
 
-    func detailRow(_ title: String, value: String) -> NSView {
+    func detailRow(_ title: String, value: String, copyValue: String? = nil) -> NSView {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .firstBaseline
@@ -274,7 +284,27 @@ private extension AccountDetailViewController {
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.widthAnchor.constraint(equalToConstant: 100).isActive = true
 
-        let valueLabel = label(value, size: 12)
+        let valueLabel: NSTextField
+        if let copyValue {
+            let button = CopyableValueButton(title: value, target: self, action: #selector(copyDetailValue(_:)))
+            button.copyValue = copyValue
+            button.toolTip = "\(copyValue)\nClick to copy"
+            button.isBordered = false
+            button.focusRingType = .none
+            button.font = .systemFont(ofSize: 12)
+            button.alignment = .left
+            button.contentTintColor = .labelColor
+            button.setAccessibilityLabel(title)
+            button.setAccessibilityHelp("Click to copy \(title)")
+            button.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            button.cell?.lineBreakMode = .byTruncatingMiddle
+
+            row.addArrangedSubview(titleLabel)
+            row.addArrangedSubview(button)
+            return row
+        }
+
+        valueLabel = label(value, size: 12)
         valueLabel.alignment = .left
         valueLabel.maximumNumberOfLines = 3
         valueLabel.lineBreakMode = .byTruncatingMiddle
@@ -283,6 +313,64 @@ private extension AccountDetailViewController {
         row.addArrangedSubview(titleLabel)
         row.addArrangedSubview(valueLabel)
         return row
+    }
+
+    @objc
+    func copyDetailValue(_ sender: CopyableValueButton) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(sender.copyValue, forType: .string)
+        showCopyFeedback()
+    }
+
+    func showCopyFeedback() {
+        copyFeedbackView?.removeFromSuperview()
+
+        let checkmark = NSImageView(image: NSImage(
+            systemSymbolName: "checkmark",
+            accessibilityDescription: nil
+        )!)
+        checkmark.contentTintColor = .labelColor
+        checkmark.translatesAutoresizingMaskIntoConstraints = false
+        checkmark.widthAnchor.constraint(equalToConstant: 12).isActive = true
+        checkmark.heightAnchor.constraint(equalToConstant: 12).isActive = true
+
+        let feedbackLabel = label("Copied", size: 12, weight: .medium)
+        let content = NSStackView(views: [checkmark, feedbackLabel])
+        content.orientation = .horizontal
+        content.alignment = .centerY
+        content.spacing = 5
+        content.edgeInsets = NSEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
+
+        let feedback = NSGlassEffectView()
+        feedback.contentView = content
+        feedback.cornerRadius = 14
+        feedback.style = .clear
+        feedback.alphaValue = 0
+        feedback.translatesAutoresizingMaskIntoConstraints = false
+        feedback.setAccessibilityLabel("Copied to clipboard")
+        view.addSubview(feedback)
+        NSLayoutConstraint.activate([
+            feedback.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            feedback.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+        ])
+        copyFeedbackView = feedback
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.16
+            feedback.animator().alphaValue = 1
+        }
+
+        Task { @MainActor [weak self, weak feedback] in
+            try? await Task.sleep(for: .seconds(1))
+            guard let self, let feedback, copyFeedbackView === feedback else { return }
+            await NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.18
+                feedback.animator().alphaValue = 0
+            }
+            guard copyFeedbackView === feedback else { return }
+            feedback.removeFromSuperview()
+            copyFeedbackView = nil
+        }
     }
 
     func buttonRow(trailing button: NSButton) -> NSView {
@@ -417,4 +505,9 @@ private extension AccountDetailViewController {
 @MainActor
 private final class ProbeResultButton: NSButton {
     var result: ProbeAppCandidate?
+}
+
+@MainActor
+private final class CopyableValueButton: NSButton {
+    var copyValue = ""
 }

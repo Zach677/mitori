@@ -263,7 +263,7 @@ struct AccountPresentationTests {
         #expect(visible.email == account.email)
         #expect(visible.windowTitle == account.displayName)
         #expect(visible.appleID == account.appleID)
-        #expect(visible.deviceIdentifier == "ABCDEF123456…")
+        #expect(visible.deviceIdentifier == "ABCDEF1234567890")
         #expect(hidden.name == "Account 2")
         #expect(hidden.email == nil)
         #expect(hidden.windowTitle == "Account Details")

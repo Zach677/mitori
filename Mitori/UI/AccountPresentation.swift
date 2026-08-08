@@ -15,7 +15,7 @@ struct AccountPresentation {
             email = account.email
             windowTitle = account.displayName
             appleID = account.appleID
-            deviceIdentifier = String(account.deviceIdentifier.prefix(12)) + "…"
+            deviceIdentifier = account.deviceIdentifier
             return
         }
 
