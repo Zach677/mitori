@@ -17,7 +17,7 @@ if LC_ALL=C grep -aERq '/Users/[^/]+/' "$APP_PATH"; then
     exit 1
 fi
 
-if otool -l "$APP_PATH/Contents/MacOS/Mitori" | grep -q '__llvm_prf'; then
+if otool -l "$APP_PATH/Contents/MacOS/Mitori" | grep '__llvm_prf' >/dev/null; then
     echo "Community binary contains coverage instrumentation." >&2
     exit 1
 fi
