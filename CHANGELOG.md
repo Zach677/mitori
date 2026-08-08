@@ -2,6 +2,14 @@
 
 All notable changes to Mitori are documented in this file.
 
+## 0.2.0 - 2026-08-08
+
+- Add controls to open Mitori at login and hide personal account information.
+- Keep zero-balance accounts visible when Apple returns an empty credit display.
+- Restore reliable account row interactions with mouse, keyboard, hover, pressed, and loading states.
+- Refine the menu panel and Settings layout for clearer visual hierarchy.
+- Show complete Apple IDs and device IDs on hover, copy them with a click, and confirm the action with Liquid Glass feedback.
+
 ## 0.1.0 - 2026-07-29
 
 - Monitor Apple ID store credit balances for multiple accounts from the menu bar.

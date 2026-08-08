@@ -1,87 +1,112 @@
-# Mitori
+<p align="center">
+  <img src="Mitori/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-128@2x.png" width="128" height="128" alt="Mitori app icon">
+</p>
 
-A macOS menu bar app that monitors Apple ID account balances across multiple accounts, with automatic refresh and 2FA support.
+<h1 align="center">Mitori</h1>
 
-## What it does
+<p align="center">Keep an eye on Apple ID store credit from your Mac menu bar.</p>
 
-Mitori logs into your Apple ID, queries the account's store credit balance through Apple's `volumeStoreDownloadProduct` endpoint (using an app you already own as a "probe"), and shows the balance in the menu bar. It supports multiple accounts, 2FA, automatic background refresh, and re-authentication when sessions expire.
+<p align="center">
+  <a href="https://github.com/Zach677/mitori/releases/latest">Download</a>
+  ·
+  <a href="CHANGELOG.md">Changelog</a>
+  ·
+  <a href="https://zaxh.org/mitori/privacy">Privacy</a>
+</p>
+
+Mitori is a native macOS menu bar app for checking store credit across multiple Apple IDs. It supports two-factor authentication, automatic refresh, and session recovery without making you sign in again from scratch.
+
+## Install
+
+### Homebrew
+
+```sh
+brew tap Zach677/star
+brew install --cask mitori
+```
+
+The Homebrew cask handles Gatekeeper quarantine for the current ad hoc-signed community build.
+
+### Manual download
+
+Download the latest DMG from [GitHub Releases](https://github.com/Zach677/mitori/releases/latest), then drag Mitori into `/Applications`.
+
+Community builds are not notarized yet. If macOS blocks the first launch, open **System Settings > Privacy & Security** and choose **Open Anyway**. You can verify the downloaded files before opening them:
+
+```sh
+shasum -a 256 -c Mitori-<version>.dmg.sha256
+```
+
+## Highlights
+
+- Check multiple Apple ID store credit balances from the menu bar.
+- Sign in with two-factor authentication and recover expired sessions.
+- Refresh manually or on a schedule with failure backoff and lock-screen awareness.
+- Hide account names, email addresses, Apple IDs, and device IDs inside Mitori.
+- Reveal complete account identifiers on hover and copy them with one click.
+- Open Mitori automatically when you log in.
+
+## Add an account
+
+You need an Apple ID email and password, a two-factor authentication code when enabled, and the bundle ID of an app already owned by that account. Mitori generates a device identifier automatically.
+
+The owned app acts as a balance probe. You can search for one and change it later from the account details window.
 
 ## Privacy
 
-- All data stays on your machine. Nothing is uploaded to any server other than Apple's own.
-- Development-signed builds store account credentials (password, cookies, tokens) in the macOS Data Protection Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` — readable only while the screen is unlocked and never synced to iCloud.
-- Ad hoc community builds use the local file-based login Keychain because Apple restricts Data Protection Keychain access to provisioned apps. These items are also non-synchronizing. A future Developer ID build will migrate them into Data Protection Keychain after the first successful read.
-- Account metadata (email, balance snapshot, refresh state) is stored in `~/Library/Application Support/Mitori/accounts.json`.
-- Auto-refresh is skipped while the screen is locked; no background credential access happens on a locked machine.
+Mitori has no backend. Account traffic goes directly to Apple, and your data stays on your Mac.
 
-## How it works
+- Development-signed builds store credentials in the macOS Data Protection Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`.
+- Ad hoc community builds use the local login Keychain because Apple restricts Data Protection Keychain access to provisioned apps. Stored items do not sync through iCloud.
+- Account metadata is stored at `~/Library/Application Support/Mitori/accounts.json`.
+- Automatic refresh pauses while the screen is locked.
 
-1. **Authentication** — `ApplePackage` (a fork of [Lakr233/ApplePackage](https://github.com/Lakr233/ApplePackage)) handles Apple ID login, 2FA, and session management.
-2. **Balance probe** — Mitori sends a `volumeStoreDownloadProduct` request for an app you own (the "probe app"). Apple's response includes the account's store credit, which `BalanceParser` extracts.
-3. **Storage** — credentials go to Keychain; metadata goes to `accounts.json`.
-4. **Refresh** — a 60-second timer ticks; each account refreshes no more often than the configured interval (default 1h, floor 15m) with backoff on failure (60s → 5m → 15m).
+The [Privacy Policy](https://zaxh.org/mitori/privacy) is also available under **Settings > About**.
 
-## Requirements
+## Build from source
 
-- macOS 26.0+
-- Apple silicon or an Intel Mac supported by macOS 26
-- Xcode 26+
-- [mise](https://mise.jdx.dev/) for task runners
-- `xcbeautify` and Node.js (`brew install xcbeautify node`) for formatted build and license output
-
-Command-line tasks use ad hoc signing and do not require an Apple Developer account. Builds launched directly from Xcode keep the project's Development signing settings.
-
-## Build & run
+You need macOS 26 or later, Xcode 26 or later, [mise](https://mise.jdx.dev/), `xcbeautify`, and Node.js.
 
 ```sh
-mise run build-macos   # build and stage the app bundle
-mise run run-macos     # build, then launch
-mise run test-macos    # run tests
-mise run test-community # test without Apple signing credentials
-mise run package-community # build the ad hoc Release DMG
+brew install mise xcbeautify node
+
+mise run build-macos
+mise run run-macos
+mise run test-macos
+mise run test-community
+mise run package-community
 ```
 
-The staged bundle lands at `.app-build/debug/Mitori.app`.
-Community packages land in `dist/` with a SHA-256 checksum.
-Release DMGs contain both `arm64` and `x86_64` slices. The Intel slice is build-verified but has not been tested on Intel hardware.
+Builds are staged under `.app-build/`. Community DMGs and SHA-256 checksums are written to `dist/`.
 
-To open in Xcode: `open Mitori.xcodeproj`.
+To work in Xcode, open `Mitori.xcodeproj`.
 
-The [Privacy Policy](https://zaxh.org/mitori/privacy) and resolved third-party license terms are available under **Settings → About**. The policy opens in your browser; license terms remain bundled with the app for offline access.
+<details>
+<summary>Implementation notes</summary>
 
-## Community releases
+- Authentication uses [ApplePackage](https://github.com/Zach677/ApplePackage) for Apple ID login, two-factor authentication, and session management.
+- Balance lookup sends a `volumeStoreDownloadProduct` request for an app owned by the account, then extracts store credit from Apple's response.
+- A 60-second timer checks whether each account is due for refresh. The default interval is one hour, the minimum is 15 minutes, and failed requests back off before retrying.
+- Community releases use ad hoc signing with Hardened Runtime and include both `arm64` and `x86_64` slices. The Intel build is verified but has not been tested on Intel hardware.
 
-Until Mitori has a paid Apple Developer account, the community release workflow produces an ad hoc-signed, Hardened Runtime Release build. It is not notarized, so macOS may block the first launch.
+</details>
 
-After copying Mitori to `/Applications`, prefer **System Settings → Privacy & Security → Open Anyway**. If that option is unavailable, verify the published SHA-256 checksum and remove the quarantine attributes manually:
+## Special notes
 
-```sh
-xattr -cr /Applications/Mitori.app
-```
-
-When a Developer ID certificate becomes available, releases will switch to Developer ID signing and Apple notarization. That build will restore Data Protection Keychain storage and automatically migrate credentials created by community builds.
-
-## Adding an account
-
-You'll need:
-
-- Apple ID email and password
-- A 2FA code (if 2FA is enabled)
-- A device identifier (auto-generated by default)
-- The bundle ID of an app already owned by the Apple ID (the probe app)
-
-## Status
-
-Early development (v0.1.0). Tagged community builds are configured to publish as ad hoc-signed prereleases; Developer ID signing and notarization are planned.
+- Mitori is under early development and relies on Apple Store services that may change without notice.
+- Mitori is not affiliated with or endorsed by Apple Inc. Use it only with accounts you are authorized to access and follow Apple's terms.
+- Community releases are ad hoc signed and not notarized. Developer ID signing and notarization are planned.
 
 See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
-## Dependencies
+## Acknowledgements
 
-- [ApplePackage](https://github.com/Zach677/ApplePackage) (fork) — Apple ID authentication and store API access, via SPM.
-
-`mise run scan-license` regenerates the bundled `OpenSourceLicenses.md` from every resolved Swift package's license and notice files. Generation fails when a dependency has no discoverable license or introduces a GPL-family license that needs manual review.
+Mitori uses [Zach677/ApplePackage](https://github.com/Zach677/ApplePackage), a fork of [Lakr233/ApplePackage](https://github.com/Lakr233/ApplePackage). Thanks to [Lakr Aream](https://github.com/Lakr233) for the original project and the Apple Store protocol work Mitori builds on.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Mitori is available under the [MIT License](LICENSE). Resolved third-party license terms are bundled with the app and can be regenerated with `mise run scan-license`.
+
+---
+
+Copyright © 2026 Zach. All Rights Reserved.
