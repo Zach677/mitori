@@ -15,6 +15,7 @@ final class MenuPanelViewController: NSViewController {
     private let settings: RefreshSettingsStore
     private let onAddAccount: @MainActor () -> Void
     private let onOpenAccount: @MainActor (String) -> Void
+    private let onOpenAbout: @MainActor () -> Void
     private let onOpenSettings: @MainActor () -> Void
     private let onQuit: @MainActor () -> Void
 
@@ -32,6 +33,7 @@ final class MenuPanelViewController: NSViewController {
         settings: RefreshSettingsStore,
         onAddAccount: @escaping @MainActor () -> Void,
         onOpenAccount: @escaping @MainActor (String) -> Void,
+        onOpenAbout: @escaping @MainActor () -> Void,
         onOpenSettings: @escaping @MainActor () -> Void,
         onQuit: @escaping @MainActor () -> Void
     ) {
@@ -39,6 +41,7 @@ final class MenuPanelViewController: NSViewController {
         self.settings = settings
         self.onAddAccount = onAddAccount
         self.onOpenAccount = onOpenAccount
+        self.onOpenAbout = onOpenAbout
         self.onOpenSettings = onOpenSettings
         self.onQuit = onQuit
         super.init(nibName: nil, bundle: nil)
@@ -217,6 +220,15 @@ private extension MenuPanelViewController {
         menu.addItem(settingsItem)
         menu.addItem(.separator())
 
+        let aboutItem = NSMenuItem(
+            title: "About Mitori",
+            action: #selector(openAbout),
+            keyEquivalent: ""
+        )
+        aboutItem.target = self
+        menu.addItem(aboutItem)
+        menu.addItem(.separator())
+
         let quitItem = NSMenuItem(
             title: "Quit Mitori",
             action: #selector(quit),
@@ -388,6 +400,11 @@ private extension MenuPanelViewController {
     @objc
     func openSettings() {
         onOpenSettings()
+    }
+
+    @objc
+    func openAbout() {
+        onOpenAbout()
     }
 
     @objc

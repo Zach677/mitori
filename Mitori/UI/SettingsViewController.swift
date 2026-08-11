@@ -115,7 +115,7 @@ private extension SettingsViewController {
     }
 
     func makeAboutSection() -> NSView {
-        let stack = section(title: "About")
+        let stack = section(title: "Privacy & Legal")
         stack.spacing = 6
         addFullWidth(documentRow(
             title: "Privacy Policy",

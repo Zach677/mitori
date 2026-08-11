@@ -19,6 +19,9 @@ final class MenuBarController: NSObject {
         onOpenAccount: { [weak self] accountID in
             self?.presentAccountDetailWindow(for: accountID)
         },
+        onOpenAbout: { [weak self] in
+            self?.presentAboutPanel()
+        },
         onOpenSettings: { [weak self] in
             self?.presentSettingsWindow()
         },
@@ -194,6 +197,12 @@ final class MenuBarController: NSObject {
     private func presentSettingsWindow() {
         popover.performClose(nil)
         settingsWindowPresenter.present()
+    }
+
+    private func presentAboutPanel() {
+        popover.performClose(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(nil)
     }
 
     private func presentDocument(_ document: BundledDocument) {
