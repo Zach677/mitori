@@ -61,7 +61,7 @@ Mitori has no backend. Account traffic goes directly to Apple, and your data sta
 - Account metadata is stored at `~/Library/Application Support/Mitori/accounts.json`.
 - Automatic refresh pauses while the screen is locked.
 
-The [Privacy Policy](https://zaxh.org/mitori/privacy) is also available under **Settings > About**.
+The [Privacy Policy](https://zaxh.org/mitori/privacy) is also available under **Settings > Privacy & Legal**.
 
 ## Build from source
 

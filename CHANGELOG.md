@@ -2,6 +2,13 @@
 
 All notable changes to Mitori are documented in this file.
 
+## 0.2.1 - 2026-08-11
+
+- Cancel in-flight sign-ins without saving partial account data.
+- Support macOS 14 or later with compatible visual feedback on systems before macOS 26.
+- Add a standard About panel with version and build information, and group privacy and legal links in Settings.
+- Harden community packages with Universal binary and launch-readiness checks.
+
 ## 0.2.0 - 2026-08-08
 
 - Add controls to open Mitori at login and hide personal account information.
