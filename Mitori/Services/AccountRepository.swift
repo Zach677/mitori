@@ -45,17 +45,43 @@ actor AccountRepository {
         return try await accountStore.upsert(updated)
     }
 
-    func commit(_ result: SessionRefreshResult) async throws -> [StoredAccountMeta] {
+    func commit(
+        _ result: SessionRefreshResult,
+        respectingCancellation: Bool = false
+    ) async throws -> [StoredAccountMeta] {
         let accountID = result.meta.id
         await acquireLock(for: accountID)
         defer { releaseLock(for: accountID) }
 
+        if respectingCancellation {
+            try Task.checkCancellation()
+        }
         let previousSecret = try await secretStore.loadSecret(for: accountID)
-        try await secretStore.save(result.secret, for: accountID)
+        guard respectingCancellation else {
+            try await secretStore.save(result.secret, for: accountID)
+            do {
+                return try await accountStore.upsert(result.meta)
+            } catch {
+                try await restoreSecret(previousSecret, for: accountID, after: error)
+                throw error
+            }
+        }
+
+        let previousMeta = try await accountStore.loadAccounts().first(where: { $0.id == accountID })
+        try Task.checkCancellation()
         do {
-            return try await accountStore.upsert(result.meta)
+            try await secretStore.save(result.secret, for: accountID)
+            try Task.checkCancellation()
+            let accounts = try await accountStore.upsert(result.meta)
+            try Task.checkCancellation()
+            return accounts
         } catch {
-            try await restoreSecret(previousSecret, for: accountID, after: error)
+            try await restoreCommit(
+                previousMeta: previousMeta,
+                previousSecret: previousSecret,
+                for: accountID,
+                after: error
+            )
             throw error
         }
     }
@@ -88,6 +114,41 @@ actor AccountRepository {
         } catch {
             throw MitoriError.storage(
                 "\(originalError.localizedDescription) Secret recovery also failed: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    private func restoreCommit(
+        previousMeta: StoredAccountMeta?,
+        previousSecret: StoredAccountSecret?,
+        for accountID: String,
+        after originalError: Error
+    ) async throws {
+        var recoveryErrors: [String] = []
+
+        do {
+            if let previousMeta {
+                try await accountStore.upsert(previousMeta)
+            } else {
+                try await accountStore.deleteAccount(id: accountID)
+            }
+        } catch {
+            recoveryErrors.append(error.localizedDescription)
+        }
+
+        do {
+            if let previousSecret {
+                try await secretStore.save(previousSecret, for: accountID)
+            } else {
+                try await secretStore.deleteSecret(for: accountID)
+            }
+        } catch {
+            recoveryErrors.append(error.localizedDescription)
+        }
+
+        guard recoveryErrors.isEmpty else {
+            throw MitoriError.storage(
+                "\(originalError.localizedDescription) Recovery also failed: \(recoveryErrors.joined(separator: " "))"
             )
         }
     }

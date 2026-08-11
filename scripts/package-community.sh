@@ -9,6 +9,14 @@ cd "$ROOT_DIR"
 zsh scripts/scan.license.sh
 COMMUNITY_BUILD=1 CONFIGURATION=Release bash scripts/build-macos.sh
 
+APP_BINARY="$APP_PATH/Contents/MacOS/Mitori"
+if ! lipo "$APP_BINARY" -verify_arch arm64 \
+    || ! lipo "$APP_BINARY" -verify_arch x86_64; then
+    echo "Community app must contain arm64 and x86_64 architectures." >&2
+    exit 1
+fi
+echo "Verified community app architectures: arm64 x86_64."
+
 codesign --force --sign - --options runtime "$APP_PATH"
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 

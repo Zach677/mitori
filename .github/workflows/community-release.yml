@@ -25,8 +25,13 @@ jobs:
       - name: Test community build
         run: mise run test-community
 
-      - name: Package community DMG
+      - name: Package Universal community DMG
         run: mise run package-community
+
+      - name: Smoke test packaged Release app
+        run: |
+          VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' .app-build/community/Mitori.app/Contents/Info.plist)"
+          bash scripts/smoke-community-dmg.sh "dist/Mitori-$VERSION.dmg"
 
       - name: Check generated license notices
         run: git diff --exit-code -- Mitori/Resources/OpenSourceLicenses.md

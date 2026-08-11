@@ -16,6 +16,7 @@ final class AddAccountViewController: NSViewController, NSTextFieldDelegate {
     private let submitButton = NSButton(title: "Login", target: nil, action: nil)
     private let twoFactorSection = NSStackView()
     private let errorSection = NSStackView()
+    private var loginTask: Task<Void, Never>?
 
     init(
         model: MitoriModel,
@@ -43,6 +44,11 @@ final class AddAccountViewController: NSViewController, NSTextFieldDelegate {
     override func viewDidAppear() {
         super.viewDidAppear()
         view.window?.makeFirstResponder(emailField)
+    }
+
+    func cancelLogin() {
+        loginTask?.cancel()
+        loginTask = nil
     }
 }
 
@@ -225,7 +231,8 @@ private extension AddAccountViewController {
         flow.beginSubmission()
         reload()
 
-        Task {
+        loginTask = Task { [weak self] in
+            guard let self else { return }
             do {
                 let accountID = try await model.addAccount(
                     email: flow.email,
@@ -234,16 +241,20 @@ private extension AddAccountViewController {
                     deviceIdentifier: flow.deviceIdentifier,
                     probeBundleID: ""
                 )
+                try Task.checkCancellation()
+                flow.finishSubmission()
+                loginTask = nil
                 onLoginSuccess(accountID)
             } catch {
+                flow.finishSubmission()
+                loginTask = nil
+                guard !Task.isCancelled else { return }
                 flow.handleFailure(error)
                 reload()
                 if flow.requiresVerificationCode {
                     view.window?.makeFirstResponder(verificationCodeField)
                 }
             }
-            flow.finishSubmission()
-            reload()
         }
     }
 
@@ -255,6 +266,7 @@ private extension AddAccountViewController {
 
     @objc
     func cancel() {
+        cancelLogin()
         onClose()
     }
 }

@@ -79,6 +79,7 @@ final class MitoriModel {
         deviceIdentifier: String,
         probeBundleID: String
     ) async throws -> String {
+        try Task.checkCancellation()
         let accountID = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !mutatingAccountIDs.contains(accountID), pendingLoginGenerations[accountID] == nil else {
             throw MitoriError.operationInProgress
@@ -99,6 +100,7 @@ final class MitoriModel {
             deviceIdentifier: deviceIdentifier.trimmingCharacters(in: .whitespacesAndNewlines),
             probeBundleID: probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
         ))
+        try Task.checkCancellation()
         guard result.meta.id == accountID else {
             throw MitoriError.unknown("Authenticated account does not match the requested email.")
         }
@@ -109,7 +111,8 @@ final class MitoriModel {
         mutatingAccountIDs.insert(accountID)
         defer { finishMutation(for: accountID) }
 
-        let updatedAccounts = try await repository.commit(result)
+        let updatedAccounts = try await repository.commit(result, respectingCancellation: true)
+        try Task.checkCancellation()
         guard operationIsCurrent(for: accountID, generation: generation) else {
             throw MitoriError.operationSuperseded
         }

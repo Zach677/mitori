@@ -38,21 +38,27 @@ final class MenuBarController: NSObject {
     }()
 
     private var detailAccountID: String?
+    private weak var addAccountViewController: AddAccountViewController?
     private weak var accountDetailViewController: AccountDetailViewController?
 
     private lazy var addAccountWindowController = AppWindowController(
         title: { "Add Account" },
         size: NSSize(width: 430, height: 430),
         autosaveName: "dev.zach.mitori.add-account",
-        windowLevel: .floating
+        windowLevel: .floating,
+        onWindowClose: { [weak self] in
+            self?.addAccountViewController?.cancelLogin()
+        }
     ) { [unowned self] in
-        AddAccountViewController(
+        let controller = AddAccountViewController(
             model: model,
             onClose: closeAddAccountWindow,
             onLoginSuccess: { [weak self] accountID in
                 self?.addAccountDidSucceed(accountID: accountID)
             }
         )
+        addAccountViewController = controller
+        return controller
     }
 
     private lazy var addAccountWindowPresenter = WindowPresentationCoordinator(window: addAccountWindowController)

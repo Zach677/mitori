@@ -8,6 +8,7 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
     private let autosaveName: String?
     private let windowLevel: NSWindow.Level
     private let titleVisibility: NSWindow.TitleVisibility
+    private let onWindowClose: @MainActor () -> Void
     private var currentViewController: NSViewController?
 
     init(
@@ -16,6 +17,7 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         autosaveName: String? = nil,
         windowLevel: NSWindow.Level = .normal,
         titleVisibility: NSWindow.TitleVisibility = .hidden,
+        onWindowClose: @escaping @MainActor () -> Void = {},
         content: @escaping @MainActor () -> NSViewController
     ) {
         titleProvider = title
@@ -24,6 +26,7 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         self.autosaveName = autosaveName
         self.windowLevel = windowLevel
         self.titleVisibility = titleVisibility
+        self.onWindowClose = onWindowClose
         super.init(window: nil)
     }
 
@@ -53,6 +56,10 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         refresh(window)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+    }
+
+    func windowWillClose(_: Notification) {
+        onWindowClose()
     }
 
     private func ensureWindow() -> NSWindow {
@@ -91,8 +98,14 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         window.title = titleProvider()
         let vc = contentProvider()
         currentViewController = vc
-        let glass = NSGlassEffectView()
-        glass.contentView = vc.view
-        window.contentView = glass
+        if #available(macOS 26.0, *) {
+            window.backgroundColor = .clear
+            let glass = NSGlassEffectView()
+            glass.contentView = vc.view
+            window.contentView = glass
+        } else {
+            window.backgroundColor = .windowBackgroundColor
+            window.contentView = vc.view
+        }
     }
 }

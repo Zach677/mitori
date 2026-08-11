@@ -430,6 +430,101 @@ struct MitoriModelTests {
     }
 
     @Test
+    func cancelledInFlightLoginDoesNotPersistAccount() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let accountStore = AccountStore(baseDirectory: tempDirectory)
+        let secretStore = SecretStore(backend: InMemorySecretBackend())
+        let account = sampleAccount()
+        let result = SessionRefreshResult(
+            meta: StoredAccountMeta(
+                account: account,
+                deviceIdentifier: "ABCDEF123456",
+                probeBundleID: "com.example.probe"
+            ),
+            secret: StoredAccountSecret(account: account)
+        )
+        let gate = RefreshGate()
+        let bridge = SessionBridgeStub(loginResult: result)
+        bridge.beforeLogin = { await gate.suspend() }
+        let model = MitoriModel(
+            accountStore: accountStore,
+            secretStore: secretStore,
+            sessionBridge: bridge
+        )
+
+        let login = Task {
+            try await model.addAccount(
+                email: account.email,
+                password: account.password,
+                code: "",
+                deviceIdentifier: "ABCDEF123456",
+                probeBundleID: "com.example.probe"
+            )
+        }
+        await gate.waitUntilStarted()
+
+        login.cancel()
+        gate.release()
+
+        await #expect(throws: CancellationError.self) {
+            try await login.value
+        }
+        #expect(model.account(with: account.email) == nil)
+        #expect(try await accountStore.loadAccounts().isEmpty)
+        #expect(try await secretStore.loadSecret(for: account.email) == nil)
+    }
+
+    @Test
+    func loginCancelledDuringCommitRollsBackAccount() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let writeGate = BlockingWriteGate()
+        let accountStore = AccountStore(baseDirectory: tempDirectory) { data, url in
+            writeGate.suspend()
+            try data.write(to: url, options: .atomic)
+        }
+        let secretStore = SecretStore(backend: InMemorySecretBackend())
+        let account = sampleAccount()
+        let bridge = SessionBridgeStub(loginResult: SessionRefreshResult(
+            meta: StoredAccountMeta(
+                account: account,
+                deviceIdentifier: "ABCDEF123456",
+                probeBundleID: "com.example.probe"
+            ),
+            secret: StoredAccountSecret(account: account)
+        ))
+        let model = MitoriModel(
+            accountStore: accountStore,
+            secretStore: secretStore,
+            sessionBridge: bridge
+        )
+
+        let login = Task {
+            try await model.addAccount(
+                email: account.email,
+                password: account.password,
+                code: "",
+                deviceIdentifier: "ABCDEF123456",
+                probeBundleID: "com.example.probe"
+            )
+        }
+        await Task.detached {
+            writeGate.waitUntilStarted()
+        }.value
+
+        login.cancel()
+        writeGate.release()
+
+        await #expect(throws: CancellationError.self) {
+            try await login.value
+        }
+        #expect(model.account(with: account.email) == nil)
+        #expect(try await accountStore.loadAccounts().isEmpty)
+        #expect(try await secretStore.loadSecret(for: account.email) == nil)
+    }
+
+    @Test
     func inFlightLoginDoesNotRestoreDeletedAccount() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

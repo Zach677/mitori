@@ -341,10 +341,29 @@ private extension AccountDetailViewController {
         content.spacing = 5
         content.edgeInsets = NSEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
 
-        let feedback = NSGlassEffectView()
-        feedback.contentView = content
-        feedback.cornerRadius = 14
-        feedback.style = .clear
+        let feedback: NSView
+        if #available(macOS 26.0, *) {
+            let glass = NSGlassEffectView()
+            glass.contentView = content
+            glass.cornerRadius = 14
+            glass.style = .clear
+            feedback = glass
+        } else {
+            let visualEffect = NSVisualEffectView()
+            visualEffect.material = .popover
+            visualEffect.state = .active
+            visualEffect.wantsLayer = true
+            visualEffect.layer?.cornerRadius = 14
+            content.translatesAutoresizingMaskIntoConstraints = false
+            visualEffect.addSubview(content)
+            NSLayoutConstraint.activate([
+                content.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
+                content.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
+                content.topAnchor.constraint(equalTo: visualEffect.topAnchor),
+                content.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor),
+            ])
+            feedback = visualEffect
+        }
         feedback.alphaValue = 0
         feedback.translatesAutoresizingMaskIntoConstraints = false
         feedback.setAccessibilityLabel("Copied to clipboard")

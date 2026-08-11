@@ -65,7 +65,7 @@ The [Privacy Policy](https://zaxh.org/mitori/privacy) is also available under **
 
 ## Build from source
 
-You need macOS 26 or later, Xcode 26 or later, [mise](https://mise.jdx.dev/), `xcbeautify`, and Node.js.
+You need macOS 14 or later, Xcode 26 or later, [mise](https://mise.jdx.dev/), `xcbeautify`, and Node.js.
 
 ```sh
 brew install mise xcbeautify node
