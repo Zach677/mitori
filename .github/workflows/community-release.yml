@@ -57,8 +57,8 @@ jobs:
           name: Mitori-community-${{ github.sha }}
           path: dist
 
-      - name: Publish prerelease
+      - name: Publish release
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --prerelease --verify-tag
+        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --verify-tag
