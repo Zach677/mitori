@@ -16,15 +16,6 @@
   <a href="SECURITY.md">Security</a>
 </p>
 
-<p align="center">
-  <img src="docs/assets/menu-panel-privacy.jpg" width="49%" alt="Mitori showing three Apple ID balances with personal information hidden">
-  <img src="docs/assets/menu-panel-details.jpg" width="49%" alt="Mitori showing multiple account balances with account identifiers redacted">
-</p>
-
-<p align="center">
-  <img src="docs/assets/settings.jpg" width="49%" alt="Mitori settings for login, privacy, automatic refresh, and legal information">
-</p>
-
 Mitori is a native macOS menu bar app for checking store credit across multiple Apple IDs. It supports two-factor authentication, automatic refresh, and session recovery without making you sign in again from scratch.
 
 ## Install
