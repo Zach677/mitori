@@ -137,13 +137,19 @@ final class MitoriModel {
         guard let generation = beginOperation(for: id) else { return }
 
         do {
-            guard let secret = try await repository.loadSecret(for: id) else {
+            guard let secret = try await repository.loadSecret(
+                for: id,
+                allowsAuthenticationUI: isManualRefresh
+            ) else {
                 throw MitoriError.missingSecret
             }
             guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else { return }
             let result = normalized(try await sessionBridge.refreshBalance(meta: meta, secret: secret))
             guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else { return }
-            let updatedAccounts = try await repository.commit(result)
+            let updatedAccounts = try await repository.commit(
+                result,
+                allowsAuthenticationUI: isManualRefresh
+            )
             guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else { return }
             accounts = updatedAccounts
             applyPostRefreshState(for: id, using: result)

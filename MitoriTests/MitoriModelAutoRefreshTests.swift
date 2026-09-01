@@ -57,6 +57,8 @@ struct MitoriModelAutoRefreshTests {
         await context.model.autoRefreshTick()
 
         #expect(context.bridge.refreshCallCount == 1)
+        #expect(context.secretBackend.readAllowsAuthenticationUI == [false, false])
+        #expect(context.secretBackend.writeAllowsAuthenticationUI == [true, false])
         guard case .succeeded = context.model.refreshState(for: context.accountID) else {
             Issue.record("Expected succeeded state, got \(context.model.refreshState(for: context.accountID))")
             return
@@ -66,6 +68,7 @@ struct MitoriModelAutoRefreshTests {
     private struct AutoRefreshContext {
         var model: MitoriModel
         var bridge: SessionBridgeStub
+        var secretBackend: RecordingSecretBackend
         var accountID: String
         var defaultsSuiteName: String
 
@@ -87,7 +90,8 @@ struct MitoriModelAutoRefreshTests {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let accountStore = AccountStore(baseDirectory: tempDirectory)
-        let secretStore = SecretStore(backend: InMemorySecretBackend())
+        let secretBackend = RecordingSecretBackend()
+        let secretStore = SecretStore(backend: secretBackend)
         let meta = StoredAccountMeta(
             account: sampleAccount(),
             deviceIdentifier: "ABCDEF123456",
@@ -116,8 +120,29 @@ struct MitoriModelAutoRefreshTests {
         return AutoRefreshContext(
             model: model,
             bridge: bridge,
+            secretBackend: secretBackend,
             accountID: meta.id,
             defaultsSuiteName: suiteName
         )
+    }
+}
+
+private final class RecordingSecretBackend: SecretKeyValueStore, @unchecked Sendable {
+    private var storage: [String: Data] = [:]
+    private(set) var readAllowsAuthenticationUI: [Bool] = []
+    private(set) var writeAllowsAuthenticationUI: [Bool] = []
+
+    func data(for key: String, allowsAuthenticationUI: Bool) throws -> Data? {
+        readAllowsAuthenticationUI.append(allowsAuthenticationUI)
+        return storage[key]
+    }
+
+    func set(_ data: Data, for key: String, allowsAuthenticationUI: Bool) throws {
+        writeAllowsAuthenticationUI.append(allowsAuthenticationUI)
+        storage[key] = data
+    }
+
+    func removeValue(for key: String, allowsAuthenticationUI _: Bool) throws {
+        storage[key] = nil
     }
 }

@@ -1,10 +1,11 @@
 import Foundation
+import LocalAuthentication
 import Security
 
 protocol SecretKeyValueStore {
-    func data(for key: String) throws -> Data?
-    func set(_ data: Data, for key: String) throws
-    func removeValue(for key: String) throws
+    func data(for key: String, allowsAuthenticationUI: Bool) throws -> Data?
+    func set(_ data: Data, for key: String, allowsAuthenticationUI: Bool) throws
+    func removeValue(for key: String, allowsAuthenticationUI: Bool) throws
 }
 
 final class KeychainSecretBackend: SecretKeyValueStore {
@@ -16,25 +17,39 @@ final class KeychainSecretBackend: SecretKeyValueStore {
         self.usesDataProtectionKeychain = usesDataProtectionKeychain ?? Self.defaultUsesDataProtectionKeychain
     }
 
-    func data(for key: String) throws -> Data? {
+    func data(for key: String, allowsAuthenticationUI: Bool = true) throws -> Data? {
         guard usesDataProtectionKeychain else {
-            return try copyData(matching: legacyQuery(for: key))
+            return try copyData(matching: legacyQuery(for: key), allowsAuthenticationUI: allowsAuthenticationUI)
         }
 
-        if let data = try copyData(matching: protectedQuery(for: key)) {
-            try delete(matching: legacyQuery(for: key))
+        if let data = try copyData(
+            matching: protectedQuery(for: key),
+            allowsAuthenticationUI: allowsAuthenticationUI
+        ) {
+            try delete(
+                matching: legacyQuery(for: key),
+                allowsAuthenticationUI: allowsAuthenticationUI
+            )
             return data
         }
-        guard let legacyData = try copyData(matching: legacyQuery(for: key)) else {
+        guard let legacyData = try copyData(
+            matching: legacyQuery(for: key),
+            allowsAuthenticationUI: allowsAuthenticationUI
+        ) else {
             return nil
         }
 
-        try set(legacyData, for: key)
+        try set(legacyData, for: key, allowsAuthenticationUI: allowsAuthenticationUI)
         return legacyData
     }
 
-    func set(_ data: Data, for key: String) throws {
-        let query = usesDataProtectionKeychain ? protectedQuery(for: key) : legacyQuery(for: key)
+    func set(
+        _ data: Data,
+        for key: String,
+        allowsAuthenticationUI: Bool = true
+    ) throws {
+        let baseQuery = usesDataProtectionKeychain ? protectedQuery(for: key) : legacyQuery(for: key)
+        let query = authenticationQuery(baseQuery, allowsAuthenticationUI: allowsAuthenticationUI)
         var attributes = query
         attributes[kSecValueData as String] = data
         if usesDataProtectionKeychain {
@@ -55,7 +70,10 @@ final class KeychainSecretBackend: SecretKeyValueStore {
             throw keychainError(status)
         }
 
-        guard try copyData(matching: query) == data else {
+        guard try copyData(
+            matching: baseQuery,
+            allowsAuthenticationUI: allowsAuthenticationUI
+        ) == data else {
             throw NSError(
                 domain: NSOSStatusErrorDomain,
                 code: Int(errSecDecode),
@@ -63,15 +81,24 @@ final class KeychainSecretBackend: SecretKeyValueStore {
             )
         }
         if usesDataProtectionKeychain {
-            try delete(matching: legacyQuery(for: key))
+            try delete(
+                matching: legacyQuery(for: key),
+                allowsAuthenticationUI: allowsAuthenticationUI
+            )
         }
     }
 
-    func removeValue(for key: String) throws {
+    func removeValue(for key: String, allowsAuthenticationUI: Bool = true) throws {
         if usesDataProtectionKeychain {
-            try delete(matching: protectedQuery(for: key))
+            try delete(
+                matching: protectedQuery(for: key),
+                allowsAuthenticationUI: allowsAuthenticationUI
+            )
         }
-        try delete(matching: legacyQuery(for: key))
+        try delete(
+            matching: legacyQuery(for: key),
+            allowsAuthenticationUI: allowsAuthenticationUI
+        )
     }
 
     private static var defaultUsesDataProtectionKeychain: Bool {
@@ -82,10 +109,14 @@ final class KeychainSecretBackend: SecretKeyValueStore {
 #endif
     }
 
-    private func copyData(matching baseQuery: [String: Any]) throws -> Data? {
+    private func copyData(
+        matching baseQuery: [String: Any],
+        allowsAuthenticationUI: Bool = true
+    ) throws -> Data? {
         var query = baseQuery
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
+        query = authenticationQuery(query, allowsAuthenticationUI: allowsAuthenticationUI)
 
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -99,11 +130,27 @@ final class KeychainSecretBackend: SecretKeyValueStore {
         }
     }
 
-    private func delete(matching query: [String: Any]) throws {
+    private func delete(
+        matching baseQuery: [String: Any],
+        allowsAuthenticationUI: Bool = true
+    ) throws {
+        let query = authenticationQuery(baseQuery, allowsAuthenticationUI: allowsAuthenticationUI)
         let status = SecItemDelete(query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw keychainError(status)
         }
+    }
+
+    private func authenticationQuery(
+        _ baseQuery: [String: Any],
+        allowsAuthenticationUI: Bool
+    ) -> [String: Any] {
+        guard !allowsAuthenticationUI else { return baseQuery }
+        var query = baseQuery
+        let context = LAContext()
+        context.interactionNotAllowed = true
+        query[kSecUseAuthenticationContext as String] = context
+        return query
     }
 
     private func protectedQuery(for key: String) -> [String: Any] {
@@ -140,15 +187,15 @@ func isKeychainInteractionNotAllowed(_ error: Error) -> Bool {
 final class InMemorySecretBackend: SecretKeyValueStore {
     private var storage: [String: Data] = [:]
 
-    func data(for key: String) throws -> Data? {
+    func data(for key: String, allowsAuthenticationUI _: Bool = true) throws -> Data? {
         storage[key]
     }
 
-    func set(_ data: Data, for key: String) throws {
+    func set(_ data: Data, for key: String, allowsAuthenticationUI _: Bool = true) throws {
         storage[key] = data
     }
 
-    func removeValue(for key: String) throws {
+    func removeValue(for key: String, allowsAuthenticationUI _: Bool = true) throws {
         storage[key] = nil
     }
 }
@@ -171,20 +218,40 @@ actor SecretStore {
         decoder = JSONDecoder()
     }
 
-    func loadSecret(for accountID: String) throws -> StoredAccountSecret? {
-        guard let data = try backend.data(for: storageKey(for: accountID)) else {
+    func loadSecret(
+        for accountID: String,
+        allowsAuthenticationUI: Bool = true
+    ) throws -> StoredAccountSecret? {
+        guard let data = try backend.data(
+            for: storageKey(for: accountID),
+            allowsAuthenticationUI: allowsAuthenticationUI
+        ) else {
             return nil
         }
         return try decodeSecret(from: data)
     }
 
-    func save(_ secret: StoredAccountSecret, for accountID: String) throws {
+    func save(
+        _ secret: StoredAccountSecret,
+        for accountID: String,
+        allowsAuthenticationUI: Bool = true
+    ) throws {
         let data = try encoder.encode(secret)
-        try backend.set(data, for: storageKey(for: accountID))
+        try backend.set(
+            data,
+            for: storageKey(for: accountID),
+            allowsAuthenticationUI: allowsAuthenticationUI
+        )
     }
 
-    func deleteSecret(for accountID: String) throws {
-        try backend.removeValue(for: storageKey(for: accountID))
+    func deleteSecret(
+        for accountID: String,
+        allowsAuthenticationUI: Bool = true
+    ) throws {
+        try backend.removeValue(
+            for: storageKey(for: accountID),
+            allowsAuthenticationUI: allowsAuthenticationUI
+        )
     }
 
     private func storageKey(for accountID: String) -> String {

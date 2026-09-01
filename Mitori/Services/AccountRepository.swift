@@ -15,10 +15,16 @@ actor AccountRepository {
         try await accountStore.loadAccounts()
     }
 
-    func loadSecret(for accountID: String) async throws -> StoredAccountSecret? {
+    func loadSecret(
+        for accountID: String,
+        allowsAuthenticationUI: Bool = true
+    ) async throws -> StoredAccountSecret? {
         await acquireLock(for: accountID)
         defer { releaseLock(for: accountID) }
-        return try await secretStore.loadSecret(for: accountID)
+        return try await secretStore.loadSecret(
+            for: accountID,
+            allowsAuthenticationUI: allowsAuthenticationUI
+        )
     }
 
     func upsert(_ meta: StoredAccountMeta) async throws -> [StoredAccountMeta] {
@@ -47,7 +53,8 @@ actor AccountRepository {
 
     func commit(
         _ result: SessionRefreshResult,
-        respectingCancellation: Bool = false
+        respectingCancellation: Bool = false,
+        allowsAuthenticationUI: Bool = true
     ) async throws -> [StoredAccountMeta] {
         let accountID = result.meta.id
         await acquireLock(for: accountID)
@@ -56,13 +63,25 @@ actor AccountRepository {
         if respectingCancellation {
             try Task.checkCancellation()
         }
-        let previousSecret = try await secretStore.loadSecret(for: accountID)
+        let previousSecret = try await secretStore.loadSecret(
+            for: accountID,
+            allowsAuthenticationUI: allowsAuthenticationUI
+        )
         guard respectingCancellation else {
-            try await secretStore.save(result.secret, for: accountID)
+            try await secretStore.save(
+                result.secret,
+                for: accountID,
+                allowsAuthenticationUI: allowsAuthenticationUI
+            )
             do {
                 return try await accountStore.upsert(result.meta)
             } catch {
-                try await restoreSecret(previousSecret, for: accountID, after: error)
+                try await restoreSecret(
+                    previousSecret,
+                    for: accountID,
+                    after: error,
+                    allowsAuthenticationUI: allowsAuthenticationUI
+                )
                 throw error
             }
         }
@@ -70,7 +89,11 @@ actor AccountRepository {
         let previousMeta = try await accountStore.loadAccounts().first(where: { $0.id == accountID })
         try Task.checkCancellation()
         do {
-            try await secretStore.save(result.secret, for: accountID)
+            try await secretStore.save(
+                result.secret,
+                for: accountID,
+                allowsAuthenticationUI: allowsAuthenticationUI
+            )
             try Task.checkCancellation()
             let accounts = try await accountStore.upsert(result.meta)
             try Task.checkCancellation()
@@ -80,7 +103,8 @@ actor AccountRepository {
                 previousMeta: previousMeta,
                 previousSecret: previousSecret,
                 for: accountID,
-                after: error
+                after: error,
+                allowsAuthenticationUI: allowsAuthenticationUI
             )
             throw error
         }
@@ -103,13 +127,21 @@ actor AccountRepository {
     private func restoreSecret(
         _ previousSecret: StoredAccountSecret?,
         for accountID: String,
-        after originalError: Error
+        after originalError: Error,
+        allowsAuthenticationUI: Bool = true
     ) async throws {
         do {
             if let previousSecret {
-                try await secretStore.save(previousSecret, for: accountID)
+                try await secretStore.save(
+                    previousSecret,
+                    for: accountID,
+                    allowsAuthenticationUI: allowsAuthenticationUI
+                )
             } else {
-                try await secretStore.deleteSecret(for: accountID)
+                try await secretStore.deleteSecret(
+                    for: accountID,
+                    allowsAuthenticationUI: allowsAuthenticationUI
+                )
             }
         } catch {
             throw MitoriError.storage(
@@ -122,7 +154,8 @@ actor AccountRepository {
         previousMeta: StoredAccountMeta?,
         previousSecret: StoredAccountSecret?,
         for accountID: String,
-        after originalError: Error
+        after originalError: Error,
+        allowsAuthenticationUI: Bool
     ) async throws {
         var recoveryErrors: [String] = []
 
@@ -138,9 +171,16 @@ actor AccountRepository {
 
         do {
             if let previousSecret {
-                try await secretStore.save(previousSecret, for: accountID)
+                try await secretStore.save(
+                    previousSecret,
+                    for: accountID,
+                    allowsAuthenticationUI: allowsAuthenticationUI
+                )
             } else {
-                try await secretStore.deleteSecret(for: accountID)
+                try await secretStore.deleteSecret(
+                    for: accountID,
+                    allowsAuthenticationUI: allowsAuthenticationUI
+                )
             }
         } catch {
             recoveryErrors.append(error.localizedDescription)

@@ -110,15 +110,15 @@ final class RefreshGate {
 final class FailingDeleteSecretBackend: SecretKeyValueStore {
     private var storage: [String: Data] = [:]
 
-    func data(for key: String) throws -> Data? {
+    func data(for key: String, allowsAuthenticationUI _: Bool) throws -> Data? {
         storage[key]
     }
 
-    func set(_ data: Data, for key: String) throws {
+    func set(_ data: Data, for key: String, allowsAuthenticationUI _: Bool) throws {
         storage[key] = data
     }
 
-    func removeValue(for _: String) throws {
+    func removeValue(for _: String, allowsAuthenticationUI _: Bool) throws {
         throw NSError(domain: NSOSStatusErrorDomain, code: Int(errSecNotAvailable))
     }
 }
