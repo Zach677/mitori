@@ -424,7 +424,7 @@
 			repositoryURL = "https://github.com/Zach677/ApplePackage.git";
 			requirement = {
 				kind = revision;
-				revision = 402c188f4c7c895f9083ef38aabda6b64fc3edb1;
+				revision = 56cd203c24b5cb33acf9fa6ccc99c1365c471329;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
