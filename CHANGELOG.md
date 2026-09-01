@@ -2,6 +2,11 @@
 
 All notable changes to Mitori are documented in this file.
 
+## 0.2.2 - 2026-09-01
+
+- Restore Apple ID sign-in after Apple began requiring signed authentication requests.
+- Keep scheduled refreshes from opening Keychain authorization prompts while allowing manual refreshes to request access when needed.
+
 ## 0.2.1 - 2026-08-11
 
 - Cancel in-flight sign-ins without saving partial account data.
