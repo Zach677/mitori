@@ -2,6 +2,10 @@
 
 All notable changes to Mitori are documented in this file.
 
+## 0.2.3 - 2026-09-02
+
+- Retry temporary Apple authentication failures before asking users to sign in again.
+
 ## 0.2.2 - 2026-09-01
 
 - Restore Apple ID sign-in after Apple began requiring signed authentication requests.
