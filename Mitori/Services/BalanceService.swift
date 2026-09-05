@@ -1,7 +1,11 @@
 @preconcurrency import ApplePackage
 import Foundation
 
-actor BalanceService {
+protocol BalanceRefreshing: Sendable {
+    func refreshBalance(for meta: StoredAccountMeta, secret: StoredAccountSecret) async throws -> BalanceResult
+}
+
+actor BalanceService: BalanceRefreshing {
     private let probeClient: BalanceProbeClient
 
     init(probeClient: BalanceProbeClient = BalanceProbeClient()) {

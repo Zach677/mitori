@@ -189,9 +189,9 @@ final class MenuBarController: NSObject {
         menuPanelController.reload()
     }
 
-    private func addAccountDidSucceed(accountID: String) {
+    private func addAccountDidSucceed(accountID _: String) {
         addAccountWindowController.close()
-        presentAccountDetailWindow(for: accountID)
+        presentPopover()
     }
 
     private func presentSettingsWindow() {

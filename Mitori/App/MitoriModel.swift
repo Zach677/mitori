@@ -210,14 +210,11 @@ final class MitoriModel {
         let generation = try beginMutation(for: accountID)
         defer { finishMutation(for: accountID) }
         let trimmedProbeBundleID = probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
-        let currentDate = now()
         let updatedAccounts = try await repository.updateMeta(id: accountID) { latest in
             var updated = latest
             updated.probeBundleID = trimmedProbeBundleID
 
-            if trimmedProbeBundleID.isEmpty {
-                updated.lastIssue = MitoriError.missingProbeBundleID.refreshIssue(at: currentDate)
-            } else if updated.lastIssue?.kind == .probeConfigurationMissing {
+            if updated.lastIssue?.kind == .probeConfigurationMissing {
                 updated.lastIssue = nil
                 updated.nextEligibleRefreshAt = nil
                 updated.consecutiveFailureCount = 0
@@ -227,9 +224,7 @@ final class MitoriModel {
         guard operationIsCurrent(for: accountID, generation: generation) else { return }
         accounts = updatedAccounts
 
-        if trimmedProbeBundleID.isEmpty {
-            bannerMessage = MitoriError.missingProbeBundleID.localizedDescription
-        } else if bannerMessage == MitoriError.missingProbeBundleID.localizedDescription {
+        if bannerMessage == MitoriError.missingProbeBundleID.localizedDescription {
             bannerMessage = nil
         }
     }

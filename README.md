@@ -50,9 +50,11 @@ shasum -a 256 -c Mitori-<version>.dmg.sha256
 
 ## Add an account
 
-You need an Apple ID email and password, a two-factor authentication code when enabled, and the bundle ID of an app already owned by that account. Mitori generates a device identifier automatically.
+You need an Apple ID email and password, and a two-factor authentication code when Apple asks for one. Mitori generates a device identifier automatically.
 
-The owned app acts as a balance probe. You can search for one and change it later from the account details window.
+After sign-in, Mitori reads store credit from Apple's login response. Later refreshes reuse the session, or sign in again silently when needed.
+
+You can optionally pick an app this Apple ID already owns. That lets Mitori refresh in the background without signing in each time. Add or change it later from the account details window.
 
 ## Privacy
 

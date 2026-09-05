@@ -2,6 +2,11 @@
 
 All notable changes to Mitori are documented in this file.
 
+## Unreleased
+
+- Show store credit from Apple's sign-in response so adding an account no longer requires a probe app first.
+- Refresh accounts without a probe app by signing in silently, and keep probe apps as an optional background-refresh shortcut.
+
 ## 0.2.3 - 2026-09-02
 
 - Retry temporary Apple authentication failures before asking users to sign in again.

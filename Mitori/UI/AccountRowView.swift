@@ -217,7 +217,6 @@ final class AccountRowView: NSView {
 
     private var hint: String? {
         if isRefreshing { return nil }
-        if account.requiresProbeConfiguration { return "Set up probe app" }
         switch account.status {
         case .normal:
             return nil
@@ -247,37 +246,24 @@ final class AccountRowView: NSView {
     }
 
     private func makeActionView() -> NSView {
-        if account.requiresProbeConfiguration {
-            return makeActionButton(title: "Set Up", action: #selector(open))
-        }
         if isRefreshing {
             return makeProgressIndicator()
         }
         return makeActionButton(action: #selector(refresh))
     }
 
-    private func makeActionButton(title: String? = nil, action: Selector) -> NSButton {
+    private func makeActionButton(action: Selector) -> NSButton {
         let button = NSButton()
         button.isBordered = false
         button.controlSize = .small
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.widthAnchor.constraint(
-            equalToConstant: title == nil ? Metrics.actionWidth : 54
-        ).isActive = true
-
-        if let title {
-            button.title = title
-            button.font = .systemFont(ofSize: 11, weight: .medium)
-            button.isBordered = true
-            button.bezelStyle = .rounded
-        } else {
-            button.imagePosition = .imageOnly
-            button.image = NSImage(
-                systemSymbolName: "arrow.clockwise",
-                accessibilityDescription: "Refresh"
-            )
-            button.toolTip = "Refresh"
-        }
+        button.widthAnchor.constraint(equalToConstant: Metrics.actionWidth).isActive = true
+        button.imagePosition = .imageOnly
+        button.image = NSImage(
+            systemSymbolName: "arrow.clockwise",
+            accessibilityDescription: "Refresh"
+        )
+        button.toolTip = "Refresh"
         button.target = self
         button.action = action
         actionButton = button

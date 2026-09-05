@@ -176,8 +176,8 @@ private extension AccountDetailViewController {
     }
 
     func makeProbeSection(_ account: StoredAccountMeta) -> NSView {
-        let stack = section(title: "Probe App")
-        probeBundleIDField.placeholderString = "Owned app bundle ID"
+        let stack = section(title: "Background Refresh")
+        probeBundleIDField.placeholderString = "Owned app bundle ID (optional)"
         probeBundleIDField.font = .systemFont(ofSize: 13)
         addFullWidth(probeBundleIDField, to: stack)
 
@@ -213,7 +213,11 @@ private extension AccountDetailViewController {
             addFullWidth(resultsStack, to: stack)
         }
 
-        addFullWidth(label("Pick any app this Apple ID already owns in \(account.countryCode ?? "US").", size: 11, color: .secondaryLabelColor), to: stack)
+        addFullWidth(label(
+            "Optional. An app this Apple ID already owns lets Mitori refresh without signing in again.",
+            size: 11,
+            color: .secondaryLabelColor
+        ), to: stack)
 
         saveProbeButton.target = self
         saveProbeButton.action = #selector(saveProbeBundleID)

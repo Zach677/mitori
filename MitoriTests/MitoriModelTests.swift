@@ -42,6 +42,34 @@ struct MitoriModelTests {
     }
 
     @Test
+    func clearingProbeBundleIDDoesNotCreateConfigurationIssue() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let accountStore = AccountStore(baseDirectory: tempDirectory)
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe",
+            lastRefreshAt: Date()
+        )
+        _ = try await accountStore.upsert(meta)
+
+        let model = MitoriModel(
+            accountStore: accountStore,
+            secretStore: SecretStore(backend: InMemorySecretBackend()),
+            sessionBridge: SessionBridgeStub()
+        )
+
+        await model.menuPresented()
+        try await model.saveProbeBundleID(" ", for: meta.id)
+
+        let updated = try #require(model.account(with: meta.id))
+        #expect(updated.probeBundleID.isEmpty)
+        #expect(updated.lastIssue == nil)
+        #expect(model.bannerMessage == nil)
+    }
+
+    @Test
     func menuPresentationDoesNotStartKeychainBackedRefresh() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

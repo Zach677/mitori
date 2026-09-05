@@ -239,6 +239,45 @@ struct RefreshSettingsStoreTests {
     }
 }
 
+struct AccountStatusTests {
+    @Test
+    func emptyProbeWithBalanceIsNormal() {
+        let snapshot = BalanceSnapshot(
+            displayText: "USD 24.90",
+            numericValue: Decimal(string: "24.90"),
+            currencyCode: "USD",
+            fetchedAt: Date(timeIntervalSince1970: 1_743_166_800),
+            source: .authentication,
+            rawFieldPath: "accountInfo.balance"
+        )
+        let account = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "",
+            balanceSnapshot: snapshot,
+            lastRefreshAt: snapshot.fetchedAt
+        )
+
+        #expect(account.status == .normal)
+        #expect(account.needsProbeBundleID)
+        #expect(account.balanceDisplayText != nil)
+    }
+
+    @Test
+    func leftoverProbeConfigurationIssueIsNotAttention() {
+        let account = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "",
+            lastIssue: MitoriError.missingProbeBundleID.refreshIssue(
+                at: Date(timeIntervalSince1970: 1_743_166_800)
+            )
+        )
+
+        #expect(account.status == .normal)
+    }
+}
+
 struct AccountPresentationTests {
     @Test
     func hidesPersonalAccountIdentifiers() {
@@ -411,7 +450,7 @@ struct BalanceParserTests {
 
 private final class FixtureBundleToken {}
 
-private enum FixtureLoader {
+enum FixtureLoader {
     static func data(named resourceName: String) throws -> Data {
         guard let url = Bundle(for: FixtureBundleToken.self).url(forResource: resourceName, withExtension: "plist") else {
             throw NSError(domain: "FixtureLoader", code: 404)

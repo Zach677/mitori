@@ -22,10 +22,43 @@ protocol AppleSessionBridging: Sendable {
     ) async throws -> SessionRefreshResult
 }
 
-actor AppleSessionBridge: AppleSessionBridging {
-    private let balanceService: BalanceService
+protocol AppleAuthenticating: Sendable {
+    func authenticate(
+        email: String,
+        password: String,
+        code: String,
+        cookies: [Cookie],
+        deviceIdentifier: String
+    ) async throws -> AuthenticationResult
+}
 
-    init(balanceService: BalanceService = BalanceService()) {
+struct LiveAppleAuthenticator: AppleAuthenticating {
+    func authenticate(
+        email: String,
+        password: String,
+        code: String,
+        cookies: [Cookie],
+        deviceIdentifier: String
+    ) async throws -> AuthenticationResult {
+        try await Authenticator.authenticateWithResponse(
+            email: email,
+            password: password,
+            code: code,
+            cookies: cookies,
+            deviceIdentifier: deviceIdentifier
+        )
+    }
+}
+
+actor AppleSessionBridge: AppleSessionBridging {
+    private let authenticator: any AppleAuthenticating
+    private let balanceService: any BalanceRefreshing
+
+    init(
+        authenticator: any AppleAuthenticating = LiveAppleAuthenticator(),
+        balanceService: any BalanceRefreshing = BalanceService()
+    ) {
+        self.authenticator = authenticator
         self.balanceService = balanceService
     }
 
@@ -67,6 +100,10 @@ actor AppleSessionBridge: AppleSessionBridging {
         meta: StoredAccountMeta,
         secret: StoredAccountSecret
     ) async throws -> SessionRefreshResult {
+        if meta.needsProbeBundleID {
+            return try await reauthenticate(meta: meta, secret: secret)
+        }
+
         do {
             return try await refreshBalanceOnly(meta: meta, secret: secret)
         } catch {
@@ -87,9 +124,9 @@ actor AppleSessionBridge: AppleSessionBridging {
         probeBundleID: String,
         existing: StoredAccountMeta?
     ) async throws -> SessionRefreshResult {
-        let authenticatedAccount: Account
+        let authenticationResult: AuthenticationResult
         do {
-            authenticatedAccount = try await Authenticator.authenticate(
+            authenticationResult = try await authenticator.authenticate(
                 email: email.trimmingCharacters(in: .whitespacesAndNewlines),
                 password: password,
                 code: code.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -101,7 +138,7 @@ actor AppleSessionBridge: AppleSessionBridging {
         }
 
         var meta = StoredAccountMeta(
-            account: authenticatedAccount,
+            account: authenticationResult.account,
             deviceIdentifier: deviceIdentifier,
             probeBundleID: probeBundleID,
             balanceSnapshot: existing?.balanceSnapshot,
@@ -110,14 +147,28 @@ actor AppleSessionBridge: AppleSessionBridging {
             nextEligibleRefreshAt: nil,
             consecutiveFailureCount: 0
         )
-        let secret = StoredAccountSecret(account: authenticatedAccount)
+        if let snapshot = try? BalanceParser.parse(
+            plistData: authenticationResult.responsePlist,
+            source: .authentication
+        ) {
+            meta.balanceSnapshot = snapshot
+            meta.lastRefreshAt = snapshot.fetchedAt
+        }
+
+        let secret = StoredAccountSecret(account: authenticationResult.account)
+        guard !meta.needsProbeBundleID else {
+            return SessionRefreshResult(meta: meta, secret: secret)
+        }
 
         do {
             let balanceResult = try await balanceService.refreshBalance(for: meta, secret: secret)
             meta = updatedMeta(from: meta, account: balanceResult.account, snapshot: balanceResult.snapshot)
             return SessionRefreshResult(meta: meta, secret: StoredAccountSecret(account: balanceResult.account))
         } catch {
-            meta.lastIssue = MitoriError.mapApplePackage(error).refreshIssue()
+            let mappedError = MitoriError.mapApplePackage(error)
+            if meta.balanceSnapshot == nil || mappedError.issueKind == .balanceUnavailable {
+                meta.lastIssue = mappedError.refreshIssue()
+            }
             return SessionRefreshResult(meta: meta, secret: secret)
         }
     }

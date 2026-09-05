@@ -102,9 +102,6 @@ struct StoredAccountMeta: Codable, Equatable, Identifiable, Sendable {
     var needsProbeBundleID: Bool {
         probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
-    var requiresProbeConfiguration: Bool {
-        needsProbeBundleID || lastIssue?.kind == .probeConfigurationMissing
-    }
     var status: AccountStatus {
         guard let lastIssue else { return .normal }
         switch lastIssue.kind {
@@ -112,7 +109,9 @@ struct StoredAccountMeta: Codable, Equatable, Identifiable, Sendable {
             return .needsVerification
         case .sessionExpired:
             return .sessionExpired
-        case .probeConfigurationMissing, .balanceUnavailable, .network, .unknown:
+        case .probeConfigurationMissing:
+            return .normal
+        case .balanceUnavailable, .network, .unknown:
             return .attention
         }
     }
