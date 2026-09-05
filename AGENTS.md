@@ -14,6 +14,12 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
 - Dependencies: the `ApplePackage` fork (`Zach677/ApplePackage`) is an SPM package reference inside the Xcode project. Credentials use the native Security framework (`SecItem`), not a third-party keychain wrapper.
 - The app uses AppKit for UI and Swift Testing (`import Testing`) for tests.
 
+## Spec And Tasks
+
+- `docs/spec.md` is the normative product/architecture spec: invariants, refresh policy, defect register, decision log. Read it before implementing anything non-trivial.
+- `docs/tasks/` holds self-contained task cards; when your assignment matches a card, follow the card exactly, including its acceptance criteria and verification commands.
+- Spec-first rule: if the work you are asked to do conflicts with `docs/spec.md`, stop and flag it instead of silently diverging. Update the spec (Decision Log entry) together with the change when a decision is revised.
+
 ## Working Rules
 
 - Start by reading `Mitori.xcodeproj/project.pbxproj` and `mise.toml` before structural changes.
