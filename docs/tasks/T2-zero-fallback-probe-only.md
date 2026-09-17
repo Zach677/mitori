@@ -1,53 +1,61 @@
-# T2 — Zero-balance fallback is probe-only (B2, P0)
+# T2 - Source-specific balance parsing and probe-only zero fallback (B2, P0)
 
-Read `AGENTS.md` and `docs/spec.md` (invariant I-4) before starting.
-
-## Context
-
-`BalanceParser.parse(plistData:source:)` in
-`Mitori/Services/BalanceParser.swift` falls back to
-`emptyCreditDisplayPath(...)` → `zeroCandidate(...)`: an **empty**
-`creditDisplay` string anywhere in the plist becomes a `numericValue: 0`
-snapshot. That rule is documented behavior for the **probe** endpoint
-(changelog 0.2.0), but it now also runs for `source: .authentication` — an
-authenticate response with an empty/absent credit field fabricates a `$0.00`
-balance instead of "no data". This is the likely cause of freshly added
-accounts all showing `$0.00`.
+Read `AGENTS.md`, `docs/spec.md` I-4, and the common gates before starting.
+This card owns strict field selection. Do not defer it to T6b.
 
 ## Goal
 
-- Apply the empty-`creditDisplay`-means-zero fallback only when
-  `source == .probe`.
-- For `.authentication`, if neither the explicit paths nor the recursive scan
-  finds a non-empty balance field, `parse` throws `MitoriError.balanceNotFound`
-  (existing behavior for the no-candidate case).
-- Confirm the caller behavior stays correct: `AppleSessionBridge.authenticate`
-  wraps the auth-source parse in `try?` and keeps `existing?.balanceSnapshot`,
-  so a login with no parsable balance keeps the previous snapshot / stays nil.
-  Do not change the bridge in this task; just verify with a test.
+Use explicit paths selected by `BalanceSnapshot.Source`. Remove arbitrary
+recursive searches for `balance` and `creditDisplay`, including the empty-value
+search. Preserve the existing supported value representations at allowed paths.
+
+Use the following ordered path lists, drawn from the current parser and fixtures:
+
+| Source | Allowed paths, in precedence order |
+|--------|------------------------------------|
+| authentication | `accountInfo.balance`, `accountInfo.creditDisplay`, `balance`, `creditDisplay` |
+| probe | `creditDisplay`, `balance`, `songList[0].creditDisplay`, `songList[0].balance`, `songList[0].metadata.creditDisplay`, `songList[0].metadata.balance` |
+
+The lists are separate even where root-level paths overlap. A new field path
+requires a sanitized endpoint fixture and an explicit spec/card update.
+
+Select the first valid non-empty candidate. Only if none exists may an empty
+string at an allowed probe `creditDisplay` path mean zero. Missing fields are
+not empty strings. An authentication response without a valid candidate throws
+`MitoriError.balanceNotFound`; empty auth credit must never imply zero.
+
+Verify that `AppleSessionBridge.authenticate` keeps `existing?.balanceSnapshot`
+and its timestamp when auth parsing produces no data. A new no-probe account
+stays at nil without a fabricated balance or issue. No bridge policy change is
+required for this behavior.
 
 ## Files
 
 - `Mitori/Services/BalanceParser.swift`
-- `MitoriTests/` parser tests + `MitoriTests/AppleSessionBridgeTests.swift`
-  (add a fixture-based case: auth plist whose `creditDisplay` is empty → login
-  result has `balanceSnapshot == nil` and `lastIssue == nil`).
+- Parser tests in `MitoriTests/MitoriCoreTests.swift`
+- `MitoriTests/AppleSessionBridgeTests.swift` and sanitized fixture data
 
 ## Acceptance criteria
 
-- Probe plist with empty `creditDisplay` still parses to a zero snapshot
-  (existing tests keep passing).
-- Auth plist with empty `creditDisplay` and no other balance field throws
-  `balanceNotFound` from `parse`.
-- Login via `AppleSessionBridge` with such an auth plist yields
-  `balanceSnapshot == nil`, no fabricated zero, no `lastIssue` for the no-probe
-  case.
+1. The existing auth/probe success fixtures return their expected value, source,
+   and `rawFieldPath`. Test each allowed path and precedence when two are present.
+2. An empty allowed probe credit field returns zero only when no valid candidate
+   exists. A completely absent field throws `balanceNotFound` for either source.
+3. Empty auth credit throws `balanceNotFound`; a no-probe login then has nil
+   balance and no issue. Reauth with an existing snapshot retains its value,
+   source, and `fetchedAt`/`lastRefreshAt` without making it appear fresh.
+4. `unrelated.balance`, `unrelated.creditDisplay`, auth `songList[0].balance`,
+   and probe `accountInfo.balance` never produce a candidate or zero fallback.
+   Include a response with misleading fields before a valid allowed candidate.
+5. Whitespace-only credit counts as empty only at an allowed probe credit path.
+   Boolean/unsupported values do not become money. Malformed plist data fails
+   without overwriting the saved snapshot. T1's numeric cases remain green.
 
 ## Verification
 
-- `mise run test-macos` green.
+G1. Identify a failing pre-fix regression for both fabricated zero and unrelated
+recursive matches. Map each criterion to named tests in the completion report.
 
 ## Out of scope
 
-- Numeric separator parsing (T1). Recursive-scan strictness redesign (target
-  state §4/§5 of the spec, lands with T6b). UI copy.
+Numeric separator rules (T1), UI copy, and protocol transport migration (T6).

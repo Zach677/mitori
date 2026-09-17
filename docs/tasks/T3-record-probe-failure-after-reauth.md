@@ -1,59 +1,64 @@
-# T3 — Stop swallowing probe failures after reauth (B3, P1)
+# T3 - Record probe failures and stop automatic reauth loops (B3, P1)
 
-Read `AGENTS.md` and `docs/spec.md` (invariants I-6, I-9) before starting.
-
-## Context
-
-In `Mitori/Services/AppleSessionBridge.swift`, the private
-`authenticate(...)` method's probe-failure catch only records `lastIssue` when
-`meta.balanceSnapshot == nil || mappedError.issueKind == .balanceUnavailable`.
-Consequence: `refreshBalance` → probe throws `sessionExpired` → reauth → probe
-throws `sessionExpired` **again** → the error is dropped and the result looks
-like success. The user sees a fresh-looking balance while every refresh cycle
-secretly performs a full password login plus two probes, forever. The test
-`refreshFallsBackToReauthenticationWhenProbeSessionExpired` currently asserts
-this swallow (`lastIssue == nil`) — it enshrines the bug and must change.
+Read `AGENTS.md`, `docs/spec.md` I-6/I-9, and the common gates before starting.
 
 ## Goal
 
-After a successful (re)authentication, any probe failure is recorded on the
-returned meta as `lastIssue` (I-9):
+After successful authentication, record every probe failure in `lastIssue` and
+keep the authentication snapshot. Map a probe `sessionExpired` immediately after
+that authentication to `balanceUnavailable`. Other errors keep their kind.
 
-- Map a probe `sessionExpired` that occurs immediately after a successful
-  authentication to a `balanceUnavailable`-kind issue with a message along the
-  lines of "Probe rejected a fresh session; check the probe app configuration."
-  Rationale: a second reauth cannot help, and keeping the `sessionExpired` kind
-  would make `MitoriModel`/bridge retry reauth on the next cycle — the exact
-  loop we are killing.
-- All other probe failure kinds keep their own kind/message, but are always
-  recorded (drop the `balanceSnapshot == nil ||` condition).
-- The auth-sourced snapshot from the successful authentication is still kept
-  on the meta (balance data is real; the issue rides alongside it).
+Changing the kind alone does not stop future logins. In
+`MitoriModel.shouldAutoRefresh`, skip probe accounts whose persisted issue is
+`balanceUnavailable`. This includes unavailable balance data and invalid probe
+configuration: the user must retry or correct the probe. Network-only failures
+still use the existing interval/backoff policy. Accounts needing 2FA also skip
+automatic refresh until the user recovers them.
+
+Manual refresh or explicit reauthentication can perform one recovery attempt:
+at most one reauth and one post-reauth probe per operation. Successful probe
+recovery clears the pause. A failed recovery preserves an existing
+`balanceUnavailable` pause and exposes the latest error through the existing
+account error surface. It must not replace the pause with a retryable network
+issue and silently restart scheduled logins. If recovery requires 2FA, record
+`requiresVerification` instead; that state also remains paused and must show the
+verification action. Changing/removing the probe clears
+that probe-related pause only; unrelated verification issues remain intact.
+Use the existing issue kind, not a new persistent flag or message matching.
 
 ## Files
 
 - `Mitori/Services/AppleSessionBridge.swift`
-- `MitoriTests/AppleSessionBridgeTests.swift` — update
-  `refreshFallsBackToReauthenticationWhenProbeSessionExpired` to expect
-  `lastIssue?.kind == .balanceUnavailable`, and add a case where the probe
-  fails with a network error after reauth → `lastIssue?.kind == .network`.
+- `Mitori/App/MitoriModel.swift`
+- Existing bridge, model, and auto-refresh tests in `MitoriTests/`
 
 ## Acceptance criteria
 
-- Probe failure after reauth always yields a non-nil `lastIssue` on the result.
-- Post-reauth probe `sessionExpired` is recorded as `balanceUnavailable`
-  (account row shows `.attention`, not an endless reauth loop).
-- Login-without-probe and successful-probe paths are unchanged (existing tests
-  keep passing).
-- `MitoriModel.normalized(...)` picks the issue up and applies backoff
-  (`nextEligibleRefreshAt` set) — covered by an assertion or existing model
-  tests.
+1. Probe expiry, one successful reauth, then probe expiry yields one auth call,
+   two probe calls, a retained auth snapshot, and `balanceUnavailable`.
+2. Feed that result back into the model; advance an injected clock beyond both
+   backoff and refresh interval. Two automatic ticks add zero auth/probe calls.
+   Persist/reload metadata and repeat: the pause survives restart.
+3. A second account still refreshes. A `network` issue without a pre-existing
+   pause still retries on schedule. `requiresVerification` causes zero automatic
+   auth calls across two due ticks.
+4. Explicit manual recovery succeeds and clears the pause; later auto refresh
+   runs normally. Failed recovery keeps the pause and shows its error. Repeat
+   the due-tick test after a network failure during manual recovery.
+5. Changing/removing the probe allows a new refresh. No-probe login, successful
+   probes, and unrelated verification issues retain their intended behavior.
+6. A network error after reauth is visible as `network` when no prior pause
+   exists. Missing auth balance preserves the prior snapshot and its timestamp.
+7. In the running app, the rejected-probe account shows attention and its issue;
+   manual recovery is reachable, and another account's success does not hide it
+   after T4 lands. Do not require T4 for the account-local T3 check.
 
 ## Verification
 
-- `mise run test-macos` green.
+G1 and G5. Use deterministic stubs for call counts and an injected clock; no
+sleep-based tests or real Apple failure injection. Report each criterion by
+number and the test/manual result that proves it.
 
 ## Out of scope
 
-- Cookie policy / silent reauth strategy (T5). UI changes beyond what the
-  existing issue-rendering already does.
+Cookie policy (T5), actor redesign, new retry settings, and data-format changes.

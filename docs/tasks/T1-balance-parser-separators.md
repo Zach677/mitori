@@ -1,4 +1,4 @@
-# T1 — BalanceParser: thousands vs decimal separators (B1, P0)
+# T1 - BalanceParser: thousands vs decimal separators (B1, P0)
 
 Read `AGENTS.md` and `docs/spec.md` (invariants I-4, I-5) before starting.
 
@@ -22,7 +22,7 @@ Disambiguate comma-only (and dot-only) amounts:
   (`1,000` → `1000`). Otherwise decimal (`1,50` → `1.50`).
 - Mirror the same rule for dot-only strings (`1.000` in EU formats is one
   thousand; `1.50` is a decimal). Note: today dot-only strings are passed
-  through unchanged — that silently misreads EU `1.000`; fix it with the same
+  through unchanged - that silently misreads EU `1.000`; fix it with the same
   trailing-group rule.
 - Mixed separators keep the existing last-separator-wins logic (already
   correct for `$1,234.56` and `1.234,56 €`).
@@ -33,7 +33,7 @@ into the parser in this task.
 ## Files
 
 - `Mitori/Services/BalanceParser.swift` (`numericValue(from:)`)
-- `MitoriTests/` — extend the existing parser tests (see `MitoriCoreTests.swift`
+- `MitoriTests/` - extend the existing parser tests (see `MitoriCoreTests.swift`
   for where BalanceParser is currently exercised; add cases near those or in a
   dedicated `BalanceParserTests` if one exists).
 
