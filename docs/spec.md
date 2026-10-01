@@ -162,7 +162,7 @@ every current task card; do not start it opportunistically.
 
 | ID | Sev | Summary | Where | Task | Status |
 |----|-----|---------|-------|------|--------|
-| B1 | P0 | Comma-only amounts parsed as decimals: `¥1,000` → 1 (JPY & no-cent USD balances off by 1000×) | `BalanceParser.numericValue` | T1 | open |
+| B1 | P0 | Comma-only amounts parsed as decimals: `¥1,000` → 1 (JPY & no-cent USD balances off by 1000×) | `BalanceParser.numericValue` | T1 | fixed @c011c00 |
 | B2 | P0 | Empty `creditDisplay` in authenticate response fabricates a `$0.00` snapshot | `BalanceParser.parse` zero fallback + `emptyCreditDisplayPath` | T2 | open |
 | B3 | P1 | Probe `sessionExpired` after successful reauth swallowed; refresh silently becomes login+2 probes forever | `AppleSessionBridge.authenticate` catch | T3 | open |
 | B4 | P1 | Fork follows redirect `Location` with no scheme/host validation on a credential-bearing POST | fork `Authenticate.resolvedRedirectURL` | T5 safety prerequisite; T6b consolidation | open |
@@ -243,3 +243,8 @@ Every card completion report includes:
   Cookie changes stay within the proven path. Migration acceptance includes
   test-type wiring, account persistence, owned-probe behavior, and community
   builds. D-4 remains open until the supervised evidence gate passes.
+- **D-7** (2026-10-01) Accept T1 at `c011c00`. The separator cases in
+  `BalanceParserTests.parsesAmountSeparators` and the JPY display regression in
+  `formatsParsedYenWithThousandsSeparator` passed with `mise run test-macos`
+  (exit 0). Before the fix, the same command exited 65 with five numeric
+  failures and one JPY display failure. T2-T6 remain pending; D-4 stays open.
