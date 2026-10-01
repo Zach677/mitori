@@ -278,8 +278,18 @@ private extension BalanceParser {
                     candidate = candidate.replacingOccurrences(of: ",", with: "")
                 }
             }
-        } else if candidate.contains(",") {
-            candidate = candidate.replacingOccurrences(of: ",", with: ".")
+        } else if let separator = candidate.first(where: { $0 == "," || $0 == "." }) {
+            let groups = candidate.split(separator: separator, omittingEmptySubsequences: false)
+            // ponytail: Three-digit fractions mean grouping; use storefront rules if needed.
+            let isGrouping = groups.count > 2 || (
+                groups[0].contains(where: \.isNumber)
+                    && groups[1].count == 3
+                    && groups[1].allSatisfy(\.isNumber)
+            )
+            candidate = candidate.replacingOccurrences(
+                of: String(separator),
+                with: isGrouping ? "" : "."
+            )
         }
 
         return Decimal(string: candidate, locale: Locale(identifier: "en_US_POSIX"))

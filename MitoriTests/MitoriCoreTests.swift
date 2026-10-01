@@ -352,6 +352,44 @@ struct MitoriErrorTests {
 }
 
 struct BalanceParserTests {
+    @Test(arguments: [
+        ("$1,234.56", "1234.56"),
+        ("¥1,000", "1000"),
+        ("¥1,000,000", "1000000"),
+        ("$1,234", "1234"),
+        ("1.234,56 €", "1234.56"),
+        ("1,50 €", "1.50"),
+        ("1.000 €", "1000"),
+        ("1.000.000 €", "1000000"),
+        ("¥0", "0"),
+        ("$0.00", "0"),
+        ("-12.34", "-12.34"),
+    ])
+    func parsesAmountSeparators(display: String, expected: String) throws {
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: ["creditDisplay": display],
+            format: .xml,
+            options: 0
+        )
+
+        let snapshot = try BalanceParser.parse(plistData: data, source: .probe)
+
+        #expect(snapshot.numericValue == Decimal(string: expected))
+    }
+
+    @Test
+    func formatsParsedYenWithThousandsSeparator() throws {
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: ["creditDisplay": "¥1,000"],
+            format: .xml,
+            options: 0
+        )
+
+        let snapshot = try BalanceParser.parse(plistData: data, source: .probe)
+
+        #expect(snapshot.localizedDisplayText(countryCode: "JP") == "¥1,000")
+    }
+
     @Test
     func parsesAuthenticationFixture() throws {
         let data = try FixtureLoader.data(named: "auth_success_balance")
