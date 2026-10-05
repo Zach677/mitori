@@ -1,78 +1,39 @@
-# T4 - Small state bugs: banner ownership, duplicate add, recordFailure order (B5-B7, P2)
+# T4 - Banner ownership, duplicate add, recordFailure order (B5-B7, P2)
 
-Read `AGENTS.md` and `docs/spec.md` (invariant I-10) before starting. Three
-small, independent fixes in `Mitori/App/MitoriModel.swift` (+ bridge for one).
-Land them as three separate commits.
+Read `AGENTS.md` and `docs/spec.md` I-10 first. Three independent fixes in
+`Mitori/App/MitoriModel.swift` (plus the bridge for fix 2); one commit each.
 
 ## Fix 1 - Banner ownership (B5)
 
-`bannerMessage` is a single global string. `applyPostRefreshState` sets
-`bannerMessage = nil` on any success, so account A's success clears account
-B's visible error.
+Track the account that owns `bannerMessage` (private `bannerAccountID`). A
+success clears the banner only when the same account owns it. A failure
+replaces banner and owner. `deleteAccount` clears only its own banner. An
+unowned (global) error is cleared only by its own operation or by dismissal.
+The public `bannerMessage: String?` stays unchanged.
 
-- Track which account owns the current banner (e.g. a private
-  `bannerAccountID: String?` set wherever `bannerMessage` is set from an
-  account-scoped path).
-- On success for account X, clear the banner only if it is owned by X.
-  On failure for X, overwrite banner + owner (latest failure wins).
-- `deleteAccount` clears the banner only if owned by the deleted account.
-- Keep the public surface `bannerMessage: String?` - UI code must not change.
-
-Acceptance: test - account B fails (banner shows B's issue), then account A
-refreshes successfully → banner still shows B's issue; B then succeeds → banner
-clears. Deleting A must preserve B's banner; deleting B clears it. A global
-storage error with no account owner must not be erased by an unrelated account
-success. Clear an unowned error only when its own operation succeeds or the user
-dismisses it; cover this case in the banner test.
+Acceptance: B fails → A succeeds → B's banner stays → B succeeds → cleared.
+Deleting A keeps B's banner; deleting B clears it. An unowned storage error
+survives an unrelated account's success.
 
 ## Fix 2 - Duplicate add preserves history (B6)
 
-`addAccount` for an email that already exists silently overwrites the stored
-meta via `sessionBridge.login(...)` with `existing: nil`, wiping
-`balanceSnapshot`, `lastRefreshAt`, and the configured `probeBundleID`.
+When `addAccount` finds an existing account (case-insensitive email), pass its
+meta to the bridge so snapshot, `lastRefreshAt`, and `probeBundleID` survive.
+An empty probe field keeps the stored probe; a non-empty one replaces it.
 
-- In `MitoriModel.addAccount`, when `account(with: accountID)` exists, treat
-  the flow as a credential update: pass the existing meta through so the
-  bridge preserves snapshot/history (the bridge's internal
-  `authenticate(..., existing:)` already supports this - `login` currently
-  hardcodes `existing: nil`; extend the `AppleSessionBridging.login`
-  signature or route through `reauthenticate` semantics, whichever keeps the
-  protocol smaller).
-- Preserve the stored `probeBundleID` when the add-form probe field is empty;
-  a non-empty form value wins.
-- No duplicate row may ever be created (the id is the lowercased email -
-  unchanged).
+Acceptance: re-add with a new password and no new balance keeps snapshot,
+timestamps, and probe; the secret changes only after authentication and
+persistence succeed. A 2FA failure or a secret-save failure leaves the old
+account unchanged. No duplicate row in any case.
 
-Acceptance: add an account with a snapshot and probe, then add the same email
-with a new password and no new balance data. The snapshot, `lastRefreshAt`, and
-probe stay intact; the secret changes only after successful authentication and
-persistence. Fresh balance data may replace the old snapshot. Cover case-insensitive
-email matching, an explicit new probe value, 2FA failure, and secret-save failure:
-no duplicate row, partial credential update, or lost history may result.
+## Fix 3 - recordFailure order (B7)
 
-## Fix 3 - recordFailure ordering (B7)
+Delete the eager `accounts[index] = failed` write; the `repository.upsert` path
+already updates `accounts` behind the generation check.
 
-`recordFailure` mutates `accounts[index] = failed` **before** any
-`operationIsCurrent` check; a superseded operation can briefly publish stale
-failure state.
-
-- Drop the eager in-memory mutation (the `repository.upsert` path already
-  reassigns `accounts` behind a generation check), or move it behind
-  `operationIsCurrent`. Prefer deleting the redundant write.
-
-Acceptance: use a controlled suspended operation, supersede it with an account
-update or deletion, then release its failure. Assert that the stale result
-changes neither visible state nor stored metadata. Existing concurrency tests
-must also pass; test the persisted result, not only the final UI array.
+Acceptance: a suspended operation superseded by an update or deletion releases
+its failure without changing visible state or stored metadata.
 
 ## Verification
 
-- G1 after each independent fix; commit only when authorized.
-- G5: in the running app, verify account B's error survives account A's success
-  and duplicate add does not create a row or erase the displayed balance.
-  Use controlled failures; do not provoke real credential errors.
-
-## Out of scope
-
-- Refresh policy (T5), parser (T1/T2), any fork changes, per-account runtime
-  actor (§5 "Later").
+G1 after each fix; G5 for fixes 1 and 2 with controlled failures.

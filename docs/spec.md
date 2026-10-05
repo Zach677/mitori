@@ -1,8 +1,7 @@
 # Mitori Spec
 
-This is the living, normative spec for Mitori. It exists so that any coding
-agent (or human) can pick up a task and move in the same direction without
-re-deriving decisions from chat history.
+This is the living, normative spec for Mitori. Any coding agent (or human) can
+pick up a task from it without re-deriving decisions from chat history.
 
 **How to use this document**
 
@@ -11,22 +10,24 @@ re-deriving decisions from chat history.
   stop and update the spec (or ask Zach) before writing code. Never silently
   diverge.
 - Every change to this file gets a dated entry in the Decision Log (§8).
-- Task cards in `docs/tasks/` cite invariants by ID (e.g. "I-3"). A review
-  that finds a violated invariant cites it the same way.
+- Task cards cite invariants by ID (e.g. "I-3").
 
 ---
 
 ## 1. Product definition
 
 Mitori is a native macOS menu bar app that watches **Apple ID store credit**
-for N accounts. The product is: *login → see balance → balance stays fresh
-without babysitting*.
+for N accounts. The product is: *login → see balance → refresh when it matters,
+without putting the Apple ID at risk*.
 
-- The **authenticate response** is the primary balance source
-  (`accountInfo.balance` / `creditDisplay`, `source: .authentication`).
-- The **probe** (`volumeStoreDownloadProduct` against an owned app) is an
-  optional, secondary verifier (`source: .probe`). A missing probe is never a
-  broken account.
+- Store credit changes only when the user adds, spends, or redeems credit.
+  Freshness is cheap to restore on demand, so background refresh is a bonus,
+  not the core promise.
+- The **authenticate response** is the balance source at login and on manual
+  refresh (`accountInfo.balance` / `creditDisplay`, `source: .authentication`).
+- The **probe** (`volumeStoreDownloadProduct` against an owned app) is the only
+  background source (`source: .probe`). It uses the stored session and never
+  sends a password. A missing probe is never a broken account.
 - Each account exposes: a balance snapshot `(value, fetchedAt, source)`, a
   session health state, and an optional last issue. The UI shows staleness
   honestly instead of manufacturing freshness with extra logins.
@@ -39,29 +40,22 @@ without babysitting*.
   URL, port 443, host in an explicit Apple allowlist. A request that carries
   credentials (login POST) never follows a redirect to an unvalidated host.
 - **I-3** Protocol errors are typed. UI/state decisions never string-match
-  `localizedDescription`.
+  `localizedDescription` or Apple's English messages.
 - **I-4** Balance parsing is strict per source. Explicit field paths per
-  endpoint; the empty-`creditDisplay`-means-zero rule applies to the **probe**
-  response only. An authenticate response that yields no balance field means
-  "no data" - keep the previous snapshot, never fabricate 0.
+  endpoint; an empty `creditDisplay` means zero only in the **probe**
+  response. An authenticate response with no balance field means "no data":
+  keep the previous snapshot, never fabricate 0.
 - **I-5** Numeric parsing must round-trip real storefront formats:
-  `$1,234.56`, `¥1,000` (JPY, no decimals), `1.234,56 €`, `1,50 €`. A parsed
-  value that changes the order of magnitude of the display string is a bug.
-- **I-6** Refresh discipline: auto refresh is interval-gated
-  (`RefreshSettingsStore.minimumInterval` = 15 min floor). A refresh of a
-  no-probe account must not silently degrade into an unbounded loop of full
-  password logins.
-- **I-7** No new 3xx/redirect special case is added without a captured header
-  dump (status, header names, body length/type) proving the case exists.
-  Workarounds do not stack; the previous one is removed or justified.
+  `$1,234.56`, `¥1,000`, `1.234,56 €`, `1,50 €`.
+- **I-6** Automatic refresh never sends a password. It only runs the probe on
+  the stored session. Every password login (add account, manual refresh,
+  explicit reauthentication) is started by a user action.
+- **I-7** No new 3xx/redirect special case is added without a captured,
+  sanitized header dump proving the case exists. Workarounds do not stack.
 - **I-8** Secrets (passwords, cookies, passwordToken, device GUID, real Apple
   IDs) never appear in logs, test fixtures, task cards, or commits.
-- **I-9** Probe failures after a successful (re)authentication are recorded as
-  a visible issue, never swallowed. A `sessionExpired` from the probe
-  immediately after a fresh reauth is recorded as `balanceUnavailable`
-  and retains the authentication snapshot. T3 must also stop scheduled refresh
-  for probe accounts with `balanceUnavailable`; renaming the issue alone does
-  not stop the next scheduled password login. Manual recovery remains available.
+- **I-9** Failures are visible. A probe failure after a user-started
+  reauthentication is recorded as an issue, never swallowed.
 - **I-10** Errors and state shown to the user belong to a specific account.
   One account's success must not clear another account's error surface.
 - **I-11** Repo shape rules in `AGENTS.md` hold: no Tuist/XcodeGen/standalone
@@ -71,31 +65,25 @@ without babysitting*.
 
 ## 3. Refresh & session policy
 
-Current agreed direction (see D-4 for the open live-evidence gate):
+| Trigger | Account | Behavior |
+|---------|---------|----------|
+| Automatic tick | with probe, no issue or `network` issue | Probe on the stored session. Interval, backoff, screen-lock, and in-flight gates apply. |
+| Automatic tick | with probe, any other issue | Skip until a user action clears the issue. |
+| Automatic tick | without probe | Skip. Never refreshed automatically. |
+| Manual refresh | with probe | Probe; on `sessionExpired`, one silent reauth and one probe retry. A second failure is recorded (I-9). |
+| Manual refresh | without probe | One silent reauth; the auth response is the balance. |
+| Explicit reauth / 2FA | any | User-supplied code; same recovery as manual refresh. |
 
-- Auto refresh: model-gated by interval, screen lock, in-flight work, and backoff.
-  Skip accounts that require verification and probe accounts with a
-  `balanceUnavailable` issue. Other accounts continue on their own schedule.
-  Use the existing persisted issue kind; do not add a second suspension flag.
-- Recovery: the user can retry through manual refresh or explicit reauthentication,
-  or change/remove the probe. A successful retry clears the issue; another
-  rejected fresh session keeps automatic refresh paused. A failed recovery
-  must not clear an existing pause until the probe succeeds or its configuration
-  changes. Preserve the pause while showing the latest recovery error. If recovery
-  requires 2FA, use `requiresVerification`, which also suspends automatic refresh.
-- Manual refresh never reports a cached snapshot as a successful network refresh.
-  Reuse the existing in-flight operation guard for repeated clicks; do not add
-  the previously proposed 60-second cache shortcut.
-- Manual refresh, account **with** probe: probe fetch; on `sessionExpired`,
-  one reauth then one probe retry. A second probe failure is recorded (I-9).
-- Manual refresh, account **without** probe: silent reauthentication.
-  **Open decision (D-4):** whether silent reauth sends stored cookies or
-  `cookies: []`. Resolved by the T5 evidence protocol, not by guessing.
-  Limit a changed cookie policy to this no-probe refresh path. Shared
-  reauthentication, probe recovery, and interactive 2FA keep their policy unless
-  separate evidence and regression tests justify a change.
-- Silent reauth (no 2FA code) that comes back `codeRequired` surfaces as
-  `needsVerification` state - it never blocks or loops.
+- An automatic probe that gets `sessionExpired` records `sessionExpired` and
+  stops. It does not reauthenticate.
+- Silent reauth that returns `codeRequired` records `requiresVerification`.
+- A successful user action clears the issue; automatic refresh then resumes.
+  Changing or removing the probe clears probe-related issues only.
+- Manual refresh always makes a real request. Repeated clicks reuse the
+  in-flight operation guard; there is no cache shortcut.
+- Use the existing persisted issue kind as the pause signal; no extra flag.
+- **Open (D-4):** whether manual no-probe reauth sends stored cookies or
+  `cookies: []`. Decided by T5 live evidence, not by guessing.
 
 ## 4. Error taxonomy (target)
 
@@ -116,101 +104,72 @@ enum StoreAuthError: Error {
 }
 ```
 
-Protocol error mapping uses typed cases. T6b removes protocol-message matching
-from `MitoriError.map`. RefreshIssue-to-UI mappings also use `kind`, not message
-text. Native transport and storage errors retain their domain/code mappings;
-unknown errors remain visible without being classified from English text.
+Protocol error mapping uses typed cases. `MitoriError.map` and the probe's
+`parseKnownFailure` stop classifying by message text. Native transport and
+storage errors keep their domain/code mappings; unknown errors stay visible.
 
 ## 5. Architecture: current → target
 
 **Current:** Apple protocol lives in the `Zach677/ApplePackage` fork (branch
-`zach/mitori`), pinned by revision in `Mitori.xcodeproj`. Mitori uses a subset
-of its authentication and lookup code. Confirm the source subset and resolved
-dependencies at the chosen revision before the port. Each protocol fix currently
-requires a fork change and a pin update.
+`zach/mitori`), pinned by revision in `Mitori.xcodeproj`. Mitori uses about
+1.8k lines of it: authenticate, bag, lookup, cookies, storefront table,
+configuration, device identifier, app search, and `CommerceKitSigner`.
 
-**Target:** the protocol layer moves **into this repo** as a source folder -
-`Mitori/AppleStore/` - inside the app target (synchronized folder reference;
-no SPM package, per I-11). Scope of the module:
+**Target:** the protocol layer lives in `Mitori/AppleStore/` inside the app
+target (synchronized folder reference; no SPM package, per I-11), on one
+URLSession transport with the I-2 validator and typed errors (§4).
 
-- bag fetch + endpoint normalization, authenticate (with CommerceKit
-  signing), probe (`volumeStoreDownloadProduct`), iTunes lookup, cookie jar,
-  storefront table, device GUID.
-- `CommerceKitSigner` (~140 lines Obj-C) joins the app target via bridging
-  header.
-- One URLSession transport with the I-2 redirect validator, typed errors (§4).
+**Migration rule: port, don't rewrite.** Move the fork subset nearly verbatim
+first (behavior identical to the pinned revision), then improve in separate
+commits. "Move" and "improve" never share a commit. The seams
+`AppleAuthenticating` and `BalanceRefreshing` keep their contracts. No fork
+changes after the port starts; the fork becomes a read-only archive.
 
-**Migration rule: port, don't rewrite.** Move code and its tests from the
-fork nearly verbatim first (behavior identical to the last live-verified fork
-state), then refactor in separate commits. "Move" and "improve" never share a
-commit. The existing seams `AppleAuthenticating` and `BalanceRefreshing` stay;
-their behavior contracts stay stable. Port package-owned types used by these
-seams, then update imports and type references in production code and test
-doubles together. Preserve test assertions; a new local type is not the same
-Swift type as its former package type.
-
-Attribution: the port derives from ApplePackage (MIT, Lakr233) which adapts
+Attribution: the port derives from ApplePackage (MIT, Lakr233), which adapts
 ipatool (MIT, majd). `Mitori/Resources/OpenSourceLicenses.md` keeps both
 notices after the SPM dependency is removed.
 
-**Later (not scheduled):** collapse `MitoriModel`'s five concurrency
-bookkeeping mechanisms (generations, mutation sets, pending logins, refresh
-states, repository locks) into a per-account runtime actor. Out of scope for
-every current task card; do not start it opportunistically.
+**Later (not scheduled):** collapse `MitoriModel`'s concurrency bookkeeping
+(generations, mutation sets, pending logins, refresh states, repository locks)
+into a per-account runtime actor. I-6 reduces background work, so revisit only
+if a real bug needs it.
 
 ## 6. Defect register
 
-| ID | Sev | Summary | Where | Task | Status |
-|----|-----|---------|-------|------|--------|
-| B1 | P0 | Comma-only amounts parsed as decimals: `¥1,000` → 1 (JPY & no-cent USD balances off by 1000×) | `BalanceParser.numericValue` | T1 | fixed @c011c00 |
-| B2 | P0 | Empty `creditDisplay` in authenticate response fabricates a `$0.00` snapshot | `BalanceParser.parse` zero fallback + `emptyCreditDisplayPath` | T2 | fixed @d32a0b0 |
-| B3 | P1 | Probe `sessionExpired` after successful reauth swallowed; refresh silently becomes login+2 probes forever | `AppleSessionBridge.authenticate` catch | T3 | open |
-| B4 | P1 | Fork follows redirect `Location` with no scheme/host validation on a credential-bearing POST | fork `Authenticate.resolvedRedirectURL` | T5 safety prerequisite; T6b consolidation | open |
-| B5 | P2 | Global `bannerMessage`: any account's success clears another account's error banner | `MitoriModel.applyPostRefreshState` | T4 | open |
-| B6 | P2 | Re-adding an existing email silently wipes snapshot/history (`existing: nil`) with no duplicate warning | `MitoriModel.addAccount` / bridge `login` | T4 | open |
-| B7 | P3 | `recordFailure` mutates `accounts[index]` before the generation check | `MitoriModel.recordFailure` | T4 | open |
-| B8 | P1 | Refresh of a no-probe account 302s (`failed to retrieve redirect location (HTTP 302)`); fork pin `3b535f1` unverified | policy + fork | T5 | open |
+| ID | Sev | Summary | Task | Status |
+|----|-----|---------|------|--------|
+| B1 | P0 | `¥1,000` parsed as 1 (comma-only amounts read as decimals) | T1 | fixed @c011c00 |
+| B2 | P0 | Empty auth `creditDisplay` fabricates a `$0.00` snapshot | T2 | fixed @d32a0b0 |
+| B3 | P1 | Probe `sessionExpired` after reauth is swallowed; background refresh becomes login + 2 probes forever | T3 | open |
+| B4 | P1 | Authenticate follows a redirect `Location` with no scheme/host validation on a credential-bearing POST | T6b | open |
+| B5 | P2 | Any account's success clears another account's error banner | T4 | open |
+| B6 | P2 | Re-adding an existing email wipes its snapshot/history | T4 | open |
+| B7 | P3 | `recordFailure` mutates `accounts[index]` before the generation check | T4 | open |
+| B8 | P1 | Manual refresh of a no-probe account 302s (`failed to retrieve redirect location (HTTP 302)`) | T5 | open |
+| B9 | P1 | Automatic refresh sends password logins for no-probe accounts and after probe expiry | T3 | open |
 
 Update the Status column (open / in-progress / fixed @commit) as tasks land.
 
 ## 7. Verification gates
 
-Use this section with each card's acceptance criteria. A missing required gate
-means `blocked`, not `done`. Document-only edits require G4, not an app build.
-
 | Gate | Pass condition | Required for |
 |------|----------------|--------------|
-| G1 Unit | `mise run test-macos` exits 0; bug-fix regressions fail before the fix and pass after it | Every code card |
-| G2 Build | `mise run build-macos` exits 0 and produces the expected app bundle | Project, dependency, resource, or bridging-header changes |
-| G3 Live no-probe | Supervised login, manual refresh, then another manual refresh each sends an authenticate request and returns a fresh auth response | T5, T6a, T6b, T6c; any release |
-| G4 Docs | Re-read changed cards and spec; check task dependencies, paths, commands, and invariant ownership; `git diff --check` passes | Document changes |
-| G5 Runtime | `mise run run-macos`; confirm the changed UI/state behavior in the running app, including the failure state | T3, T4, T6a, T6b, T6c |
-| G6 Community | `mise run test-community`, `mise run package-community`, then `bash scripts/smoke-community-dmg.sh <dmg-path>` all exit 0 | T6a, T6b, T6c; any release |
+| G1 Unit | `mise run test-macos` exits 0; regressions fail before the fix | Every code card |
+| G2 Build | `mise run build-macos` exits 0 | Project, dependency, resource, or bridging-header changes |
+| G3 Live | Supervised: login, manual refresh, second manual refresh (no-probe), and one owned-probe refresh each make a real request and return new balance data | T5; every release |
+| G4 Docs | Re-read changed docs; `git diff --check` passes | Document changes |
+| G5 Runtime | `mise run run-macos`; confirm the changed UI/state, including the failure state | Cards that change visible state |
+| G6 Community | `mise run test-community`, `mise run package-community`, `bash scripts/smoke-community-dmg.sh <dmg-path>` exit 0 | Every release |
 
-G3 is supervised by Zach. Agents never initiate real credential entry or live
-logins on their own. Record build revision, build/signing mode, macOS version,
-anonymous account label, operation sequence, request counts, and response/source
-and snapshot timestamps. Never record account identifiers or header values.
-A cache hit, retained old snapshot, skipped request, or UI-only success does not
-pass. Each successful no-probe operation must yield new balance data from that
-operation, even when the amount is unchanged. A missing balance is still a valid
-no-data application result, but does not pass this live balance-retrieval gate.
+G3 is supervised by Zach. Agents never start real credential entry or live
+logins. Record build revision, signing mode, request counts, and response
+sources; never record identifiers or header values. A cached, skipped, or
+UI-only success does not pass.
 
-For T6, also run a supervised owned-probe refresh on the new build. Cover expired
-session, invalid 2FA, rejected fresh session, network failure, screen lock, and
-per-account isolation with deterministic tests. Do not force real Apple failures
-to satisfy a test. Missing credentials or hardware is an explicit validation gap.
-G3 must pass on the final community build before a release is declared ready.
-
-Every card completion report includes:
-
-- Base revision, final revision or uncommitted diff, and exact changed files.
-- Each acceptance criterion mapped to a named test or observed manual result.
-- Exact commands, exit codes, required live evidence, and remaining blockers.
-- Recovery/rollback steps. Preserve stored account and Keychain formats; code
-  rollback must not delete user data. Reverting a cookie change restores the
-  last verified policy. Never remove redirect validation or log redaction to
-  recover connectivity. No commit, push, tag, or release is implied by a card.
+A completion report lists: changed files, each acceptance item mapped to a test
+or observed result, commands with exit codes, and open blockers. Rollback must
+preserve stored accounts and Keychain items and must never remove redirect
+validation or log redaction. A card does not authorize commit, push, or release.
 
 ## 8. Decision log
 
@@ -258,3 +217,21 @@ Every card completion report includes:
   staleness. Manual refresh is not gated. No new persisted field.
   Accepted at `d32a0b0` (parser) and `9191bac` (gate); `mise run test-macos`
   exit 0, with eight new tests failing before the fix.
+- **D-9** (2026-10-05) Automatic refresh never sends a password (new I-6).
+  Store credit changes only on user action, so frequent password logins buy
+  little freshness and look like credential stuffing to Apple. No-probe
+  accounts refresh only on user action; probe accounts refresh in the
+  background on the stored session and pause on any non-network issue.
+  Supersedes the background part of D-1 and makes the D-8 gate unnecessary;
+  T3 removes it. A low-frequency automatic login is a possible later option,
+  not scheduled.
+- **D-10** (2026-10-05) Port before the live investigation; supersedes the
+  ordering in D-3. A verbatim port does not change behavior, so B8 no longer
+  blocks it, and fixing B8 in-repo avoids the fork pin friction that D-2
+  wanted to remove. New order: T3 → T4 → T6a → T6b → T6c → T5. No more fork
+  changes. B4 moves to T6b. T5 runs once, on the final transport, and doubles
+  as the release G3. D-4 stays open until T5.
+- **D-11** (2026-10-05) Lighter process. Cards state goal, files, 3-6
+  acceptance items, and verification. G3 and G6 are release gates (plus T5),
+  not per-card gates. The invariant ownership table is removed; cards cite
+  invariants directly.
