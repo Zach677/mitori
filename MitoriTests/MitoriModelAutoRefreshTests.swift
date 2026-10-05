@@ -65,10 +65,42 @@ struct MitoriModelAutoRefreshTests {
         }
     }
 
+    @Test
+    func autoRefreshWaitsAnIntervalAfterSuccessWithoutBalanceData() async throws {
+        let clock = TestClock()
+        let context = try await makeAutoRefreshContext(
+            enabled: true,
+            lastRefreshAt: nil,
+            probeBundleID: "",
+            resultLastRefreshAt: nil,
+            now: { clock.date }
+        )
+        defer { context.cleanUp() }
+
+        await context.model.autoRefreshTick()
+        clock.date += 60
+        await context.model.autoRefreshTick()
+
+        #expect(context.bridge.refreshCallCount == 1)
+        let stored = try #require(context.model.account(with: context.accountID))
+        #expect(stored.lastRefreshAt == nil)
+        #expect(stored.lastIssue == nil)
+
+        clock.date += context.settings.autoRefreshInterval
+        await context.model.autoRefreshTick()
+
+        #expect(context.bridge.refreshCallCount == 2)
+    }
+
+    private final class TestClock {
+        var date = Date()
+    }
+
     private struct AutoRefreshContext {
         var model: MitoriModel
         var bridge: SessionBridgeStub
         var secretBackend: RecordingSecretBackend
+        var settings: RefreshSettingsStore
         var accountID: String
         var defaultsSuiteName: String
 
@@ -79,7 +111,10 @@ struct MitoriModelAutoRefreshTests {
 
     private func makeAutoRefreshContext(
         enabled: Bool,
-        lastRefreshAt: Date,
+        lastRefreshAt: Date?,
+        probeBundleID: String = "com.example.probe",
+        resultLastRefreshAt: Date? = Date(),
+        now: @escaping () -> Date = Date.init,
         screenIsLocked: Bool = false
     ) async throws -> AutoRefreshContext {
         let suiteName = "test.\(UUID().uuidString)"
@@ -95,7 +130,7 @@ struct MitoriModelAutoRefreshTests {
         let meta = StoredAccountMeta(
             account: sampleAccount(),
             deviceIdentifier: "ABCDEF123456",
-            probeBundleID: "com.example.probe",
+            probeBundleID: probeBundleID,
             lastRefreshAt: lastRefreshAt
         )
         _ = try await accountStore.upsert(meta)
@@ -106,7 +141,7 @@ struct MitoriModelAutoRefreshTests {
                 account: sampleAccount(),
                 deviceIdentifier: meta.deviceIdentifier,
                 probeBundleID: meta.probeBundleID,
-                lastRefreshAt: Date()
+                lastRefreshAt: resultLastRefreshAt
             ),
             secret: StoredAccountSecret(account: sampleAccount())
         ))
@@ -115,12 +150,14 @@ struct MitoriModelAutoRefreshTests {
             secretStore: secretStore,
             sessionBridge: bridge,
             settings: settings,
+            now: now,
             screenIsLocked: { screenIsLocked }
         )
         return AutoRefreshContext(
             model: model,
             bridge: bridge,
             secretBackend: secretBackend,
+            settings: settings,
             accountID: meta.id,
             defaultsSuiteName: suiteName
         )
