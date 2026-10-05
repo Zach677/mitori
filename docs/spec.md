@@ -163,7 +163,7 @@ every current task card; do not start it opportunistically.
 | ID | Sev | Summary | Where | Task | Status |
 |----|-----|---------|-------|------|--------|
 | B1 | P0 | Comma-only amounts parsed as decimals: `¥1,000` → 1 (JPY & no-cent USD balances off by 1000×) | `BalanceParser.numericValue` | T1 | fixed @c011c00 |
-| B2 | P0 | Empty `creditDisplay` in authenticate response fabricates a `$0.00` snapshot | `BalanceParser.parse` zero fallback + `emptyCreditDisplayPath` | T2 | open |
+| B2 | P0 | Empty `creditDisplay` in authenticate response fabricates a `$0.00` snapshot | `BalanceParser.parse` zero fallback + `emptyCreditDisplayPath` | T2 | fixed @d32a0b0 |
 | B3 | P1 | Probe `sessionExpired` after successful reauth swallowed; refresh silently becomes login+2 probes forever | `AppleSessionBridge.authenticate` catch | T3 | open |
 | B4 | P1 | Fork follows redirect `Location` with no scheme/host validation on a credential-bearing POST | fork `Authenticate.resolvedRedirectURL` | T5 safety prerequisite; T6b consolidation | open |
 | B5 | P2 | Global `bannerMessage`: any account's success clears another account's error banner | `MitoriModel.applyPostRefreshState` | T4 | open |
@@ -248,3 +248,13 @@ Every card completion report includes:
   `formatsParsedYenWithThousandsSeparator` passed with `mise run test-macos`
   (exit 0). Before the fix, the same command exited 65 with five numeric
   failures and one JPY display failure. T2-T6 remain pending; D-4 stays open.
+- **D-8** (2026-10-05) T2 removes the authentication zero fallback. Before T2,
+  that fabricated zero set `lastRefreshAt` and gated automatic refresh by
+  accident. Without it, a no-probe account whose authentication returns no
+  balance would do a full password login on every 60 s scheduler tick (I-6).
+  T2 therefore owns one model gate: a successful result without new balance
+  data sets the existing `nextEligibleRefreshAt` to now + auto refresh interval.
+  `lastRefreshAt` and the snapshot stay unchanged, so the UI still shows honest
+  staleness. Manual refresh is not gated. No new persisted field.
+  Accepted at `d32a0b0` (parser) and `9191bac` (gate); `mise run test-macos`
+  exit 0, with eight new tests failing before the fix.

@@ -28,7 +28,7 @@ card as the task. Cards assume the agent has repo access and has read
 | Card | Title | Depends on | Status |
 |------|-------|------------|--------|
 | T1 | BalanceParser: thousands vs decimal separators | - | done @c011c00 |
-| T2 | Strict source paths and probe-only zero fallback | T1 | todo |
+| T2 | Strict source paths and probe-only zero fallback | T1 | done @9191bac |
 | T3 | Record probe failures and pause automatic reauth loops | T2 | todo |
 | T4 | Small state bugs: banner ownership, duplicate add, recordFailure order | - | todo |
 | T5 | Safe diagnostics, redirect validation, no-probe refresh policy | T1-T4 passed; Zach at keyboard for live evidence | todo |
