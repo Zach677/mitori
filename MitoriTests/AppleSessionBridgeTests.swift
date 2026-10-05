@@ -60,6 +60,80 @@ struct AppleSessionBridgeTests {
     }
 
     @Test
+    func loginWithEmptyAuthCreditHasNoBalanceAndNoIssue() async throws {
+        let authenticator = AppleAuthenticatorStub(
+            result: AuthenticationResult(
+                account: sampleAccount(),
+                responsePlist: try PropertyListSerialization.data(
+                    fromPropertyList: ["creditDisplay": "", "accountInfo": ["creditDisplay": " "]],
+                    format: .xml,
+                    options: 0
+                )
+            )
+        )
+        let bridge = AppleSessionBridge(
+            authenticator: authenticator,
+            balanceService: BalanceRefreshingStub()
+        )
+
+        let result = try await bridge.login(
+            email: "demo@example.com",
+            password: "password",
+            code: "",
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: ""
+        )
+
+        #expect(result.meta.balanceSnapshot == nil)
+        #expect(result.meta.lastRefreshAt == nil)
+        #expect(result.meta.lastIssue == nil)
+    }
+
+    @Test
+    func reauthenticationWithoutAuthBalanceKeepsExistingSnapshot() async throws {
+        let authenticator = AppleAuthenticatorStub(
+            result: AuthenticationResult(
+                account: sampleAccount(),
+                responsePlist: try PropertyListSerialization.data(
+                    fromPropertyList: ["creditDisplay": ""],
+                    format: .xml,
+                    options: 0
+                )
+            )
+        )
+        let bridge = AppleSessionBridge(
+            authenticator: authenticator,
+            balanceService: BalanceRefreshingStub()
+        )
+        let fetchedAt = Date(timeIntervalSince1970: 1_743_166_800)
+        let snapshot = BalanceSnapshot(
+            displayText: "$12.34",
+            numericValue: Decimal(string: "12.34"),
+            currencyCode: nil,
+            fetchedAt: fetchedAt,
+            source: .probe,
+            rawFieldPath: "creditDisplay"
+        )
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "",
+            balanceSnapshot: snapshot,
+            lastRefreshAt: fetchedAt
+        )
+
+        let result = try await bridge.reauthenticate(
+            meta: meta,
+            secret: StoredAccountSecret(account: sampleAccount()),
+            code: ""
+        )
+
+        #expect(result.meta.balanceSnapshot == snapshot)
+        #expect(result.meta.lastRefreshAt == fetchedAt)
+        #expect(result.meta.lastIssue == nil)
+    }
+
+    @Test
     func loginWithProbePrefersProbeBalance() async throws {
         let authenticator = AppleAuthenticatorStub(
             result: try authenticationResult(fixture: "auth_success_balance")

@@ -453,6 +453,129 @@ struct BalanceParserTests {
         #expect(snapshot.rawFieldPath == "balance")
     }
 
+    @Test(arguments: [
+        (plist(["accountInfo": ["balance": "$1.00"]]), "accountInfo.balance"),
+        (plist(["accountInfo": ["creditDisplay": "$1.00"]]), "accountInfo.creditDisplay"),
+        (plist(["balance": "$1.00"]), "balance"),
+        (plist(["creditDisplay": "$1.00"]), "creditDisplay"),
+    ])
+    func parsesEachAllowedAuthenticationPath(response: Data, expectedPath: String) throws {
+        let snapshot = try BalanceParser.parse(plistData: response, source: .authentication)
+
+        #expect(snapshot.numericValue == 1)
+        #expect(snapshot.source == .authentication)
+        #expect(snapshot.rawFieldPath == expectedPath)
+    }
+
+    @Test(arguments: [
+        (plist(["creditDisplay": "$1.00"]), "creditDisplay"),
+        (plist(["balance": "$1.00"]), "balance"),
+        (plist(["songList": [["creditDisplay": "$1.00"]]]), "songList[0].creditDisplay"),
+        (plist(["songList": [["balance": "$1.00"]]]), "songList[0].balance"),
+        (plist(["songList": [["metadata": ["creditDisplay": "$1.00"]]]]), "songList[0].metadata.creditDisplay"),
+        (plist(["songList": [["metadata": ["balance": "$1.00"]]]]), "songList[0].metadata.balance"),
+    ])
+    func parsesEachAllowedProbePath(response: Data, expectedPath: String) throws {
+        let snapshot = try BalanceParser.parse(plistData: response, source: .probe)
+
+        #expect(snapshot.numericValue == 1)
+        #expect(snapshot.source == .probe)
+        #expect(snapshot.rawFieldPath == expectedPath)
+    }
+
+    @Test
+    func authenticationPrefersAccountInfoBalanceOverRootCredit() throws {
+        let snapshot = try parse(
+            ["creditDisplay": "$1.00", "accountInfo": ["balance": "$2.00"]],
+            source: .authentication
+        )
+
+        #expect(snapshot.numericValue == 2)
+        #expect(snapshot.rawFieldPath == "accountInfo.balance")
+    }
+
+    @Test
+    func probeIgnoresMisleadingFieldsBeforeAllowedCandidate() throws {
+        let snapshot = try parse(
+            [
+                "accountInfo": ["balance": "$9.00"],
+                "aaa": ["balance": "$8.00"],
+                "songList": [["balance": "$3.00"]],
+            ],
+            source: .probe
+        )
+
+        #expect(snapshot.numericValue == 3)
+        #expect(snapshot.rawFieldPath == "songList[0].balance")
+    }
+
+    @Test(arguments: [
+        plist(["unrelated": ["balance": "$5.00"]]),
+        plist(["unrelated": ["creditDisplay": "$5.00"]]),
+        plist(["songList": [["balance": "$5.00"]]]),
+        plist(["unrelated": ["creditDisplay": ""]]),
+        plist(["creditDisplay": ""]),
+        plist(["creditDisplay": "   "]),
+        plist(["accountInfo": ["creditDisplay": ""]]),
+        plist(["balance": true]),
+        plist([:]),
+    ])
+    func authenticationWithoutAllowedCandidateHasNoBalance(response: Data) throws {
+        #expect(throws: MitoriError.self) {
+            try BalanceParser.parse(plistData: response, source: .authentication)
+        }
+    }
+
+    @Test(arguments: [
+        plist(["accountInfo": ["balance": "$5.00"]]),
+        plist(["unrelated": ["balance": "$5.00"]]),
+        plist(["unrelated": ["creditDisplay": "$5.00"]]),
+        plist(["unrelated": ["creditDisplay": ""]]),
+        plist(["balance": ""]),
+        plist(["balance": "   "]),
+        plist(["balance": true]),
+        plist([:]),
+    ])
+    func probeWithoutAllowedCandidateHasNoBalance(response: Data) throws {
+        #expect(throws: MitoriError.self) {
+            try BalanceParser.parse(plistData: response, source: .probe)
+        }
+    }
+
+    @Test(arguments: [
+        (plist(["creditDisplay": " "]), "creditDisplay"),
+        (plist(["songList": [["creditDisplay": ""]]]), "songList[0].creditDisplay"),
+        (plist(["songList": [["metadata": ["creditDisplay": "\n"]]]]), "songList[0].metadata.creditDisplay"),
+    ])
+    func emptyProbeCreditMeansZero(response: Data, expectedPath: String) throws {
+        let snapshot = try BalanceParser.parse(plistData: response, source: .probe)
+
+        #expect(snapshot.numericValue == 0)
+        #expect(snapshot.rawFieldPath == expectedPath)
+    }
+
+    @Test
+    func emptyProbeCreditLosesToLaterValidCandidate() throws {
+        let snapshot = try parse(
+            ["creditDisplay": "", "songList": [["metadata": ["balance": "$7.00"]]]],
+            source: .probe
+        )
+
+        #expect(snapshot.numericValue == 7)
+        #expect(snapshot.rawFieldPath == "songList[0].metadata.balance")
+    }
+
+    @Test
+    func malformedPlistThrows() {
+        #expect(throws: (any Error).self) {
+            try BalanceParser.parse(plistData: Data("not a plist".utf8), source: .probe)
+        }
+    }
+
+    private func parse(_ response: [String: Any], source: BalanceSnapshot.Source) throws -> BalanceSnapshot {
+        try BalanceParser.parse(plistData: plist(response), source: source)
+    }
+
     @Test
     func formatsBalanceForAccountRegion() {
         let snapshot = BalanceSnapshot(
@@ -484,6 +607,10 @@ struct BalanceParserTests {
         snapshot.numericValue = nil
         #expect(snapshot.localizedDisplayText(countryCode: "TR") == "USD 12.34")
     }
+}
+
+private func plist(_ object: [String: Any]) -> Data {
+    try! PropertyListSerialization.data(fromPropertyList: object, format: .xml, options: 0)
 }
 
 private final class FixtureBundleToken {}

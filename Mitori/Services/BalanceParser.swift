@@ -4,9 +4,8 @@ enum BalanceParser {
     static func parse(plistData: Data, source: BalanceSnapshot.Source) throws -> BalanceSnapshot {
         let rootObject = try PropertyListSerialization.propertyList(from: plistData, options: [], format: nil)
 
-        let candidate = explicitCandidate(in: rootObject)
-            ?? recursiveCandidate(in: rootObject, path: [])
-            ?? emptyCreditDisplayPath(in: rootObject, path: []).map { zeroCandidate(path: $0) }
+        let candidate = firstCandidate(in: rootObject, paths: allowedPaths(for: source))
+            ?? emptyProbeCreditPath(in: rootObject, source: source).map { zeroCandidate(path: $0) }
 
         if let candidate {
             return BalanceSnapshot(
@@ -31,89 +30,58 @@ private extension BalanceParser {
         var path: String
     }
 
-    enum PathComponent {
+    enum PathComponent: Equatable {
         case key(String)
         case index(Int)
     }
 
-    static let explicitPaths: [[PathComponent]] = [
+    // A new path needs a sanitized endpoint fixture and a spec update (I-4).
+    static let authenticationPaths: [[PathComponent]] = [
+        [.key("accountInfo"), .key("balance")],
+        [.key("accountInfo"), .key("creditDisplay")],
+        [.key("balance")],
+        [.key("creditDisplay")],
+    ]
+
+    static let probePaths: [[PathComponent]] = [
         [.key("creditDisplay")],
         [.key("balance")],
-        [.key("accountInfo"), .key("creditDisplay")],
-        [.key("accountInfo"), .key("balance")],
         [.key("songList"), .index(0), .key("creditDisplay")],
         [.key("songList"), .index(0), .key("balance")],
         [.key("songList"), .index(0), .key("metadata"), .key("creditDisplay")],
         [.key("songList"), .index(0), .key("metadata"), .key("balance")],
     ]
 
-    static func explicitCandidate(in rootObject: Any) -> Candidate? {
-        for path in explicitPaths {
+    static func allowedPaths(for source: BalanceSnapshot.Source) -> [[PathComponent]] {
+        switch source {
+        case .authentication:
+            return authenticationPaths
+        case .probe:
+            return probePaths
+        }
+    }
+
+    static func firstCandidate(in rootObject: Any, paths: [[PathComponent]]) -> Candidate? {
+        for path in paths {
             guard let value = value(at: path, in: rootObject) else { continue }
-            let renderedPath = render(path)
-            if let candidate = candidate(from: value, path: renderedPath, force: true) {
+            if let candidate = candidate(from: value, path: render(path)) {
                 return candidate
             }
         }
         return nil
     }
 
-    static func recursiveCandidate(in value: Any, path: [String]) -> Candidate? {
-        if let dictionary = value as? [String: Any] {
-            for key in dictionary.keys.sorted() {
-                let child = dictionary[key] as Any
-                let nextPath = path + [key]
-                let lowercasedKey = key.lowercased()
-                let renderedPath = nextPath.joined(separator: ".")
-                if (lowercasedKey == "creditdisplay" || lowercasedKey == "balance"),
-                   let candidate = candidate(from: child, path: renderedPath, force: true)
-                {
-                    return candidate
-                }
-                if let candidate = recursiveCandidate(in: child, path: nextPath) {
-                    return candidate
-                }
+    // Only the probe response reports zero credit as an empty creditDisplay.
+    // An empty authentication credit means no data, not zero (I-4).
+    static func emptyProbeCreditPath(in rootObject: Any, source: BalanceSnapshot.Source) -> String? {
+        guard source == .probe else { return nil }
+        for path in probePaths where path.last == .key("creditDisplay") {
+            if let display = value(at: path, in: rootObject) as? String,
+               display.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                return render(path)
             }
         }
-
-        if let array = value as? [Any] {
-            for (index, child) in array.enumerated() {
-                var nextPath = path
-                nextPath.append("[\(index)]")
-                if let candidate = recursiveCandidate(in: child, path: nextPath) {
-                    return candidate
-                }
-            }
-        }
-
-        return nil
-    }
-
-    static func emptyCreditDisplayPath(in value: Any, path: [String]) -> String? {
-        if let dictionary = value as? [String: Any] {
-            for key in dictionary.keys.sorted() {
-                let child = dictionary[key] as Any
-                let nextPath = path + [key]
-                if key.lowercased() == "creditdisplay",
-                   let display = child as? String,
-                   display.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                {
-                    return nextPath.joined(separator: ".")
-                }
-                if let match = emptyCreditDisplayPath(in: child, path: nextPath) {
-                    return match
-                }
-            }
-        }
-
-        if let array = value as? [Any] {
-            for (index, child) in array.enumerated() {
-                if let match = emptyCreditDisplayPath(in: child, path: path + ["[\(index)]"]) {
-                    return match
-                }
-            }
-        }
-
         return nil
     }
 
@@ -150,14 +118,11 @@ private extension BalanceParser {
         .replacingOccurrences(of: ".[", with: "[")
     }
 
-    static func candidate(from value: Any, path: String, force: Bool) -> Candidate? {
+    static func candidate(from value: Any, path: String) -> Candidate? {
         switch value {
         case let string as String:
             let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return nil }
-            if !force, numericValue(from: trimmed) == nil, currencyCode(from: trimmed) == nil {
-                return nil
-            }
             return Candidate(
                 displayText: trimmed,
                 numericValue: numericValue(from: trimmed),
@@ -182,7 +147,7 @@ private extension BalanceParser {
 
         case let array as [Any]:
             for (index, child) in array.enumerated() {
-                if let candidate = candidate(from: child, path: "\(path)[\(index)]", force: force) {
+                if let candidate = candidate(from: child, path: "\(path)[\(index)]") {
                     return candidate
                 }
             }
