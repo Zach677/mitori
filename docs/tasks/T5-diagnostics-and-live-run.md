@@ -1,4 +1,4 @@
-# T5 - Safe diagnostics and the supervised live run (B8, D-4)
+# T5 - Safe diagnostics and the supervised live run (B8, B10, D-4)
 
 Read `AGENTS.md` and `docs/spec.md` I-2, I-7, I-8, D-4, D-10 first.
 Precondition: T6c. Zach is at the keyboard for every live step; agents never
@@ -25,6 +25,10 @@ output, and every safe field does.
 3. If neither policy passes, record the sanitized evidence, leave B8 and D-4
    open, and stop. Do not add a redirect workaround (I-7).
 4. Run one owned-probe refresh.
+5. B10: add an account that needs a 2FA code, with the trace on. Record the
+   status, body size, and cookie count of each authenticate request, including
+   transient retries. Fix only the cause that the trace shows (D-12); if it
+   stays unclear, leave B10 open and stop.
 
 Record the result and revisions in D-4. A passing run is the release G3.
 

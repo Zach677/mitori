@@ -147,6 +147,7 @@ if a real bug needs it.
 | B7 | P3 | `recordFailure` mutates `accounts[index]` before the generation check | T4 | open |
 | B8 | P1 | Manual refresh of a no-probe account 302s (`failed to retrieve redirect location (HTTP 302)`) | T5 | open |
 | B9 | P1 | Automatic refresh sends password logins for no-probe accounts and after probe expiry | T3 | open |
+| B10 | P1 | Add account with a 2FA code fails: `authentication failed: response body is empty (code: 204)` | T5 | open |
 
 Update the Status column (open / in-progress / fixed @commit) as tasks land.
 
@@ -235,3 +236,12 @@ validation or log redaction. A card does not authorize commit, push, or release.
   acceptance items, and verification. G3 and G6 are release gates (plus T5),
   not per-card gates. The invariant ownership table is removed; cards cite
   invariants directly.
+- **D-12** (2026-10-05) Register B10, seen during the T3 G5 run on the pinned
+  fork revision. The first login returns `codeRequired`; the submit with the
+  code gets three 204 responses with an empty body (the fork retries 204 as
+  transient). T3 does not touch this path. No request trace exists, so the
+  cause is not known. Hypotheses: the second submit drops the cookies from the
+  first response (`login` always sends `cookies: []`); the transient retry
+  reuses a one-time code; Apple changed the 2FA response on the native auth
+  endpoint. Per I-7 and D-10, no fork change and no workaround without
+  sanitized evidence. T5 captures the trace for an interactive 2FA login.
