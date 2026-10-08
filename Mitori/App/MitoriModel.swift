@@ -283,10 +283,6 @@ final class MitoriModel {
             backoffInterval(for: failed.consecutiveFailureCount)
         )
 
-        if let index = accounts.firstIndex(where: { $0.id == meta.id }) {
-            accounts[index] = failed
-        }
-
         do {
             let updatedAccounts = try await repository.upsert(failed)
             if operationIsCurrent(for: meta.id, generation: generation, requireAccount: true) {
@@ -294,6 +290,12 @@ final class MitoriModel {
             }
             return nil
         } catch {
+            // Keep the backoff in memory so a failed write cannot turn into a retry on every tick.
+            if operationIsCurrent(for: meta.id, generation: generation, requireAccount: true),
+               let index = accounts.firstIndex(where: { $0.id == meta.id })
+            {
+                accounts[index] = failed
+            }
             return MitoriError.map(error)
         }
     }

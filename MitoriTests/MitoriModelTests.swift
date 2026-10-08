@@ -269,6 +269,57 @@ struct MitoriModelTests {
     }
 
     @Test
+    func pendingFailureRecordDoesNotChangeVisibleStateAndDeletionWins() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let seedStore = AccountStore(baseDirectory: tempDirectory)
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+        _ = try await seedStore.upsert(meta)
+
+        let writeGate = BlockingWriteGate()
+        let accountStore = AccountStore(baseDirectory: tempDirectory) { data, url in
+            writeGate.suspend()
+            try data.write(to: url, options: .atomic)
+        }
+        let secretStore = SecretStore(backend: InMemorySecretBackend())
+        try await secretStore.save(StoredAccountSecret(account: sampleAccount()), for: meta.id)
+        let bridge = SessionBridgeStub()
+        bridge.refreshHandler = { _ in throw MitoriError.network("offline") }
+        let model = MitoriModel(
+            accountStore: accountStore,
+            secretStore: secretStore,
+            sessionBridge: bridge
+        )
+        await model.menuPresented()
+
+        let refresh = Task {
+            await model.refreshAccount(id: meta.id, isManualRefresh: true)
+        }
+        await Task.detached {
+            writeGate.waitUntilStarted()
+        }.value
+        defer { writeGate.release() }
+
+        #expect(model.account(with: meta.id)?.lastIssue == nil)
+        #expect(model.account(with: meta.id)?.consecutiveFailureCount == 0)
+
+        let deletion = Task {
+            try await model.deleteAccount(id: meta.id)
+        }
+        await Task.yield()
+        writeGate.release()
+        await refresh.value
+        try await deletion.value
+
+        #expect(model.account(with: meta.id) == nil)
+        #expect(try await AccountStore(baseDirectory: tempDirectory).loadAccounts().isEmpty)
+    }
+
+    @Test
     func failedSecretDeletionKeepsAccountVisible() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
