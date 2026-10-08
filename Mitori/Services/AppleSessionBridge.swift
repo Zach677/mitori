@@ -7,7 +7,8 @@ protocol AppleSessionBridging: Sendable {
         password: String,
         code: String,
         deviceIdentifier: String,
-        probeBundleID: String
+        probeBundleID: String,
+        existing: StoredAccountMeta?
     ) async throws -> SessionRefreshResult
 
     func reauthenticate(
@@ -68,7 +69,8 @@ actor AppleSessionBridge: AppleSessionBridging {
         password: String,
         code: String,
         deviceIdentifier: String,
-        probeBundleID: String
+        probeBundleID: String,
+        existing: StoredAccountMeta?
     ) async throws -> SessionRefreshResult {
         try await authenticate(
             email: email,
@@ -77,7 +79,7 @@ actor AppleSessionBridge: AppleSessionBridging {
             cookies: [],
             deviceIdentifier: deviceIdentifier,
             probeBundleID: probeBundleID,
-            existing: nil
+            existing: existing
         )
     }
 

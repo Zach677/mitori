@@ -85,6 +85,7 @@ final class MitoriModel {
         probeBundleID: String
     ) async throws -> String {
         try Task.checkCancellation()
+        await ensureAccountsLoaded()
         let accountID = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !mutatingAccountIDs.contains(accountID), pendingLoginGenerations[accountID] == nil else {
             throw MitoriError.operationInProgress
@@ -98,12 +99,16 @@ final class MitoriModel {
             }
         }
 
+        // Re-adding an account keeps its history; an empty probe field keeps the stored probe.
+        let existing = account(with: accountID)
+        let trimmedProbeBundleID = probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
         let result = normalized(try await sessionBridge.login(
             email: email,
             password: password,
             code: code,
             deviceIdentifier: deviceIdentifier.trimmingCharacters(in: .whitespacesAndNewlines),
-            probeBundleID: probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+            probeBundleID: trimmedProbeBundleID.isEmpty ? existing?.probeBundleID ?? "" : trimmedProbeBundleID,
+            existing: existing
         ))
         try Task.checkCancellation()
         guard result.meta.id == accountID else {

@@ -15,9 +15,11 @@ final class SessionBridgeStub: AppleSessionBridging {
         var code: String
         var deviceIdentifier: String
         var probeBundleID: String
+        var existing: StoredAccountMeta?
     }
 
     var loginResult: SessionRefreshResult?
+    var loginError: Error?
     var refreshResult: SessionRefreshResult?
     var reauthenticateResult: SessionRefreshResult?
     /// Takes precedence over `refreshResult` when set.
@@ -43,16 +45,21 @@ final class SessionBridgeStub: AppleSessionBridging {
         password: String,
         code: String,
         deviceIdentifier: String,
-        probeBundleID: String
+        probeBundleID: String,
+        existing: StoredAccountMeta?
     ) async throws -> SessionRefreshResult {
         loginRequests.append(LoginRequest(
             email: email,
             password: password,
             code: code,
             deviceIdentifier: deviceIdentifier,
-            probeBundleID: probeBundleID
+            probeBundleID: probeBundleID,
+            existing: existing
         ))
         await beforeLogin?()
+        if let loginError {
+            throw loginError
+        }
         return try requiredResult(loginResult, fallback: .unknown("Missing login result"))
     }
 

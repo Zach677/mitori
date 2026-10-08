@@ -21,7 +21,8 @@ struct AppleSessionBridgeTests {
             password: "password",
             code: "",
             deviceIdentifier: "ABCDEF123456",
-            probeBundleID: ""
+            probeBundleID: "",
+            existing: nil
         )
 
         #expect(result.meta.lastIssue == nil)
@@ -51,7 +52,8 @@ struct AppleSessionBridgeTests {
             password: "password",
             code: "",
             deviceIdentifier: "ABCDEF123456",
-            probeBundleID: ""
+            probeBundleID: "",
+            existing: nil
         )
 
         #expect(result.meta.lastIssue == nil)
@@ -81,7 +83,8 @@ struct AppleSessionBridgeTests {
             password: "password",
             code: "",
             deviceIdentifier: "ABCDEF123456",
-            probeBundleID: ""
+            probeBundleID: "",
+            existing: nil
         )
 
         #expect(result.meta.balanceSnapshot == nil)
@@ -134,6 +137,45 @@ struct AppleSessionBridgeTests {
     }
 
     @Test
+    func loginForExistingAccountWithoutAuthBalanceKeepsHistory() async throws {
+        let authenticator = AppleAuthenticatorStub(
+            result: AuthenticationResult(account: sampleAccount(), responsePlist: Data())
+        )
+        let bridge = AppleSessionBridge(
+            authenticator: authenticator,
+            balanceService: BalanceRefreshingStub()
+        )
+        let fetchedAt = Date(timeIntervalSince1970: 1_743_166_800)
+        let snapshot = BalanceSnapshot(
+            displayText: "$12.34",
+            numericValue: Decimal(string: "12.34"),
+            currencyCode: nil,
+            fetchedAt: fetchedAt,
+            source: .authentication,
+            rawFieldPath: "accountInfo.creditDisplay"
+        )
+        let existing = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "",
+            balanceSnapshot: snapshot,
+            lastRefreshAt: fetchedAt
+        )
+
+        let result = try await bridge.login(
+            email: "demo@example.com",
+            password: "new-password",
+            code: "",
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "",
+            existing: existing
+        )
+
+        #expect(result.meta.balanceSnapshot == snapshot)
+        #expect(result.meta.lastRefreshAt == fetchedAt)
+    }
+
+    @Test
     func loginWithProbePrefersProbeBalance() async throws {
         let authenticator = AppleAuthenticatorStub(
             result: try authenticationResult(fixture: "auth_success_balance")
@@ -155,7 +197,8 @@ struct AppleSessionBridgeTests {
             password: "password",
             code: "",
             deviceIdentifier: "ABCDEF123456",
-            probeBundleID: "com.example.probe"
+            probeBundleID: "com.example.probe",
+            existing: nil
         )
 
         #expect(result.meta.lastIssue == nil)
@@ -180,7 +223,8 @@ struct AppleSessionBridgeTests {
             password: "password",
             code: "",
             deviceIdentifier: "ABCDEF123456",
-            probeBundleID: "com.example.probe"
+            probeBundleID: "com.example.probe",
+            existing: nil
         )
 
         #expect(result.meta.balanceSnapshot?.source == .authentication)
@@ -315,7 +359,8 @@ struct AppleSessionBridgeTests {
             password: "password",
             code: "",
             deviceIdentifier: "ABCDEF123456",
-            probeBundleID: "com.example.probe"
+            probeBundleID: "com.example.probe",
+            existing: nil
         )
 
         #expect(result.meta.lastIssue?.kind == .network)
