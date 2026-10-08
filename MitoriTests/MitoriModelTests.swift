@@ -23,14 +23,20 @@ struct MitoriModelTests {
         )
         _ = try await accountStore.upsert(meta)
 
+        let secretStore = SecretStore(backend: InMemorySecretBackend())
+        try await secretStore.save(StoredAccountSecret(account: sampleAccount()), for: meta.id)
+        let bridge = SessionBridgeStub()
+        bridge.refreshHandler = { _ in throw MitoriError.missingProbeBundleID }
         let model = MitoriModel(
             accountStore: accountStore,
-            secretStore: SecretStore(backend: InMemorySecretBackend()),
-            sessionBridge: AppleSessionBridge()
+            secretStore: secretStore,
+            sessionBridge: bridge
         )
-        model.bannerMessage = MitoriError.missingProbeBundleID.localizedDescription
 
         await model.menuPresented()
+        await model.refreshAccount(id: meta.id, isManualRefresh: true)
+        #expect(model.bannerMessage == MitoriError.missingProbeBundleID.localizedDescription)
+
         try await model.saveProbeBundleID(" com.example.probe ", for: meta.id)
 
         let updated = try #require(model.account(with: meta.id))

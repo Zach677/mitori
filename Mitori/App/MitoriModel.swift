@@ -17,8 +17,12 @@ final class MitoriModel {
         didSet { changeSubject.send() }
     }
 
+    /// A message set from outside the model has no owner (I-10).
     var bannerMessage: String? {
-        didSet { changeSubject.send() }
+        didSet {
+            bannerAccountID = nil
+            changeSubject.send()
+        }
     }
     var isRefreshingAll = false {
         didSet { changeSubject.send() }
@@ -32,6 +36,7 @@ final class MitoriModel {
     private var accountGenerations: [String: Int] = [:]
     private var mutatingAccountIDs: Set<String> = []
     private var pendingLoginGenerations: [String: Int] = [:]
+    private var bannerAccountID: String?
 
     init(
         accountStore: AccountStore = AccountStore(),
@@ -117,7 +122,11 @@ final class MitoriModel {
             throw MitoriError.operationSuperseded
         }
         accounts = updatedAccounts
-        bannerMessage = result.meta.lastIssue?.message
+        if let issue = result.meta.lastIssue {
+            showBanner(issue.message, ownedBy: accountID)
+        } else {
+            clearBanner(ownedBy: accountID)
+        }
         return accountID
     }
 
@@ -170,7 +179,7 @@ final class MitoriModel {
             let storageError = await recordFailure(for: meta, error: refreshError, generation: generation)
             guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else { return }
             refreshStates[id] = .failed(refreshError.issueKind)
-            bannerMessage = storageError?.localizedDescription ?? refreshError.localizedDescription
+            showBanner(storageError?.localizedDescription ?? refreshError.localizedDescription, ownedBy: id)
         }
     }
 
@@ -203,7 +212,7 @@ final class MitoriModel {
             let mappedError = MitoriError.map(error)
             if operationIsCurrent(for: id, generation: generation, requireAccount: true) {
                 refreshStates[id] = .failed(mappedError.issueKind)
-                bannerMessage = mappedError.localizedDescription
+                showBanner(mappedError.localizedDescription, ownedBy: id)
             }
             throw mappedError
         }
@@ -233,8 +242,8 @@ final class MitoriModel {
         guard operationIsCurrent(for: accountID, generation: generation) else { return }
         accounts = updatedAccounts
 
-        if bannerMessage == MitoriError.missingProbeBundleID.localizedDescription {
-            bannerMessage = nil
+        if account(with: accountID)?.lastIssue == nil {
+            clearBanner(ownedBy: accountID)
         }
     }
 
@@ -247,10 +256,10 @@ final class MitoriModel {
             guard operationIsCurrent(for: id, generation: generation) else { return }
             accounts = remainingAccounts
             refreshStates[id] = nil
-            bannerMessage = nil
+            clearBanner(ownedBy: id)
         } catch {
             let mappedError = MitoriError.map(error)
-            bannerMessage = mappedError.localizedDescription
+            showBanner(mappedError.localizedDescription, ownedBy: id)
             throw mappedError
         }
     }
@@ -407,12 +416,23 @@ final class MitoriModel {
     ) -> MitoriError? {
         if let issue = result.meta.lastIssue {
             refreshStates[accountID] = .failed(issue.kind)
-            bannerMessage = issue.message
+            showBanner(issue.message, ownedBy: accountID)
             return MitoriError.from(refreshIssue: issue)
         }
 
         refreshStates[accountID] = .succeeded(result.meta.lastRefreshAt ?? now())
-        bannerMessage = nil
+        clearBanner(ownedBy: accountID)
         return nil
+    }
+
+    private func showBanner(_ message: String, ownedBy accountID: String) {
+        bannerMessage = message
+        bannerAccountID = accountID
+    }
+
+    /// One account's success must not clear another account's or an unowned error.
+    private func clearBanner(ownedBy accountID: String) {
+        guard bannerAccountID == accountID else { return }
+        bannerMessage = nil
     }
 }
