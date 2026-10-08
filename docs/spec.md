@@ -142,12 +142,13 @@ if a real bug needs it.
 | B2 | P0 | Empty auth `creditDisplay` fabricates a `$0.00` snapshot | T2 | fixed @d32a0b0 |
 | B3 | P1 | Probe `sessionExpired` after reauth is swallowed; background refresh becomes login + 2 probes forever | T3 | fixed @2908d9d |
 | B4 | P1 | Authenticate follows a redirect `Location` with no scheme/host validation on a credential-bearing POST | T6b | open |
-| B5 | P2 | Any account's success clears another account's error banner | T4 | open |
-| B6 | P2 | Re-adding an existing email wipes its snapshot/history | T4 | open |
-| B7 | P3 | `recordFailure` mutates `accounts[index]` before the generation check | T4 | open |
+| B5 | P2 | Any account's success clears another account's error banner | T4 | fixed @930a763 |
+| B6 | P2 | Re-adding an existing email wipes its snapshot/history | T4 | fixed @6b5498a |
+| B7 | P3 | `recordFailure` mutates `accounts[index]` before the generation check | T4 | fixed @33dfdc2 |
 | B8 | P1 | Manual refresh of a no-probe account 302s (`failed to retrieve redirect location (HTTP 302)`) | T5 | open |
 | B9 | P1 | Automatic refresh sends password logins for no-probe accounts and after probe expiry | T3 | fixed @2908d9d |
 | B10 | P1 | Add account with a 2FA code fails: `authentication failed: response body is empty (code: 204)` | T5 | open |
+| B11 | P3 | `recordFailure` upserts the meta from the start of the refresh; a probe edit between the generation check and the repository lock can be overwritten on disk | - | open |
 
 Update the Status column (open / in-progress / fixed @commit) as tasks land.
 
@@ -254,3 +255,14 @@ validation or log redaction. A card does not authorize commit, push, or release.
   manual refresh from it were waived: no paused account was available.
   Red-before-green was not shown, because the new bridge signature does not
   compile against the old code.
+- **D-14** (2026-10-08) Accept T4 at `33dfdc2` (B7), `930a763` (B5), and
+  `6b5498a` (B6). `mise run test-macos` exit 0 after each fix; the B7 test
+  failed before its fix. Fix 3 deviates from the card: removing the eager write
+  alone broke the in-memory backoff after a failed metadata write, so that
+  failure path applies the backoff in memory behind the generation check.
+  Fix 1 adds no dismissal, because the UI has none; a banner set from outside
+  the model is unowned. G5: `mise run run-macos` exit 0; banner and re-add
+  checks with controlled failures need a live account and were not run.
+  B11 (found during T4) is registered without a task: the window is a single
+  main actor hop, and the fix is to merge failure fields under the repository
+  lock.
