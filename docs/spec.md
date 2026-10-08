@@ -140,13 +140,13 @@ if a real bug needs it.
 |----|-----|---------|------|--------|
 | B1 | P0 | `¥1,000` parsed as 1 (comma-only amounts read as decimals) | T1 | fixed @c011c00 |
 | B2 | P0 | Empty auth `creditDisplay` fabricates a `$0.00` snapshot | T2 | fixed @d32a0b0 |
-| B3 | P1 | Probe `sessionExpired` after reauth is swallowed; background refresh becomes login + 2 probes forever | T3 | open |
+| B3 | P1 | Probe `sessionExpired` after reauth is swallowed; background refresh becomes login + 2 probes forever | T3 | fixed @2908d9d |
 | B4 | P1 | Authenticate follows a redirect `Location` with no scheme/host validation on a credential-bearing POST | T6b | open |
 | B5 | P2 | Any account's success clears another account's error banner | T4 | open |
 | B6 | P2 | Re-adding an existing email wipes its snapshot/history | T4 | open |
 | B7 | P3 | `recordFailure` mutates `accounts[index]` before the generation check | T4 | open |
 | B8 | P1 | Manual refresh of a no-probe account 302s (`failed to retrieve redirect location (HTTP 302)`) | T5 | open |
-| B9 | P1 | Automatic refresh sends password logins for no-probe accounts and after probe expiry | T3 | open |
+| B9 | P1 | Automatic refresh sends password logins for no-probe accounts and after probe expiry | T3 | fixed @2908d9d |
 | B10 | P1 | Add account with a 2FA code fails: `authentication failed: response body is empty (code: 204)` | T5 | open |
 
 Update the Status column (open / in-progress / fixed @commit) as tasks land.
@@ -245,3 +245,12 @@ validation or log redaction. A card does not authorize commit, push, or release.
   reuses a one-time code; Apple changed the 2FA response on the native auth
   endpoint. Per I-7 and D-10, no fork change and no workaround without
   sanitized evidence. T5 captures the trace for an interactive 2FA login.
+- **D-13** (2026-10-08) Accept T3 at `2908d9d`. Acceptance 1-5 map to tests in
+  `AppleSessionBridgeTests`, `MitoriModelAutoRefreshTests`, and
+  `MitoriModelTests`; `mise run test-macos` exit 0, checked again by an
+  independent verifier. Saving an unchanged probe keeps the issue, so it does
+  not resume a paused account. G5: `mise run run-macos` exit 0, and Zach
+  confirmed the Settings auto-refresh help text. The paused-account UI and a
+  manual refresh from it were waived: no paused account was available.
+  Red-before-green was not shown, because the new bridge signature does not
+  compile against the old code.
