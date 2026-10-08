@@ -20,10 +20,13 @@ final class SessionBridgeStub: AppleSessionBridging {
     var loginResult: SessionRefreshResult?
     var refreshResult: SessionRefreshResult?
     var reauthenticateResult: SessionRefreshResult?
+    /// Takes precedence over `refreshResult` when set.
+    var refreshHandler: ((StoredAccountMeta) throws -> SessionRefreshResult)?
     var loginRequests: [LoginRequest] = []
     var beforeLogin: (() async -> Void)?
     var beforeRefresh: (() async -> Void)?
     private(set) var refreshCallCount = 0
+    private(set) var refreshAllowsReauthentication: [Bool] = []
 
     init(
         loginResult: SessionRefreshResult? = nil,
@@ -63,10 +66,15 @@ final class SessionBridgeStub: AppleSessionBridging {
 
     func refreshBalance(
         meta: StoredAccountMeta,
-        secret: StoredAccountSecret
+        secret: StoredAccountSecret,
+        allowsReauthentication: Bool
     ) async throws -> SessionRefreshResult {
         refreshCallCount += 1
+        refreshAllowsReauthentication.append(allowsReauthentication)
         await beforeRefresh?()
+        if let refreshHandler {
+            return try refreshHandler(meta)
+        }
         return try requiredResult(refreshResult, fallback: .unknown("Missing refresh result"))
     }
 

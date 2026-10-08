@@ -18,7 +18,8 @@ protocol AppleSessionBridging: Sendable {
 
     func refreshBalance(
         meta: StoredAccountMeta,
-        secret: StoredAccountSecret
+        secret: StoredAccountSecret,
+        allowsReauthentication: Bool
     ) async throws -> SessionRefreshResult
 }
 
@@ -96,11 +97,14 @@ actor AppleSessionBridge: AppleSessionBridging {
         )
     }
 
+    /// With `allowsReauthentication == false` this only probes and never sends a password (I-6).
     func refreshBalance(
         meta: StoredAccountMeta,
-        secret: StoredAccountSecret
+        secret: StoredAccountSecret,
+        allowsReauthentication: Bool
     ) async throws -> SessionRefreshResult {
         if meta.needsProbeBundleID {
+            guard allowsReauthentication else { throw MitoriError.missingProbeBundleID }
             return try await reauthenticate(meta: meta, secret: secret)
         }
 
@@ -108,7 +112,7 @@ actor AppleSessionBridge: AppleSessionBridging {
             return try await refreshBalanceOnly(meta: meta, secret: secret)
         } catch {
             let mappedError = MitoriError.mapApplePackage(error)
-            if case .sessionExpired = mappedError {
+            if allowsReauthentication, case .sessionExpired = mappedError {
                 return try await reauthenticate(meta: meta, secret: secret)
             }
             throw mappedError
@@ -165,8 +169,16 @@ actor AppleSessionBridge: AppleSessionBridging {
             meta = updatedMeta(from: meta, account: balanceResult.account, snapshot: balanceResult.snapshot)
             return SessionRefreshResult(meta: meta, secret: StoredAccountSecret(account: balanceResult.account))
         } catch {
+            // Keep the fresh session and auth snapshot, but never swallow the probe failure (I-9).
             let mappedError = MitoriError.mapApplePackage(error)
-            if meta.balanceSnapshot == nil || mappedError.issueKind == .balanceUnavailable {
+            if case .sessionExpired = mappedError {
+                // A new session cannot fix this, so retrying would only repeat the login.
+                meta.lastIssue = RefreshIssue(
+                    kind: .balanceUnavailable,
+                    message: "Signed in, but the probe app still reports an expired session.",
+                    updatedAt: Date()
+                )
+            } else {
                 meta.lastIssue = mappedError.refreshIssue()
             }
             return SessionRefreshResult(meta: meta, secret: secret)

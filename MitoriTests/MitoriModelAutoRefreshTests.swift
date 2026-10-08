@@ -57,6 +57,7 @@ struct MitoriModelAutoRefreshTests {
         await context.model.autoRefreshTick()
 
         #expect(context.bridge.refreshCallCount == 1)
+        #expect(context.bridge.refreshAllowsReauthentication == [false])
         #expect(context.secretBackend.readAllowsAuthenticationUI == [false, false])
         #expect(context.secretBackend.writeAllowsAuthenticationUI == [true, false])
         guard case .succeeded = context.model.refreshState(for: context.accountID) else {
@@ -66,30 +67,158 @@ struct MitoriModelAutoRefreshTests {
     }
 
     @Test
-    func autoRefreshWaitsAnIntervalAfterSuccessWithoutBalanceData() async throws {
+    func autoRefreshNeverCallsTheBridgeForAccountsWithoutProbe() async throws {
         let clock = TestClock()
         let context = try await makeAutoRefreshContext(
             enabled: true,
             lastRefreshAt: nil,
             probeBundleID: "",
-            resultLastRefreshAt: nil,
             now: { clock.date }
         )
         defer { context.cleanUp() }
 
         await context.model.autoRefreshTick()
-        clock.date += 60
-        await context.model.autoRefreshTick()
-
-        #expect(context.bridge.refreshCallCount == 1)
-        let stored = try #require(context.model.account(with: context.accountID))
-        #expect(stored.lastRefreshAt == nil)
-        #expect(stored.lastIssue == nil)
-
         clock.date += context.settings.autoRefreshInterval
         await context.model.autoRefreshTick()
 
+        #expect(context.bridge.refreshCallCount == 0)
+    }
+
+    @Test
+    func automaticSessionExpiryPausesAutoRefreshAcrossReloads() async throws {
+        let clock = TestClock()
+        let context = try await makeAutoRefreshContext(
+            enabled: true,
+            lastRefreshAt: nil,
+            now: { clock.date }
+        )
+        defer { context.cleanUp() }
+        context.bridge.refreshHandler = { _ in throw MitoriError.sessionExpired }
+
+        await context.model.autoRefreshTick()
+
+        #expect(context.bridge.refreshAllowsReauthentication == [false])
+        #expect(context.model.account(with: context.accountID)?.lastIssue?.kind == .sessionExpired)
+
+        clock.date += context.settings.autoRefreshInterval
+        await context.model.autoRefreshTick()
+        clock.date += context.settings.autoRefreshInterval
+        await context.model.autoRefreshTick()
+
+        #expect(context.bridge.refreshCallCount == 1)
+
+        let reloadedModel = MitoriModel(
+            accountStore: context.accountStore,
+            secretStore: context.secretStore,
+            sessionBridge: context.bridge,
+            settings: context.settings,
+            now: { clock.date },
+            screenIsLocked: { false }
+        )
+        await reloadedModel.autoRefreshTick()
+
+        #expect(reloadedModel.account(with: context.accountID)?.lastIssue?.kind == .sessionExpired)
+        #expect(context.bridge.refreshCallCount == 1)
+    }
+
+    @Test
+    func automaticNetworkFailureRetriesAfterBackoff() async throws {
+        let clock = TestClock()
+        let context = try await makeAutoRefreshContext(
+            enabled: true,
+            lastRefreshAt: nil,
+            now: { clock.date }
+        )
+        defer { context.cleanUp() }
+        context.bridge.refreshHandler = { _ in throw MitoriError.network("offline") }
+
+        await context.model.autoRefreshTick()
+        await context.model.autoRefreshTick()
+
+        #expect(context.bridge.refreshCallCount == 1)
+        #expect(context.model.account(with: context.accountID)?.lastIssue?.kind == .network)
+
+        clock.date += 61
+        await context.model.autoRefreshTick()
+
         #expect(context.bridge.refreshCallCount == 2)
+        #expect(context.bridge.refreshAllowsReauthentication == [false, false])
+    }
+
+    @Test
+    func pausedAccountDoesNotBlockOtherAccounts() async throws {
+        let clock = TestClock()
+        let context = try await makeAutoRefreshContext(
+            enabled: true,
+            lastRefreshAt: nil,
+            lastIssue: MitoriError.sessionExpired.refreshIssue(),
+            now: { clock.date }
+        )
+        defer { context.cleanUp() }
+
+        var otherAccount = sampleAccount()
+        otherAccount.email = "other@example.com"
+        let otherMeta = StoredAccountMeta(
+            account: otherAccount,
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+        _ = try await context.accountStore.upsert(otherMeta)
+        try await context.secretStore.save(StoredAccountSecret(account: otherAccount), for: otherMeta.id)
+
+        var refreshedIDs: [String] = []
+        context.bridge.refreshHandler = { meta in
+            refreshedIDs.append(meta.id)
+            var updated = meta
+            updated.lastRefreshAt = clock.date
+            return SessionRefreshResult(meta: updated, secret: StoredAccountSecret(account: otherAccount))
+        }
+
+        await context.model.autoRefreshTick()
+        clock.date += context.settings.autoRefreshInterval
+        await context.model.autoRefreshTick()
+
+        #expect(refreshedIDs == [otherMeta.id, otherMeta.id])
+    }
+
+    @Test
+    func manualRefreshClearsPauseAndAutoRefreshResumes() async throws {
+        let clock = TestClock()
+        let context = try await makeAutoRefreshContext(
+            enabled: true,
+            lastRefreshAt: nil,
+            now: { clock.date }
+        )
+        defer { context.cleanUp() }
+
+        // The bridge reauthenticated, but the probe still reported an expired session.
+        var nextIssue: RefreshIssue? = RefreshIssue(
+            kind: .balanceUnavailable,
+            message: "Probe unavailable",
+            updatedAt: clock.date
+        )
+        context.bridge.refreshHandler = { meta in
+            var updated = meta
+            updated.lastIssue = nextIssue
+            updated.lastRefreshAt = clock.date
+            return SessionRefreshResult(meta: updated, secret: StoredAccountSecret(account: sampleAccount()))
+        }
+
+        await context.model.menuPresented()
+        await context.model.refreshAccount(id: context.accountID, isManualRefresh: true)
+
+        #expect(context.model.refreshState(for: context.accountID) == .failed(.balanceUnavailable))
+        clock.date += context.settings.autoRefreshInterval
+        await context.model.autoRefreshTick()
+        #expect(context.bridge.refreshCallCount == 1)
+
+        nextIssue = nil
+        await context.model.refreshAccount(id: context.accountID, isManualRefresh: true)
+
+        #expect(context.model.account(with: context.accountID)?.lastIssue == nil)
+        clock.date += context.settings.autoRefreshInterval
+        await context.model.autoRefreshTick()
+        #expect(context.bridge.refreshAllowsReauthentication == [true, true, false])
     }
 
     private final class TestClock {
@@ -100,6 +229,8 @@ struct MitoriModelAutoRefreshTests {
         var model: MitoriModel
         var bridge: SessionBridgeStub
         var secretBackend: RecordingSecretBackend
+        var accountStore: AccountStore
+        var secretStore: SecretStore
         var settings: RefreshSettingsStore
         var accountID: String
         var defaultsSuiteName: String
@@ -113,7 +244,7 @@ struct MitoriModelAutoRefreshTests {
         enabled: Bool,
         lastRefreshAt: Date?,
         probeBundleID: String = "com.example.probe",
-        resultLastRefreshAt: Date? = Date(),
+        lastIssue: RefreshIssue? = nil,
         now: @escaping () -> Date = Date.init,
         screenIsLocked: Bool = false
     ) async throws -> AutoRefreshContext {
@@ -131,6 +262,7 @@ struct MitoriModelAutoRefreshTests {
             account: sampleAccount(),
             deviceIdentifier: "ABCDEF123456",
             probeBundleID: probeBundleID,
+            lastIssue: lastIssue,
             lastRefreshAt: lastRefreshAt
         )
         _ = try await accountStore.upsert(meta)
@@ -141,7 +273,7 @@ struct MitoriModelAutoRefreshTests {
                 account: sampleAccount(),
                 deviceIdentifier: meta.deviceIdentifier,
                 probeBundleID: meta.probeBundleID,
-                lastRefreshAt: resultLastRefreshAt
+                lastRefreshAt: Date()
             ),
             secret: StoredAccountSecret(account: sampleAccount())
         ))
@@ -157,6 +289,8 @@ struct MitoriModelAutoRefreshTests {
             model: model,
             bridge: bridge,
             secretBackend: secretBackend,
+            accountStore: accountStore,
+            secretStore: secretStore,
             settings: settings,
             accountID: meta.id,
             defaultsSuiteName: suiteName

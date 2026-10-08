@@ -104,7 +104,7 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
         case .invalidTwoFactorCode:
             return "The 2FA code is invalid or expired."
         case .sessionExpired:
-            return "Session expired. The app will try to re-authenticate."
+            return "Session expired. Refresh this account to sign in again."
         case .missingProbeBundleID:
             return "Add an owned app bundle ID before refreshing balance."
         case .probeAppNotOwned:

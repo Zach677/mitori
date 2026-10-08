@@ -206,7 +206,8 @@ struct AppleSessionBridgeTests {
 
         let result = try await bridge.refreshBalance(
             meta: meta,
-            secret: StoredAccountSecret(account: sampleAccount())
+            secret: StoredAccountSecret(account: sampleAccount()),
+            allowsReauthentication: true
         )
 
         #expect(result.meta.lastIssue == nil)
@@ -216,7 +217,61 @@ struct AppleSessionBridgeTests {
     }
 
     @Test
-    func refreshFallsBackToReauthenticationWhenProbeSessionExpired() async throws {
+    func automaticRefreshWithoutProbeNeverAuthenticates() async throws {
+        let authenticator = AppleAuthenticatorStub(
+            result: try authenticationResult(fixture: "auth_success_balance")
+        )
+        let balanceService = BalanceRefreshingStub()
+        let bridge = AppleSessionBridge(
+            authenticator: authenticator,
+            balanceService: balanceService
+        )
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: ""
+        )
+
+        await #expect(throws: MitoriError.missingProbeBundleID) {
+            try await bridge.refreshBalance(
+                meta: meta,
+                secret: StoredAccountSecret(account: sampleAccount()),
+                allowsReauthentication: false
+            )
+        }
+        #expect(authenticator.callCount == 0)
+        #expect(await balanceService.callCount == 0)
+    }
+
+    @Test
+    func automaticProbeSessionExpiryThrowsWithoutAuthenticating() async throws {
+        let authenticator = AppleAuthenticatorStub(
+            result: try authenticationResult(fixture: "auth_success_balance")
+        )
+        let balanceService = BalanceRefreshingStub(error: MitoriError.sessionExpired)
+        let bridge = AppleSessionBridge(
+            authenticator: authenticator,
+            balanceService: balanceService
+        )
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+
+        await #expect(throws: MitoriError.sessionExpired) {
+            try await bridge.refreshBalance(
+                meta: meta,
+                secret: StoredAccountSecret(account: sampleAccount()),
+                allowsReauthentication: false
+            )
+        }
+        #expect(authenticator.callCount == 0)
+        #expect(await balanceService.callCount == 1)
+    }
+
+    @Test
+    func manualRefreshRecordsProbeExpiryAfterReauthentication() async throws {
         let authenticator = AppleAuthenticatorStub(
             result: try authenticationResult(fixture: "auth_success_balance")
         )
@@ -233,13 +288,38 @@ struct AppleSessionBridgeTests {
 
         let result = try await bridge.refreshBalance(
             meta: meta,
-            secret: StoredAccountSecret(account: sampleAccount())
+            secret: StoredAccountSecret(account: sampleAccount()),
+            allowsReauthentication: true
         )
 
-        #expect(result.meta.lastIssue == nil)
+        #expect(result.meta.lastIssue?.kind == .balanceUnavailable)
         #expect(result.meta.balanceSnapshot?.source == .authentication)
+        #expect(result.meta.balanceSnapshot?.numericValue == Decimal(string: "24.90"))
         #expect(authenticator.callCount == 1)
         #expect(await balanceService.callCount == 2)
+    }
+
+    @Test
+    func loginRecordsProbeNetworkFailureAndKeepsAuthBalance() async throws {
+        let authenticator = AppleAuthenticatorStub(
+            result: try authenticationResult(fixture: "auth_success_balance")
+        )
+        let balanceService = BalanceRefreshingStub(error: MitoriError.network("offline"))
+        let bridge = AppleSessionBridge(
+            authenticator: authenticator,
+            balanceService: balanceService
+        )
+
+        let result = try await bridge.login(
+            email: "demo@example.com",
+            password: "password",
+            code: "",
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+
+        #expect(result.meta.lastIssue?.kind == .network)
+        #expect(result.meta.balanceSnapshot?.source == .authentication)
     }
 }
 

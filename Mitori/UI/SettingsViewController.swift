@@ -97,6 +97,7 @@ private extension SettingsViewController {
         autoRefreshSwitch.controlSize = .small
         addFullWidth(settingBlock(
             title: "Refresh balances automatically",
+            help: "Needs a probe app and never sends your password. Accounts without a probe app refresh when you ask.",
             control: autoRefreshSwitch
         ), to: stack)
 

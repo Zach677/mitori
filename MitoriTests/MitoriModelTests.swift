@@ -69,6 +69,68 @@ struct MitoriModelTests {
         #expect(model.bannerMessage == nil)
     }
 
+    @Test(arguments: ["com.example.new-probe", ""])
+    func changingProbeClearsOnlyProbeRelatedIssues(newProbeBundleID: String) async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let accountStore = AccountStore(baseDirectory: tempDirectory)
+        let probeMeta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe",
+            lastIssue: MitoriError.probeAppNotOwned.refreshIssue(),
+            consecutiveFailureCount: 1
+        )
+        _ = try await accountStore.upsert(probeMeta)
+        let model = MitoriModel(
+            accountStore: accountStore,
+            secretStore: SecretStore(backend: InMemorySecretBackend()),
+            sessionBridge: SessionBridgeStub()
+        )
+        await model.menuPresented()
+
+        try await model.saveProbeBundleID(newProbeBundleID, for: probeMeta.id)
+        #expect(model.account(with: probeMeta.id)?.lastIssue == nil)
+
+        var sessionMeta = probeMeta
+        sessionMeta.lastIssue = MitoriError.sessionExpired.refreshIssue()
+        _ = try await accountStore.upsert(sessionMeta)
+        let reloadedModel = MitoriModel(
+            accountStore: accountStore,
+            secretStore: SecretStore(backend: InMemorySecretBackend()),
+            sessionBridge: SessionBridgeStub()
+        )
+        await reloadedModel.menuPresented()
+
+        try await reloadedModel.saveProbeBundleID(newProbeBundleID, for: sessionMeta.id)
+        #expect(reloadedModel.account(with: sessionMeta.id)?.lastIssue?.kind == .sessionExpired)
+    }
+
+    @Test
+    func savingUnchangedProbeKeepsProbeIssue() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let accountStore = AccountStore(baseDirectory: tempDirectory)
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe",
+            lastIssue: MitoriError.probeAppNotOwned.refreshIssue(),
+            consecutiveFailureCount: 1
+        )
+        _ = try await accountStore.upsert(meta)
+        let model = MitoriModel(
+            accountStore: accountStore,
+            secretStore: SecretStore(backend: InMemorySecretBackend()),
+            sessionBridge: SessionBridgeStub()
+        )
+        await model.menuPresented()
+
+        try await model.saveProbeBundleID(" com.example.probe ", for: meta.id)
+
+        #expect(model.account(with: meta.id)?.lastIssue?.kind == .balanceUnavailable)
+    }
+
     @Test
     func menuPresentationDoesNotStartKeychainBackedRefresh() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory

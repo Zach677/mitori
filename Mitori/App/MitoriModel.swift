@@ -99,7 +99,7 @@ final class MitoriModel {
             code: code,
             deviceIdentifier: deviceIdentifier.trimmingCharacters(in: .whitespacesAndNewlines),
             probeBundleID: probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
-        ), previous: nil)
+        ))
         try Task.checkCancellation()
         guard result.meta.id == accountID else {
             throw MitoriError.unknown("Authenticated account does not match the requested email.")
@@ -144,10 +144,11 @@ final class MitoriModel {
                 throw MitoriError.missingSecret
             }
             guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else { return }
-            let result = normalized(
-                try await sessionBridge.refreshBalance(meta: meta, secret: secret),
-                previous: meta
-            )
+            let result = normalized(try await sessionBridge.refreshBalance(
+                meta: meta,
+                secret: secret,
+                allowsReauthentication: isManualRefresh
+            ))
             guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else { return }
             let updatedAccounts = try await repository.commit(
                 result,
@@ -186,10 +187,7 @@ final class MitoriModel {
             guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else {
                 throw MitoriError.operationSuperseded
             }
-            let result = normalized(
-                try await sessionBridge.reauthenticate(meta: meta, secret: secret, code: code),
-                previous: meta
-            )
+            let result = normalized(try await sessionBridge.reauthenticate(meta: meta, secret: secret, code: code))
             guard operationIsCurrent(for: id, generation: generation, requireAccount: true) else {
                 throw MitoriError.operationSuperseded
             }
@@ -217,13 +215,18 @@ final class MitoriModel {
         defer { finishMutation(for: accountID) }
         let trimmedProbeBundleID = probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
         let updatedAccounts = try await repository.updateMeta(id: accountID) { latest in
+            // Saving the same probe changes nothing, so it must not resume a paused account.
+            guard latest.probeBundleID != trimmedProbeBundleID else { return latest }
             var updated = latest
             updated.probeBundleID = trimmedProbeBundleID
 
-            if updated.lastIssue?.kind == .probeConfigurationMissing {
+            switch updated.lastIssue?.kind {
+            case .probeConfigurationMissing, .balanceUnavailable:
                 updated.lastIssue = nil
                 updated.nextEligibleRefreshAt = nil
                 updated.consecutiveFailureCount = 0
+            default:
+                break
             }
             return updated
         }
@@ -295,20 +298,11 @@ final class MitoriModel {
         }
     }
 
-    private func normalized(
-        _ result: SessionRefreshResult,
-        previous: StoredAccountMeta?
-    ) -> SessionRefreshResult {
+    private func normalized(_ result: SessionRefreshResult) -> SessionRefreshResult {
         var normalized = result
         if normalized.meta.lastIssue == nil {
             normalized.meta.consecutiveFailureCount = 0
-            // A success without new balance data keeps lastRefreshAt unchanged,
-            // so gate the next automatic login here instead (I-6).
-            let hasNewBalance = normalized.meta.lastRefreshAt != nil
-                && normalized.meta.lastRefreshAt != previous?.lastRefreshAt
-            normalized.meta.nextEligibleRefreshAt = hasNewBalance
-                ? nil
-                : now().addingTimeInterval(settings.autoRefreshInterval)
+            normalized.meta.nextEligibleRefreshAt = nil
             return normalized
         }
 
@@ -329,6 +323,13 @@ final class MitoriModel {
     }
 
     private func shouldAutoRefresh(_ meta: StoredAccountMeta) -> Bool {
+        // Automatic refresh only probes the stored session (I-6). Accounts without
+        // a probe, or paused by a non-network issue, wait for a user action.
+        guard !meta.needsProbeBundleID else { return false }
+        if let issueKind = meta.lastIssue?.kind, issueKind != .network {
+            return false
+        }
+
         if case .refreshing = refreshState(for: meta.id) {
             return false
         }

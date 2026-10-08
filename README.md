@@ -43,7 +43,7 @@ shasum -a 256 -c Mitori-<version>.dmg.sha256
 
 - Check multiple Apple ID store credit balances from the menu bar.
 - Sign in with two-factor authentication and recover expired sessions.
-- Refresh manually or on a schedule with failure backoff and lock-screen awareness.
+- Refresh manually at any time, or in the background for accounts with a probe app. Background refresh never sends your password.
 - Hide account names, email addresses, Apple IDs, and device IDs inside Mitori.
 - Reveal complete account identifiers on hover and copy them with one click.
 - Open Mitori automatically when you log in.
@@ -52,9 +52,9 @@ shasum -a 256 -c Mitori-<version>.dmg.sha256
 
 You need an Apple ID email and password, and a two-factor authentication code when Apple asks for one. Mitori generates a device identifier automatically.
 
-After sign-in, Mitori reads store credit from Apple's login response. Later refreshes reuse the session, or sign in again silently when needed.
+After sign-in, Mitori reads store credit from Apple's login response. When you refresh an account, Mitori reuses the session, or signs in again silently when needed.
 
-You can optionally pick an app this Apple ID already owns. That lets Mitori refresh in the background without signing in each time. Add or change it later from the account details window.
+You can optionally pick an app this Apple ID already owns (a probe app). Automatic refresh needs a probe app: it checks the balance with the stored session and never sends your password. Accounts without a probe app refresh only when you ask. If the session expires, automatic refresh pauses for that account until you refresh it manually. Add or change the probe app later from the account details window.
 
 ## Privacy
 
@@ -90,7 +90,7 @@ To work in Xcode, open `Mitori.xcodeproj`.
 
 - Authentication uses [ApplePackage](https://github.com/Zach677/ApplePackage) for Apple ID login, two-factor authentication, and session management.
 - Balance lookup sends a `volumeStoreDownloadProduct` request for an app owned by the account, then extracts store credit from Apple's response.
-- A 60-second timer checks whether each account is due for refresh. The default interval is one hour, the minimum is 15 minutes, and failed requests back off before retrying.
+- A 60-second timer checks whether each account with a probe app is due for refresh. The default interval is one hour, the minimum is 15 minutes, and failed requests back off before retrying.
 - Community releases use ad hoc signing with Hardened Runtime and include both `arm64` and `x86_64` slices. The Intel build is verified but has not been tested on Intel hardware.
 
 </details>
