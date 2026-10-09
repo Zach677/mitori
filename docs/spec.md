@@ -266,3 +266,14 @@ validation or log redaction. A card does not authorize commit, push, or release.
   B11 (found during T4) is registered without a task: the window is a single
   main actor hop, and the fix is to merge failure fields under the repository
   lock.
+- **D-15** (2026-10-09) Accept T6a at `ac31c60`. The ApplePackage subset from
+  fork revision `3b535f1` lives in `Mitori/AppleStore/`; the file map and the
+  four required edits are in `docs/applestore-port.md`. `rg 'import
+  ApplePackage' Mitori MitoriTests` has no matches. `mise run build-macos` and
+  `mise run test-macos` exit 0 (120 passed, 0 failed, 1 skipped: the
+  CommerceKit signer test needs `APPLEPACKAGE_TEST_SAP=1`). The local signer
+  symbols carry a `Mitori` prefix, because the still-linked package exports
+  `_APCommerceKitSign`; a 6 s direct launch printed nothing to stderr. Stored
+  accounts and secrets decode the same (`StoredAccountCompatibilityTests`).
+  G5: Zach confirmed an existing account renders. The ApplePackage product
+  stays linked until T6c.

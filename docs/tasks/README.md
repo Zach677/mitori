@@ -31,7 +31,7 @@ card as the task. Cards assume the agent has repo access and has read
 | T2 | Strict source paths and probe-only zero fallback | T1 | done @9191bac |
 | T3 | Automatic refresh never sends a password | T2 | done @2908d9d |
 | T4 | Banner ownership, duplicate add, recordFailure order | T3 | done @6b5498a |
-| T6a | Port the ApplePackage subset into `Mitori/AppleStore/` (verbatim) | T4 | todo |
+| T6a | Port the ApplePackage subset into `Mitori/AppleStore/` (verbatim) | T4 | done @ac31c60 |
 | T6b | One URLSession transport, redirect allowlist, typed errors | T6a | todo |
 | T6c | Drop the ApplePackage SPM dependency | T6b | todo |
 | T5 | Safe diagnostics and the supervised live run (B8, B10) | T6c; Zach at keyboard | todo |
