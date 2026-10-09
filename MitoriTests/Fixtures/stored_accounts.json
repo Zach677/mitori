@@ -1,0 +1,29 @@
+[
+  {
+    "appleID" : "demo@example.com",
+    "balanceSnapshot" : {
+      "currencyCode" : "USD",
+      "displayText" : "$12.34",
+      "fetchedAt" : "2026-09-01T08:00:00Z",
+      "numericValue" : 12.34,
+      "rawFieldPath" : "creditDisplay",
+      "source" : "probe"
+    },
+    "consecutiveFailureCount" : 1,
+    "countryCode" : "US",
+    "deviceIdentifier" : "ABCDEF123456",
+    "email" : "Demo@example.com",
+    "firstName" : "Demo",
+    "lastIssue" : {
+      "kind" : "network",
+      "message" : "Network error: offline",
+      "updatedAt" : "2026-09-01T09:00:00Z"
+    },
+    "lastName" : "User",
+    "lastRefreshAt" : "2026-09-01T08:00:00Z",
+    "nextEligibleRefreshAt" : "2026-09-01T09:01:00Z",
+    "pod" : "25",
+    "probeBundleID" : "com.example.probe",
+    "storefront" : "143441"
+  }
+]

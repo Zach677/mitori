@@ -1,4 +1,3 @@
-import ApplePackage
 
 enum DeviceIdentifierProvider {
     static func make() -> String {

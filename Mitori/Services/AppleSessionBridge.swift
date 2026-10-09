@@ -1,4 +1,3 @@
-import ApplePackage
 import Foundation
 
 protocol AppleSessionBridging: Sendable {

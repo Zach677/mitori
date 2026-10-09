@@ -8,6 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		AA0000000000000000000017 /* ApplePackage in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000015 /* ApplePackage */; };
+		AA000000000000000000002A /* AsyncHTTPClient in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000026 /* AsyncHTTPClient */; };
+		AA000000000000000000002B /* NIOHTTP1 in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000027 /* NIOHTTP1 */; };
+		AA000000000000000000002C /* NIOSSL in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000028 /* NIOSSL */; };
+		AA000000000000000000002D /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000029 /* Logging */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +61,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA0000000000000000000017 /* ApplePackage in Frameworks */,
+				AA000000000000000000002A /* AsyncHTTPClient in Frameworks */,
+				AA000000000000000000002B /* NIOHTTP1 in Frameworks */,
+				AA000000000000000000002C /* NIOSSL in Frameworks */,
+				AA000000000000000000002D /* Logging in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -109,6 +117,10 @@
 			name = Mitori;
 			packageProductDependencies = (
 				AA0000000000000000000015 /* ApplePackage */,
+				AA0000000000000000000026 /* AsyncHTTPClient */,
+				AA0000000000000000000027 /* NIOHTTP1 */,
+				AA0000000000000000000028 /* NIOSSL */,
+				AA0000000000000000000029 /* Logging */,
 			);
 			productName = Mitori;
 			productReference = AA0000000000000000000006 /* Mitori.app */;
@@ -162,6 +174,10 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				AA0000000000000000000013 /* XCRemoteSwiftPackageReference "ApplePackage" */,
+				AA0000000000000000000022 /* XCRemoteSwiftPackageReference "async-http-client" */,
+				AA0000000000000000000023 /* XCRemoteSwiftPackageReference "swift-nio" */,
+				AA0000000000000000000024 /* XCRemoteSwiftPackageReference "swift-nio-ssl" */,
+				AA0000000000000000000025 /* XCRemoteSwiftPackageReference "swift-log" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = AA0000000000000000000005 /* Products */;
@@ -335,6 +351,7 @@
 				MARKETING_VERSION = 0.2.3;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.zach.mitori;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "Mitori/AppleStore/Mitori-Bridging-Header.h";
 			};
 			name = Debug;
 		};
@@ -359,6 +376,7 @@
 				MARKETING_VERSION = 0.2.3;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.zach.mitori;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "Mitori/AppleStore/Mitori-Bridging-Header.h";
 			};
 			name = Release;
 		};
@@ -427,6 +445,38 @@
 				revision = 3b535f11c83d39a302d4a4091e7eb8fb9106dc6f;
 			};
 		};
+		AA0000000000000000000022 /* XCRemoteSwiftPackageReference "async-http-client" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/swift-server/async-http-client.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.9.0;
+			};
+		};
+		AA0000000000000000000023 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+		AA0000000000000000000024 /* XCRemoteSwiftPackageReference "swift-nio-ssl" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio-ssl.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+		AA0000000000000000000025 /* XCRemoteSwiftPackageReference "swift-log" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-log.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.5.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -434,6 +484,26 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA0000000000000000000013 /* XCRemoteSwiftPackageReference "ApplePackage" */;
 			productName = ApplePackage;
+		};
+		AA0000000000000000000026 /* AsyncHTTPClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000022 /* XCRemoteSwiftPackageReference "async-http-client" */;
+			productName = AsyncHTTPClient;
+		};
+		AA0000000000000000000027 /* NIOHTTP1 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000023 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOHTTP1;
+		};
+		AA0000000000000000000028 /* NIOSSL */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000024 /* XCRemoteSwiftPackageReference "swift-nio-ssl" */;
+			productName = NIOSSL;
+		};
+		AA0000000000000000000029 /* Logging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000025 /* XCRemoteSwiftPackageReference "swift-log" */;
+			productName = Logging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -1,4 +1,3 @@
-import ApplePackage
 import Foundation
 
 struct ProbeAppCandidate: Equatable, Identifiable, Sendable {

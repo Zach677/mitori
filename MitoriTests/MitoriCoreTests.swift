@@ -1,4 +1,3 @@
-import ApplePackage
 import Foundation
 import Security
 import Testing
@@ -616,8 +615,8 @@ private func plist(_ object: [String: Any]) -> Data {
 private final class FixtureBundleToken {}
 
 enum FixtureLoader {
-    static func data(named resourceName: String) throws -> Data {
-        guard let url = Bundle(for: FixtureBundleToken.self).url(forResource: resourceName, withExtension: "plist") else {
+    static func data(named resourceName: String, withExtension fileExtension: String = "plist") throws -> Data {
+        guard let url = Bundle(for: FixtureBundleToken.self).url(forResource: resourceName, withExtension: fileExtension) else {
             throw NSError(domain: "FixtureLoader", code: 404)
         }
         return try Data(contentsOf: url)
