@@ -163,7 +163,7 @@ public enum Authenticator {
             URLQueryItem(name: "guid", value: deviceIdentifier),
         ]
         let url = try comps.url.get()
-        return Bag.normalizedAuthEndpoint(from: url.absoluteString) ?? url
+        return try StoreRedirectPolicy.validated(Bag.normalizedAuthEndpoint(from: url.absoluteString) ?? url)
     }
 
     /// Apple's native auth host 301s `/fast` (no trailing slash) to an HTML page
@@ -173,6 +173,8 @@ public enum Authenticator {
         if let raw = locationHeader?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
             let parsed = URL(string: raw, relativeTo: currentURL)?.absoluteURL ?? URL(string: raw)
             if let parsed {
+                // Rewrite only trusted URLs, so the caller's check still sees a rejected Location.
+                guard (try? StoreRedirectPolicy.validated(parsed)) != nil else { return parsed }
                 return Bag.normalizedAuthEndpoint(from: parsed.absoluteString) ?? parsed
             }
         }

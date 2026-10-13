@@ -77,6 +77,12 @@ public enum Bag {
             return BagOutput(authEndpoint: URL(string: defaultAuthEndpoint)!)
         }
 
+        // The login POST carries credentials, so the advertised URL must pass the
+        // redirect policy before the legacy rewrite can turn it into a trusted one (I-2).
+        if let advertisedURL = URL(string: authURLString) {
+            _ = try StoreRedirectPolicy.validated(advertisedURL)
+        }
+
         APLogger.info("bag: auth endpoint resolved to \(authURL)")
         return BagOutput(authEndpoint: authURL)
     }

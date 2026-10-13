@@ -71,6 +71,50 @@ struct StoreRedirectPolicyTests {
         #expect(requests[2].httpMethod == "POST")
     }
 
+    // The bag picks the first login URL; the credential POST must not go anywhere else.
+    @Test(arguments: [
+        "https://example.invalid/login",
+        "http://auth.itunes.apple.com/fast/",
+        "https://auth.itunes.apple.com:8443/fast/",
+        "https://user@auth.itunes.apple.com/fast/",
+    ], [200, 302])
+    func authenticateRefusesUntrustedBagEndpoint(endpoint: String, status: Int) async throws {
+        let transport = StoreTransportStub([
+            try .plist(["authenticateAccount": endpoint], status: status),
+            try .plist(authSuccessPlist(), headers: storeFrontHeader),
+        ])
+
+        await #expect {
+            try await authenticate(over: transport)
+        } throws: { error in
+            guard case .untrustedRedirect = error as? StoreAuthError else { return false }
+            return true
+        }
+        #expect(transport.requests.count == 1)
+    }
+
+    // The legacy authenticate rewrite must not hide a rejected Location.
+    @Test(arguments: [
+        "http://buy.itunes.apple.com/authenticate",
+        "https://user@buy.itunes.apple.com/authenticate",
+        "https://buy.itunes.apple.com:8443/authenticate",
+    ])
+    func authenticateValidatesLocationBeforeNormalizing(location: String) async throws {
+        let transport = StoreTransportStub([
+            .emptyBag,
+            .redirect(to: location),
+            try .plist(authSuccessPlist(), headers: storeFrontHeader),
+        ])
+
+        await #expect {
+            try await authenticate(over: transport)
+        } throws: { error in
+            guard case .untrustedRedirect = error as? StoreAuthError else { return false }
+            return true
+        }
+        #expect(transport.requests.count == 2)
+    }
+
     @Test
     func probeRefusesUntrustedRedirectWithoutFollowUp() async throws {
         let transport = StoreTransportStub([
