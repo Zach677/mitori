@@ -316,3 +316,16 @@ validation or log redaction. A card does not authorize commit, push, or release.
   that belongs to one account (I-10). The refresh test failed when the
   fixture balance changed. The UI tests need an unlocked screen and Automation
   Mode without authentication.
+- **D-18** (2026-10-13) UI tests cover every screen: the menu panel (list,
+  refresh, refresh all, failure, empty state, More menu, About), Add Account
+  (2FA, wrong code, cancel), account details (info, probe search and save,
+  reauthentication, delete), Settings, and the licenses document. The
+  accessibility identifiers are the contract for a later UI rewrite. Tests do
+  not toggle Open at login (it changes a real login item), open the privacy
+  policy (it opens a browser), or copy values (it overwrites the user's
+  pasteboard); they only check that those controls exist. Each run exports a
+  screen catalog to `.artifacts/ui-screens/`. Writing the tests found that the
+  app had no main menu, so text fields ignored Command-V/C/A/Z and a 2FA code
+  could not be pasted; `d7b9ec5` adds an Edit-only main menu, and the 2FA test
+  failed without it. Settings switches had no accessibility label; they now
+  use the row title. `mise run test-ui-macos` 17 passed.

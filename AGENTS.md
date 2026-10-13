@@ -32,7 +32,8 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
 - Preferred run command: `mise run run-macos`
 - Preferred build command: `mise run build-macos`
 - Preferred test command: `mise run test-macos`
-- UI test command: `mise run test-ui-macos`. It needs an unlocked screen and Automation Mode without authentication (`sudo automationmodetool enable-automationmode-without-authentication`, run once by Zach). Do not move the mouse while it runs.
+- UI test command: `mise run test-ui-macos`. It needs an unlocked screen and Automation Mode without authentication (`sudo automationmodetool enable-automationmode-without-authentication`, run once by Zach). Do not move the mouse while it runs. It exports named screenshots of each screen state to `.artifacts/ui-screens/`.
+- UI tests find controls by accessibility identifier (`menu.*`, `account-row.*`, `add-account.*`, `account-detail.*`, `settings.*`). A UI rewrite keeps these identifiers and the accessibility values the tests read, or updates the tests in the same change.
 - Build and test commands should stay routed through `mise`; they wrap `xcodebuild` against `Mitori.xcodeproj` with the shared `Mitori` scheme.
 - The app bundle is staged under `.app-build/<configuration>/Mitori.app`.
 - If Xcode is needed, open `Mitori.xcodeproj`.
