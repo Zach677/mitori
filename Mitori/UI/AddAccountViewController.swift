@@ -106,6 +106,8 @@ private extension AddAccountViewController {
         emailField.action = #selector(focusPassword)
         passwordField.target = self
         passwordField.action = #selector(submit)
+        emailField.setAccessibilityIdentifier("add-account.email")
+        passwordField.setAccessibilityIdentifier("add-account.password")
         addFullWidth(emailField, to: stack)
         addFullWidth(passwordField, to: stack)
         return stack
@@ -128,6 +130,7 @@ private extension AddAccountViewController {
         configureField(verificationCodeField, placeholder: "Verification Code")
         verificationCodeField.target = self
         verificationCodeField.action = #selector(submit)
+        verificationCodeField.setAccessibilityIdentifier("add-account.code")
         addFullWidth(verificationCodeField, to: twoFactorSection)
         return twoFactorSection
     }
@@ -147,6 +150,8 @@ private extension AddAccountViewController {
         recoveryButton.alignment = .left
         recoveryButton.target = self
         recoveryButton.action = #selector(openRecoveryLink)
+        errorLabel.setAccessibilityIdentifier("add-account.error")
+        recoveryButton.setAccessibilityIdentifier("add-account.recovery")
 
         addFullWidth(errorLabel, to: errorSection)
         errorSection.addArrangedSubview(recoveryButton)
@@ -162,11 +167,13 @@ private extension AddAccountViewController {
 
         let cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancel))
         cancelButton.bezelStyle = .rounded
+        cancelButton.setAccessibilityIdentifier("add-account.cancel")
 
         submitButton.target = self
         submitButton.action = #selector(submit)
         submitButton.bezelStyle = .rounded
         submitButton.keyEquivalent = "\r"
+        submitButton.setAccessibilityIdentifier("add-account.submit")
 
         stack.addArrangedSubview(NSView())
         stack.addArrangedSubview(cancelButton)

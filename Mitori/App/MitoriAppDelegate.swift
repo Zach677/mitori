@@ -7,11 +7,16 @@ final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
     private let uiTestFixture = UITestFixture.fromEnvironment()
     private lazy var settings = uiTestFixture?.settings ?? RefreshSettingsStore()
     private lazy var model = uiTestFixture?.model ?? MitoriModel(settings: settings)
+    private lazy var menuBarController = MenuBarController(
+        model: model,
+        settings: settings,
+        probeAppSearch: uiTestFixture?.probeAppSearch ?? ProbeAppSearchService()
+    )
     #else
     private let settings = RefreshSettingsStore()
     private lazy var model = MitoriModel(settings: settings)
-    #endif
     private lazy var menuBarController = MenuBarController(model: model, settings: settings)
+    #endif
     private lazy var autoRefreshScheduler = AutoRefreshScheduler { [weak self] in
         guard let self else { return }
         await self.model.autoRefreshTick()

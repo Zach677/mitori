@@ -35,7 +35,7 @@ run = "bash scripts/test-macos.sh"
 
 [tasks.test-ui-macos]
 description = "Run the XCUITest suite against the offline UI fixture"
-run = "TEST_TARGET=MitoriUITests bash scripts/test-macos.sh"
+run = "TEST_TARGET=MitoriUITests bash scripts/test-macos.sh || status=$?; bash scripts/export-ui-screens.sh; exit ${status:-0}"
 
 [tasks.test-community]
 description = "Run tests with the ad hoc community build settings"

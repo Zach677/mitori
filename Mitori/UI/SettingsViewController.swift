@@ -76,11 +76,13 @@ private extension SettingsViewController {
         openAtLoginSwitch.target = self
         openAtLoginSwitch.action = #selector(toggleOpenAtLogin)
         openAtLoginSwitch.controlSize = .small
+        openAtLoginSwitch.setAccessibilityIdentifier("settings.open-at-login")
         addFullWidth(settingBlock(title: "Open at login", control: openAtLoginSwitch), to: stack)
 
         hidePersonalInformationSwitch.target = self
         hidePersonalInformationSwitch.action = #selector(togglePersonalInformationVisibility)
         hidePersonalInformationSwitch.controlSize = .small
+        hidePersonalInformationSwitch.setAccessibilityIdentifier("settings.hide-personal-information")
         addFullWidth(settingBlock(
             title: "Hide personal information",
             help: "Hides account names, email addresses, Apple IDs, and device IDs in Mitori.",
@@ -95,6 +97,7 @@ private extension SettingsViewController {
         autoRefreshSwitch.target = self
         autoRefreshSwitch.action = #selector(toggleAutoRefresh)
         autoRefreshSwitch.controlSize = .small
+        autoRefreshSwitch.setAccessibilityIdentifier("settings.auto-refresh")
         addFullWidth(settingBlock(
             title: "Refresh balances automatically",
             help: "Needs a probe app and never sends your password. Accounts without a probe app refresh when you ask.",
@@ -104,6 +107,7 @@ private extension SettingsViewController {
         intervalPopUp.addItems(withTitles: Self.intervalChoices.map(\.title))
         intervalPopUp.target = self
         intervalPopUp.action = #selector(selectInterval)
+        intervalPopUp.setAccessibilityIdentifier("settings.interval")
         intervalPopUp.widthAnchor.constraint(equalToConstant: 142).isActive = true
         let intervalSetting = settingBlock(
             title: "Refresh every",
@@ -122,12 +126,14 @@ private extension SettingsViewController {
             title: "Privacy Policy",
             symbolName: "arrow.up.right.square",
             accessibilityHelp: "Open the Mitori privacy policy in your browser.",
+            identifier: "settings.privacy-policy",
             action: #selector(openPrivacyPolicy)
         ), to: stack)
         addFullWidth(documentRow(
             title: "Open Source Licenses",
             symbolName: "doc.text",
             accessibilityHelp: "View third-party license terms bundled with Mitori.",
+            identifier: "settings.licenses",
             action: #selector(openSourceLicenses)
         ), to: stack)
         return stack
@@ -189,6 +195,7 @@ private extension SettingsViewController {
         title: String,
         symbolName: String,
         accessibilityHelp: String,
+        identifier: String,
         action: Selector
     ) -> NSView {
         let button = NSButton(title: title, target: self, action: action)
@@ -202,6 +209,7 @@ private extension SettingsViewController {
         button.contentTintColor = .labelColor
         button.focusRingType = .default
         button.setAccessibilityHelp(accessibilityHelp)
+        button.setAccessibilityIdentifier(identifier)
         button.heightAnchor.constraint(equalToConstant: 28).isActive = true
         return button
     }

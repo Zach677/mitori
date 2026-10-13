@@ -63,6 +63,7 @@ dist/
 .swiftpm/
 
 ### Local agent state ###
+.artifacts/
 .codex/
 
 ### Repo-local tool cache ###

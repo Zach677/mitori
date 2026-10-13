@@ -59,6 +59,7 @@ final class DocumentViewController: NSViewController {
         scrollView.drawsBackground = false
         scrollView.hasVerticalScroller = true
         scrollView.setAccessibilityLabel(document.title)
+        scrollView.setAccessibilityIdentifier("document.content")
         view = scrollView
     }
 }

@@ -18,7 +18,7 @@ final class AccountDetailViewController: NSViewController {
     private let onClose: @MainActor () -> Void
     private let onProbeSaved: @MainActor (Bool) -> Void
 
-    private var probeLookup = ProbeAppLookupModel()
+    private var probeLookup: ProbeAppLookupModel
     private var isSavingProbe = false
     private var isReauthing = false
     private var isDeleting = false
@@ -41,9 +41,11 @@ final class AccountDetailViewController: NSViewController {
         model: MitoriModel,
         settings: RefreshSettingsStore,
         accountID: String,
+        probeAppSearch: any ProbeAppSearching = ProbeAppSearchService(),
         onClose: @escaping @MainActor () -> Void,
         onProbeSaved: @escaping @MainActor (Bool) -> Void
     ) {
+        probeLookup = ProbeAppLookupModel(searchService: probeAppSearch)
         self.model = model
         self.settings = settings
         self.accountID = accountID
@@ -134,12 +136,14 @@ private extension AccountDetailViewController {
         stack.alignment = .width
         stack.spacing = Metrics.balanceSpacing
         addFullWidth(label("Balance", size: 11, weight: .medium, color: .secondaryLabelColor), to: stack)
-        addFullWidth(label(
+        let balance = label(
             account.balanceDisplayText ?? "Unavailable",
             size: 18,
             weight: .medium,
             monospaced: true
-        ), to: stack)
+        )
+        balance.setAccessibilityIdentifier("account-detail.balance")
+        addFullWidth(balance, to: stack)
         if let lastRefresh = account.lastRefreshAt {
             addFullWidth(label(
                 "Updated \(lastRefresh.formatted(date: .abbreviated, time: .shortened))",
@@ -179,6 +183,7 @@ private extension AccountDetailViewController {
         let stack = section(title: "Background Refresh")
         probeBundleIDField.placeholderString = "Owned app bundle ID (optional)"
         probeBundleIDField.font = .systemFont(ofSize: 13)
+        probeBundleIDField.setAccessibilityIdentifier("account-detail.probe-bundle-id")
         addFullWidth(probeBundleIDField, to: stack)
 
         let searchRow = NSStackView()
@@ -190,9 +195,11 @@ private extension AccountDetailViewController {
         probeSearchField.target = self
         probeSearchField.action = #selector(searchProbeApps)
         probeSearchField.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        probeSearchField.setAccessibilityIdentifier("account-detail.probe-search")
 
         let searchButton = NSButton(title: "Search", target: self, action: #selector(searchProbeApps))
         searchButton.bezelStyle = .rounded
+        searchButton.setAccessibilityIdentifier("account-detail.probe-search-button")
         searchButton.setContentCompressionResistancePriority(.required, for: .horizontal)
         searchButton.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         searchRow.addArrangedSubview(probeSearchField)
@@ -222,12 +229,14 @@ private extension AccountDetailViewController {
         saveProbeButton.target = self
         saveProbeButton.action = #selector(saveProbeBundleID)
         saveProbeButton.bezelStyle = .rounded
+        saveProbeButton.setAccessibilityIdentifier("account-detail.save-probe")
         saveProbeButton.isEnabled = !isSavingProbe && !isReauthing && !isDeleting
         saveProbeButton.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         deleteButton.target = self
         deleteButton.action = #selector(deleteAccount)
         deleteButton.bezelStyle = .rounded
+        deleteButton.setAccessibilityIdentifier("account-detail.delete")
         deleteButton.contentTintColor = NSColor.systemRed.blended(withFraction: 0.25, of: .labelColor)
         deleteButton.isEnabled = !isDeleting && !isSavingProbe && !isReauthing
         deleteButton.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -250,11 +259,13 @@ private extension AccountDetailViewController {
         let stack = section(title: "Re-authentication")
         verificationCodeField.placeholderString = "2FA Code (optional)"
         verificationCodeField.font = .systemFont(ofSize: 13)
+        verificationCodeField.setAccessibilityIdentifier("account-detail.code")
         addFullWidth(verificationCodeField, to: stack)
 
         reauthButton.target = self
         reauthButton.action = #selector(reauthenticate)
         reauthButton.bezelStyle = .rounded
+        reauthButton.setAccessibilityIdentifier("account-detail.reauthenticate")
         reauthButton.isEnabled = !isReauthing && !isSavingProbe && !isDeleting
         addFullWidth(buttonRow(trailing: reauthButton), to: stack)
         return stack
@@ -265,6 +276,7 @@ private extension AccountDetailViewController {
         button.bezelStyle = .inline
         button.alignment = .left
         button.result = result
+        button.setAccessibilityIdentifier("account-detail.probe-result.\(result.bundleID)")
         return button
     }
 
@@ -300,6 +312,7 @@ private extension AccountDetailViewController {
             button.contentTintColor = .labelColor
             button.setAccessibilityLabel(title)
             button.setAccessibilityHelp("Click to copy \(title)")
+            button.setAccessibilityIdentifier("account-detail.copy.\(title)")
             button.setContentHuggingPriority(.defaultLow, for: .horizontal)
             button.cell?.lineBreakMode = .byTruncatingMiddle
 
@@ -411,6 +424,7 @@ private extension AccountDetailViewController {
 
     func configureErrorLabel() {
         errorLabel.font = .systemFont(ofSize: 12)
+        errorLabel.setAccessibilityIdentifier("account-detail.error")
         errorLabel.textColor = NSColor.systemRed.blended(withFraction: 0.25, of: .labelColor)
         errorLabel.lineBreakMode = .byWordWrapping
         errorLabel.maximumNumberOfLines = 4

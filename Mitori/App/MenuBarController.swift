@@ -7,6 +7,7 @@ final class MenuBarController: NSObject {
 
     private let model: MitoriModel
     private let settings: RefreshSettingsStore
+    private let probeAppSearch: any ProbeAppSearching
     private let statusItem: NSStatusItem
     private let popover: NSPopover
     private var modelChangeCancellable: AnyCancellable?
@@ -79,6 +80,7 @@ final class MenuBarController: NSObject {
             model: model,
             settings: settings,
             accountID: accountID,
+            probeAppSearch: probeAppSearch,
             onClose: closeAccountDetailWindow,
             onProbeSaved: { [weak self] changed in
                 self?.probeDidSave(accountID: accountID, probeChanged: changed)
@@ -124,9 +126,14 @@ final class MenuBarController: NSObject {
 
     private lazy var documentWindowPresenter = WindowPresentationCoordinator(window: documentWindowController)
 
-    init(model: MitoriModel, settings: RefreshSettingsStore) {
+    init(
+        model: MitoriModel,
+        settings: RefreshSettingsStore,
+        probeAppSearch: any ProbeAppSearching = ProbeAppSearchService()
+    ) {
         self.model = model
         self.settings = settings
+        self.probeAppSearch = probeAppSearch
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         popover = NSPopover()
 

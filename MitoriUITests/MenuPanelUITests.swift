@@ -1,92 +1,82 @@
 import XCTest
 
-/// Drives the real app against the offline `MITORI_UI_FIXTURE` accounts.
-/// Assertions read accessibility identifiers and values, so each test is a
-/// machine-checked PASS/FAIL; screenshots are kept in the result bundle.
-final class MenuPanelUITests: XCTestCase {
-    private let readyRow = "account-row.ready@example.com"
-    private let expiredRow = "account-row.expired@example.com"
-    private var app: XCUIApplication!
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launchEnvironment["MITORI_UI_FIXTURE"] = "1"
-        app.launch()
-    }
-
-    override func tearDownWithError() throws {
-        attachScreenshot(named: "final-\(name)")
-        // The accessibility tree is the evidence an agent reads when a query misses.
-        let tree = XCTAttachment(string: app.debugDescription)
-        tree.name = "ax-tree-\(name)"
-        tree.lifetime = .keepAlways
-        add(tree)
-        app.terminate()
-    }
-
+final class MenuPanelUITests: MitoriUITestCase {
     func testMenuListsFixtureAccountsWithBalance() throws {
         openMenu()
 
-        let ready = element(readyRow)
-        XCTAssertTrue(ready.waitForExistence(timeout: 5), "ready row missing")
+        let ready = require(readyRow)
         XCTAssertTrue(value(of: ready).contains("12.34"), value(of: ready))
         XCTAssertTrue(element(expiredRow).exists)
+        XCTAssertTrue(value(of: require("menu.summary")).contains("2 accounts"))
+        captureScreen("menu-accounts", containing: readyRow)
     }
 
     func testManualRefreshShowsNewBalance() throws {
         openMenu()
-        let ready = element(readyRow)
-        XCTAssertTrue(ready.waitForExistence(timeout: 5), "ready row missing")
+        let ready = require(readyRow)
 
         element("\(readyRow).refresh").click()
 
         XCTAssertTrue(waitUntil(ready, valueContains: "42.00"), value(of: ready))
-        XCTAssertFalse(element("menu-banner").exists && !value(of: element("menu-banner")).isEmpty)
+        let banner = element("menu-banner")
+        XCTAssertFalse(banner.exists && !value(of: banner).isEmpty, "a success must not show a banner")
     }
 
     func testFailedRefreshShowsOwnedFailureState() throws {
         openMenu()
-        let expired = element(expiredRow)
-        XCTAssertTrue(expired.waitForExistence(timeout: 5), "expired row missing")
+        let expired = require(expiredRow)
+        XCTAssertFalse(value(of: expired).contains("Session expired"))
 
         element("\(expiredRow).refresh").click()
 
         XCTAssertTrue(waitUntil(expired, valueContains: "Session expired"), value(of: expired))
-        let banner = element("menu-banner")
-        XCTAssertTrue(banner.waitForExistence(timeout: 5), "banner missing")
+        let banner = require("menu-banner")
         XCTAssertTrue(value(of: banner).contains("Session expired"), value(of: banner))
         // The other account keeps its balance and shows no failure (I-10).
         XCTAssertFalse(value(of: element(readyRow)).contains("expired"))
+        captureScreen("menu-failure", containing: expiredRow)
     }
 
-    private func openMenu() {
-        let statusItem = element("mitori-status-item")
-        XCTAssertTrue(statusItem.waitForExistence(timeout: 10), "status item did not appear")
-        statusItem.click()
+    func testRefreshAllUpdatesEveryAccount() throws {
+        openMenu()
+        let ready = require(readyRow)
+
+        element("menu.refresh-all").click()
+
+        XCTAssertTrue(waitUntil(ready, valueContains: "42.00"), value(of: ready))
+        XCTAssertTrue(waitUntil(element(expiredRow), valueContains: "Session expired"))
     }
 
-    private func element(_ identifier: String) -> XCUIElement {
-        app.descendants(matching: .any)[identifier].firstMatch
+    func testMoreMenuOpensSettings() throws {
+        openMenu()
+        require("menu.more").click()
+        require("menu.settings").click()
+
+        XCTAssertTrue(require("settings.auto-refresh").exists)
     }
 
-    private func value(of element: XCUIElement) -> String {
-        (element.value as? String) ?? element.label
-    }
+    func testMoreMenuOpensAboutPanel() throws {
+        openMenu()
+        require("menu.more").click()
+        require("menu.about").click()
 
-    private func waitUntil(_ element: XCUIElement, valueContains text: String, timeout: TimeInterval = 5) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if element.exists, value(of: element).contains(text) { return true }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        }
-        return false
+        let version = app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'Version'")).firstMatch
+        XCTAssertTrue(version.waitForExistence(timeout: 5), "About panel did not show a version")
+        captureScreen("about", of: app.windows.containing(NSPredicate(format: "value BEGINSWITH 'Version'")).firstMatch)
     }
+}
 
-    private func attachScreenshot(named name: String) {
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
+final class EmptyMenuUITests: MitoriUITestCase {
+    override var fixture: String { "empty" }
+
+    func testEmptyStateOffersAddAccount() throws {
+        openMenu()
+
+        XCTAssertTrue(require("menu.empty-state").exists)
+        XCTAssertFalse(element("menu.summary").isHittable)
+        captureScreen("menu-empty", containing: "menu.empty-state")
+
+        require("menu.empty-add-account").click()
+        XCTAssertTrue(require("add-account.email").exists)
     }
 }

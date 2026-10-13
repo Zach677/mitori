@@ -134,6 +134,7 @@ private extension MenuPanelViewController {
         refreshButton.target = self
         refreshButton.action = #selector(refreshAll)
         refreshButton.toolTip = "Refresh All"
+        refreshButton.setAccessibilityIdentifier("menu.refresh-all")
 
         let addButton = NSButton()
         addButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "Add Account")
@@ -144,6 +145,7 @@ private extension MenuPanelViewController {
         addButton.target = self
         addButton.action = #selector(addAccount)
         addButton.toolTip = "Add Account"
+        addButton.setAccessibilityIdentifier("menu.add-account")
 
         let moreButton = makeMoreButton()
 
@@ -189,6 +191,7 @@ private extension MenuPanelViewController {
     func makeFooter() -> NSView {
         summaryLabel.font = .systemFont(ofSize: 11)
         summaryLabel.textColor = .secondaryLabelColor
+        summaryLabel.setAccessibilityIdentifier("menu.summary")
         return wrapped(
             summaryLabel,
             horizontal: Metrics.horizontalInset,
@@ -204,6 +207,7 @@ private extension MenuPanelViewController {
         button.imagePosition = .imageOnly
         button.toolTip = "More"
         button.setAccessibilityLabel("More")
+        button.setAccessibilityIdentifier("menu.more")
         (button.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
 
         let menu = NSMenu()
@@ -218,6 +222,7 @@ private extension MenuPanelViewController {
         )
         settingsItem.keyEquivalentModifierMask = .command
         settingsItem.target = self
+        settingsItem.identifier = NSUserInterfaceItemIdentifier("menu.settings")
         menu.addItem(settingsItem)
         menu.addItem(.separator())
 
@@ -227,6 +232,7 @@ private extension MenuPanelViewController {
             keyEquivalent: ""
         )
         aboutItem.target = self
+        aboutItem.identifier = NSUserInterfaceItemIdentifier("menu.about")
         menu.addItem(aboutItem)
         menu.addItem(.separator())
 
@@ -237,6 +243,7 @@ private extension MenuPanelViewController {
         )
         quitItem.keyEquivalentModifierMask = .command
         quitItem.target = self
+        quitItem.identifier = NSUserInterfaceItemIdentifier("menu.quit")
         menu.addItem(quitItem)
 
         button.menu = menu
@@ -302,6 +309,11 @@ private extension MenuPanelViewController {
         let button = NSButton(title: "Add Account", target: self, action: #selector(addAccount))
         button.bezelStyle = .rounded
         button.controlSize = .small
+        button.setAccessibilityIdentifier("menu.empty-add-account")
+        stack.setAccessibilityElement(true)
+        stack.setAccessibilityRole(.group)
+        stack.setAccessibilityLabel("No accounts yet")
+        stack.setAccessibilityIdentifier("menu.empty-state")
 
         [title, subtitle, button].forEach(stack.addArrangedSubview(_:))
         stack.translatesAutoresizingMaskIntoConstraints = false

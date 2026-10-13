@@ -1,23 +1,33 @@
 #if DEBUG
 import Foundation
 
-/// Offline launch fixture for UI tests, enabled by `MITORI_UI_FIXTURE=1`.
-/// It never reads or writes the real account file, Keychain, user defaults, or network.
+/// Offline launch fixture for UI tests. `MITORI_UI_FIXTURE=1` seeds two
+/// accounts; `MITORI_UI_FIXTURE=empty` starts with none. It never reads or
+/// writes the real account file, Keychain, refresh settings, or network.
 @MainActor
 final class UITestFixture {
     nonisolated static let readyEmail = "ready@example.com"
     nonisolated static let expiredEmail = "expired@example.com"
+    /// The only 2FA code the fixture accepts.
+    nonisolated static let validCode = "123456"
 
     let settings: RefreshSettingsStore
     let model: MitoriModel
+    let probeAppSearch: any ProbeAppSearching = FixtureProbeAppSearch()
+    private let seedsAccounts: Bool
     private let accountStore: AccountStore
     private let secretStore: SecretStore
 
     static func fromEnvironment() -> UITestFixture? {
-        ProcessInfo.processInfo.environment["MITORI_UI_FIXTURE"] == "1" ? UITestFixture() : nil
+        switch ProcessInfo.processInfo.environment["MITORI_UI_FIXTURE"] {
+        case "1": UITestFixture(seedsAccounts: true)
+        case "empty": UITestFixture(seedsAccounts: false)
+        default: nil
+        }
     }
 
-    private init() {
+    private init(seedsAccounts: Bool) {
+        self.seedsAccounts = seedsAccounts
         let suiteName = "dev.zach.mitori.uitest"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
@@ -36,6 +46,7 @@ final class UITestFixture {
     }
 
     func seed() async throws {
+        guard seedsAccounts else { return }
         let fetchedAt = Date(timeIntervalSinceNow: -3600)
         var ready = Self.meta(email: Self.readyEmail, firstName: "Ready")
         ready.balanceSnapshot = Self.snapshot("$12.34", amount: "12.34", fetchedAt: fetchedAt)
@@ -46,11 +57,18 @@ final class UITestFixture {
 
         for meta in [ready, expired] {
             try await accountStore.upsert(meta)
-            try await secretStore.save(StoredAccountSecret(password: "fixture", cookies: [], passwordToken: "fixture", directoryServicesIdentifier: "0"), for: meta.id)
+            try await secretStore.save(Self.secret, for: meta.id)
         }
     }
 
-    static func meta(email: String, firstName: String) -> StoredAccountMeta {
+    nonisolated static let secret = StoredAccountSecret(
+        password: "fixture",
+        cookies: [],
+        passwordToken: "fixture",
+        directoryServicesIdentifier: "0"
+    )
+
+    nonisolated static func meta(email: String, firstName: String) -> StoredAccountMeta {
         StoredAccountMeta(
             email: email,
             appleID: email,
@@ -81,25 +99,38 @@ final class UITestFixture {
     }
 }
 
-/// Deterministic bridge: the ready account refreshes to $42.00, the expired one fails.
+/// Deterministic bridge. Login and reauthentication accept only `validCode`;
+/// the ready account refreshes to $42.00 and the expired one always fails.
 private struct FixtureSessionBridge: AppleSessionBridging {
     func login(
-        email _: String,
+        email: String,
         password _: String,
-        code _: String,
+        code: String,
         deviceIdentifier _: String,
         probeBundleID _: String,
         existing _: StoredAccountMeta?
     ) async throws -> SessionRefreshResult {
-        throw MitoriError.twoFactorCodeRequired
+        try await Task.sleep(nanoseconds: 300_000_000)
+        try Self.check(code: code)
+        var meta = UITestFixture.meta(email: email.lowercased(), firstName: "New")
+        meta.probeBundleID = ""
+        meta.balanceSnapshot = UITestFixture.snapshot("$7.50", amount: "7.50", fetchedAt: Date())
+        meta.lastRefreshAt = Date()
+        return SessionRefreshResult(meta: meta, secret: UITestFixture.secret)
     }
 
     func reauthenticate(
-        meta _: StoredAccountMeta,
-        secret _: StoredAccountSecret,
-        code _: String
+        meta: StoredAccountMeta,
+        secret: StoredAccountSecret,
+        code: String
     ) async throws -> SessionRefreshResult {
-        throw MitoriError.invalidTwoFactorCode
+        try await Task.sleep(nanoseconds: 300_000_000)
+        try Self.check(code: code)
+        var updated = meta
+        updated.balanceSnapshot = UITestFixture.snapshot("$5.00", amount: "5.00", fetchedAt: Date())
+        updated.lastRefreshAt = Date()
+        updated.lastIssue = nil
+        return SessionRefreshResult(meta: updated, secret: secret)
     }
 
     func refreshBalance(
@@ -116,6 +147,22 @@ private struct FixtureSessionBridge: AppleSessionBridging {
         updated.lastRefreshAt = Date()
         updated.lastIssue = nil
         return SessionRefreshResult(meta: updated, secret: secret)
+    }
+
+    private static func check(code: String) throws {
+        if code.isEmpty { throw MitoriError.twoFactorCodeRequired }
+        if code != UITestFixture.validCode { throw MitoriError.invalidTwoFactorCode }
+    }
+}
+
+/// Any term returns two fixed apps; the term "none" returns no result.
+private struct FixtureProbeAppSearch: ProbeAppSearching {
+    func searchApps(matching term: String, countryCode _: String, limit _: Int) async throws -> [ProbeAppCandidate] {
+        guard term != "none" else { return [] }
+        return [
+            ProbeAppCandidate(id: 1, bundleID: "com.example.notes", name: "Fixture Notes", sellerName: "Example"),
+            ProbeAppCandidate(id: 2, bundleID: "com.example.reader", name: "Fixture Reader", sellerName: "Example"),
+        ]
     }
 }
 #endif
