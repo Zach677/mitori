@@ -300,8 +300,8 @@ validation or log redaction. A card does not authorize commit, push, or release.
   found in the same run. `mise run test-macos` exit 0 after each
   commit; the B4 tests failed (exit 65) with the validation removed.
   `mise run build-macos` and `mise run run-macos` exit 0, and the app stays
-  running. Acceptance waits for Zach to confirm in the UI that an existing
-  account renders.
+  running. Accepted 2026-10-13: Zach confirmed in the UI that an existing
+  account renders (G5).
 - **D-17** (2026-10-13) Add `MitoriUITests`, an XCUITest target, so agents
   can check menu panel states without a person. Exception to I-11: it uses
   XCTest, because XCUITest has no Swift Testing support; unit tests stay on
