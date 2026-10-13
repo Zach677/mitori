@@ -41,6 +41,18 @@ struct StoreAuthErrorTests {
         }
     }
 
+    @Test
+    func authenticateWithoutStorefrontIsMalformed() async throws {
+        let transport = StoreTransportStub([.emptyBag, try .plist(authSuccessPlist())])
+
+        await #expect {
+            try await authenticate(over: transport)
+        } throws: { error in
+            guard case .malformedResponse = error as? StoreAuthError else { return false }
+            return true
+        }
+    }
+
     @Test(arguments: [
         StoreTransportStub.Response(status: 200),
         StoreTransportStub.Response(status: 200, body: Data("not a plist".utf8)),

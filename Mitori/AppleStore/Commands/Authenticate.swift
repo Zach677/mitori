@@ -381,6 +381,9 @@ public enum Authenticator {
             if let failureMessage { return .failure(failureMessage) }
             throw StoreAuthError.malformedResponse(Strings.missingAddress)
         }
+        guard !storeFront.isEmpty else {
+            throw StoreAuthError.malformedResponse("missing x-set-apple-store-front header")
+        }
         guard Configuration.countryCode(for: storeFront) != nil else {
             throw StoreAuthError.unsupportedStorefront(storeFront)
         }
