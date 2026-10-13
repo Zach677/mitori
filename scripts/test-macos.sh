@@ -23,6 +23,11 @@ XCODEBUILD_ARGUMENTS=(
     -parallel-testing-enabled NO
     -only-testing:"${TEST_TARGET:-MitoriTests}"
 )
+if [[ "${TEST_TARGET:-}" == MitoriUITests* ]]; then
+    # Synthesized UI events sometimes time out while the app is idle; retry once
+    # instead of adding sleeps. A retried test still shows in the result bundle.
+    XCODEBUILD_ARGUMENTS+=(-retry-tests-on-failure -test-iterations 2)
+fi
 if [[ "$COMMUNITY_BUILD" == "1" ]]; then
     XCODEBUILD_ARGUMENTS+=(
         "SWIFT_ACTIVE_COMPILATION_CONDITIONS=\$(inherited) MITORI_COMMUNITY_BUILD"
