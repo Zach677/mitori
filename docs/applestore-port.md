@@ -65,8 +65,9 @@ test runs only with `APPLEPACKAGE_TEST_SAP=1`, as in the source.
 T6a linked `AsyncHTTPClient`, `NIOHTTP1`, `NIOSSL`, and `Logging` to the app
 target explicitly. They were transitive dependencies of ApplePackage; the
 resolved versions in `Package.resolved` do not change. T6b moved all traffic
-to URLSession and unlinked AsyncHTTPClient and NIO. Only `Logging` stays
-linked until T6c.
+to URLSession and unlinked AsyncHTTPClient and NIO. T6c removed the
+ApplePackage and swift-log references: `APLogger` uses `os.Logger`, and the
+app has no Swift package dependency.
 
 ## Changes after the port (T6b)
 

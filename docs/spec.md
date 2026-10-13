@@ -110,10 +110,11 @@ storage errors keep their domain/code mappings; unknown errors stay visible.
 
 ## 5. Architecture: current → target
 
-**Current:** Apple protocol lives in the `Zach677/ApplePackage` fork (branch
-`zach/mitori`), pinned by revision in `Mitori.xcodeproj`. Mitori uses about
-1.8k lines of it: authenticate, bag, lookup, cookies, storefront table,
-configuration, device identifier, app search, and `CommerceKitSigner`.
+**Before T6 (historical):** Apple protocol lived in the `Zach677/ApplePackage`
+fork (branch `zach/mitori`), pinned by revision in `Mitori.xcodeproj`. Mitori
+used about 1.8k lines of it: authenticate, bag, lookup, cookies, storefront
+table, configuration, device identifier, app search, and `CommerceKitSigner`.
+T6a-c reached the target below; the app has no Swift package dependency.
 
 **Target:** the protocol layer lives in `Mitori/AppleStore/` inside the app
 target (synchronized folder reference; no SPM package, per I-11), on one
@@ -329,3 +330,16 @@ validation or log redaction. A card does not authorize commit, push, or release.
   could not be pasted; `d7b9ec5` adds an Edit-only main menu, and the 2FA test
   failed without it. Settings switches had no accessibility label; they now
   use the row title. `mise run test-ui-macos` 17 passed.
+- **D-19** (2026-10-13) T6c removes the ApplePackage and swift-log package
+  references; the app has no Swift package dependency, and `Package.resolved`
+  is gone. `APLogger` uses `os.Logger` with private interpolation (I-8). The
+  ApplePackage and ipatool MIT notices live in
+  `Resources/AdditionalLicenses/ApplePackage/` at the repository root, where
+  `scripts/scan.license.sh` already looked. The card named
+  `Mitori/Resources/AdditionalLicenses/`, but that folder is synchronized
+  into the app bundle, where two `LICENSE` files would collide.
+  `scan.license.sh` passes with zero packages and fails when a required notice
+  is missing. `mise run clean && mise run build-macos` exit 0 and created no
+  `SourcePackages`; `mise run scan-license` exit 0 twice with identical output,
+  and exit 1 with the NOTICE or the LICENSE removed; `mise run test-macos`
+  exit 0.

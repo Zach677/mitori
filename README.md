@@ -88,7 +88,7 @@ To work in Xcode, open `Mitori.xcodeproj`.
 <details>
 <summary>Implementation notes</summary>
 
-- Authentication uses [ApplePackage](https://github.com/Zach677/ApplePackage) for Apple ID login, two-factor authentication, and session management.
+- Apple ID login, two-factor authentication, and session management live in `Mitori/AppleStore/`, ported from [ApplePackage](https://github.com/Zach677/ApplePackage). All Apple Store requests use one URLSession transport that validates every redirect against an Apple host allowlist. Mitori has no third-party Swift package dependencies.
 - Balance lookup sends a `volumeStoreDownloadProduct` request for an app owned by the account, then extracts store credit from Apple's response.
 - A 60-second timer checks whether each account with a probe app is due for refresh. The default interval is one hour, the minimum is 15 minutes, and failed requests back off before retrying.
 - Community releases use ad hoc signing with Hardened Runtime and include both `arm64` and `x86_64` slices. The Intel build is verified but has not been tested on Intel hardware.
@@ -105,11 +105,11 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Acknowledgements
 
-Mitori uses [Zach677/ApplePackage](https://github.com/Zach677/ApplePackage), a fork of [Lakr233/ApplePackage](https://github.com/Lakr233/ApplePackage). Thanks to [Lakr Aream](https://github.com/Lakr233) for the original project and the Apple Store protocol work Mitori builds on.
+Mitori's Apple Store protocol code is ported from [Zach677/ApplePackage](https://github.com/Zach677/ApplePackage), a fork of [Lakr233/ApplePackage](https://github.com/Lakr233/ApplePackage), which adapts [ipatool](https://github.com/majd/ipatool). Thanks to [Lakr Aream](https://github.com/Lakr233) for the original project and the Apple Store protocol work Mitori builds on.
 
 ## License
 
-Mitori is available under the [MIT License](LICENSE). Resolved third-party license terms are bundled with the app and can be regenerated with `mise run scan-license`.
+Mitori is available under the [MIT License](LICENSE). Third-party license terms are bundled with the app and can be regenerated with `mise run scan-license`. Notices for ported code live in `Resources/AdditionalLicenses/`.
 
 ---
 

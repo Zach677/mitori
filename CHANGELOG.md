@@ -8,6 +8,11 @@ All notable changes to Mitori are documented in this file.
 - Refresh accounts without a probe app by signing in silently, and keep probe apps as an optional background-refresh shortcut.
 - Automatic refresh now needs a probe app and never sends your password. Accounts without a probe app refresh when you ask, and an expired session pauses automatic refresh until you refresh manually.
 - Show probe app failures after a manual refresh signs in again, instead of hiding them.
+- Paste, copy, select all, and undo work in text fields again, so a 2FA code or password can be pasted.
+- Sign-in follows a redirect only to an Apple Store host over HTTPS, so your password is never sent elsewhere.
+- Apple server errors keep the normal retry backoff instead of pausing automatic refresh.
+- VoiceOver names each switch and pop-up in Settings.
+- Mitori no longer depends on third-party Swift packages; the Apple Store code it used now ships inside the app.
 
 ## 0.2.3 - 2026-09-02
 

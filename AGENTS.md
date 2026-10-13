@@ -11,7 +11,7 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
 - App resources live in `Mitori/Resources`.
 - Tests live in `MitoriTests/`; UI tests live in `MitoriUITests/`.
 - The app target is `Mitori`; the test targets are `MitoriTests` and `MitoriUITests`.
-- Dependencies: the `ApplePackage` fork (`Zach677/ApplePackage`) is an SPM package reference inside the Xcode project. Credentials use the native Security framework (`SecItem`), not a third-party keychain wrapper.
+- Dependencies: none. The Apple Store protocol code is ported from the `ApplePackage` fork into `Mitori/AppleStore/` (see `docs/applestore-port.md`); its MIT notices live in `Resources/AdditionalLicenses/`. Credentials use the native Security framework (`SecItem`), not a third-party keychain wrapper.
 - The app uses AppKit for UI and Swift Testing (`import Testing`) for tests. `MitoriUITests` uses XCTest, because XCUITest has no Swift Testing support.
 
 ## Spec And Tasks
