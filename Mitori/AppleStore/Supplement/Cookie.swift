@@ -5,7 +5,6 @@
 //  Created by qaq on 9/14/25.
 //
 
-import AsyncHTTPClient
 import Foundation
 
 private let cookieDomainTrimCharacters = CharacterSet(charactersIn: ".")
@@ -39,26 +38,21 @@ public struct Cookie: Sendable, Codable, Equatable, Hashable {
 }
 
 public extension Cookie {
-    init(copyFrom cookie: HTTPClient.Cookie) {
-        let expires: TimeInterval? = if let maxAge = cookie.maxAge {
-            Date().addingTimeInterval(.init(maxAge)).timeIntervalSince1970
-        } else {
-            nil
-        }
+    init(copyFrom cookie: HTTPCookie) {
         self.init(
             name: cookie.name,
             value: cookie.value,
             path: cookie.path,
             domain: cookie.domain,
-            expiresAt: expires,
-            httpOnly: cookie.httpOnly,
-            secure: cookie.secure
+            expiresAt: cookie.expiresDate?.timeIntervalSince1970,
+            httpOnly: cookie.isHTTPOnly,
+            secure: cookie.isSecure
         )
     }
 }
 
 public extension [Cookie] {
-    mutating func mergeCookies(_ cookies: [HTTPClient.Cookie]) {
+    mutating func mergeCookies(_ cookies: [HTTPCookie]) {
         let cookies = cookies.map { Cookie(copyFrom: $0) }
         var dict: [String: Cookie] = [:]
         self.forEach { cookie in dict[cookie.storageKey] = cookie }

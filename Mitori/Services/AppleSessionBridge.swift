@@ -34,6 +34,9 @@ protocol AppleAuthenticating: Sendable {
 }
 
 struct LiveAppleAuthenticator: AppleAuthenticating {
+    var transport: any StoreTransport = URLSessionStoreTransport.shared
+    var signAction: @Sendable (Data) throws -> String = AppleActionSigner.sign
+
     func authenticate(
         email: String,
         password: String,
@@ -46,7 +49,9 @@ struct LiveAppleAuthenticator: AppleAuthenticating {
             password: password,
             code: code,
             cookies: cookies,
-            deviceIdentifier: deviceIdentifier
+            deviceIdentifier: deviceIdentifier,
+            transport: transport,
+            signAction: signAction
         )
     }
 }

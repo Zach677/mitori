@@ -1,4 +1,3 @@
-import AsyncHTTPClient
 import Foundation
 import Testing
 
@@ -30,11 +29,12 @@ struct AppleStoreCookieTests {
     @Test
     func mergeCookiesKeepsSameNameAcrossDomainsAndPaths() throws {
         var cookies: [Cookie] = []
+        let url = try #require(URL(string: "https://buy.itunes.apple.com/"))
         cookies.mergeCookies([
-            try #require(HTTPClient.Cookie(header: "X-Dsid=apple; Domain=.apple.com; Path=/", defaultDomain: "buy.itunes.apple.com")),
-            try #require(HTTPClient.Cookie(header: "X-Dsid=volume; Domain=.volume.itunes.apple.com; Path=/", defaultDomain: "buy.itunes.apple.com")),
-            try #require(HTTPClient.Cookie(header: "X-Dsid=webobjects; Domain=.apple.com; Path=/WebObjects", defaultDomain: "buy.itunes.apple.com")),
-        ])
+            "X-Dsid=apple; Domain=.apple.com; Path=/",
+            "X-Dsid=volume; Domain=.volume.itunes.apple.com; Path=/",
+            "X-Dsid=webobjects; Domain=.apple.com; Path=/WebObjects",
+        ].flatMap { HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": $0], for: url) })
 
         #expect(cookies.count == 3)
         #expect(Set(cookies.map(\.value)) == ["apple", "volume", "webobjects"])

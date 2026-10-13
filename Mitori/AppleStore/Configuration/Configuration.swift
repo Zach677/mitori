@@ -5,9 +5,7 @@
 //  Created by QAQ on 2023/10/4.
 //
 
-import AsyncHTTPClient
 import Foundation
-import NIOSSL
 
 public enum Configuration {
     /**
@@ -30,20 +28,9 @@ public enum Configuration {
 
     public static var userAgent: String = "Configurator/2.17 (Macintosh; OS X 15.2; 24C5089c) AppleWebKit/0620.1.16.11.6"
 
-    public static var tlsConfiguration: TLSConfiguration = {
-        precondition(!deviceIdentifier.isEmpty, "deviceIdentifier must be set")
-        #if DEBUG
-            var conf = TLSConfiguration.makeClientConfiguration()
-            conf.certificateVerification = .none
-            return conf
-        #else
-            return TLSConfiguration.makeClientConfiguration()
-        #endif
-    }()
-
     public static let storeFrontValues: [String: String] = kCountryCodes
-    public static let timeoutConnect: Int64 = 10
-    public static let timeoutRead: Int64 = 30
+    public static let timeoutRead: TimeInterval = 30
+    public static let timeoutResource: TimeInterval = 60
 
     #if os(macOS)
         public static var homePath: URL = FileManager.default

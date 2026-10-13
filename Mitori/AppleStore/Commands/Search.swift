@@ -5,7 +5,6 @@
 //  Created by qaq on 9/14/25.
 //
 
-import AsyncHTTPClient
 import Foundation
 
 public enum Searcher {
@@ -14,29 +13,23 @@ public enum Searcher {
         var results: [Software]
     }
 
-    public static func search(
+    static func search(
         term: String,
         countryCode: String,
         limit: Int = 5,
-        entityType: EntityType = .iPhone
+        entityType: EntityType = .iPhone,
+        transport: any StoreTransport = URLSessionStoreTransport.shared
     ) async throws -> [Software] {
-        let client = Configuration.makeHTTPClient(redirectConfiguration: .follow(max: 8, allowCycles: false))
-        defer { _ = client.shutdown() }
-
         let request = try makeRequest(
             term: term,
             countryCode: countryCode,
             limit: limit,
             entityType: entityType
         )
-        let response = try await client.execute(request: request).get()
+        let (data, response) = try await transport.data(for: request)
 
-        try ensure(response.status == .ok, "search request failed with status \(response.status.code)")
-        guard var body = response.body,
-              let data = body.readData(length: body.readableBytes)
-        else {
-            try ensureFailed("response body is empty")
-        }
+        try ensure(response.statusCode == 200, "search request failed with status \(response.statusCode)")
+        try ensure(!data.isEmpty, "response body is empty")
 
         let decoder = JSONDecoder()
         let searchResponse = try decoder.decode(SearchResponse.self, from: data)
@@ -48,19 +41,17 @@ public enum Searcher {
         countryCode: String,
         limit: Int,
         entityType: EntityType
-    ) throws -> HTTPClient.Request {
+    ) throws -> URLRequest {
         let url = try createSearchURL(
             term: term,
             countryCode: countryCode,
             limit: limit,
             entityType: entityType
         )
-        return try .init(
-            url: url.absoluteString,
-            method: .GET,
-            headers: .init([("User-Agent", Configuration.userAgent)]),
-            body: .none
-        )
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(Configuration.userAgent, forHTTPHeaderField: "User-Agent")
+        return request
     }
 
     private static func createSearchURL(

@@ -5,7 +5,6 @@
 //  Created on 2026/2/20.
 //
 
-import AsyncHTTPClient
 import Foundation
 
 public enum Bag {
@@ -15,11 +14,10 @@ public enum Bag {
 
     private static let defaultAuthEndpoint = "https://auth.itunes.apple.com/auth/v1/native/fast/"
 
-    public static func fetchBag(deviceIdentifier: String = Configuration.deviceIdentifier) async throws -> BagOutput {
-
-        let client = Configuration.makeHTTPClient(redirectConfiguration: .follow(max: 8, allowCycles: false))
-        defer { _ = client.shutdown() }
-
+    static func fetchBag(
+        deviceIdentifier: String = Configuration.deviceIdentifier,
+        transport: any StoreTransport = URLSessionStoreTransport.shared
+    ) async throws -> BagOutput {
         var comps = URLComponents()
         comps.scheme = "https"
         comps.host = "init.itunes.apple.com"
@@ -37,23 +35,21 @@ public enum Bag {
 
         APLogger.logRequest(method: "GET", url: url.absoluteString, headers: headers)
 
-        let request = try HTTPClient.Request(
-            url: url.absoluteString,
-            method: .GET,
-            headers: .init(headers)
-        )
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        for (name, value) in headers {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
 
-        let response = try await client.execute(request: request).get()
+        let (data, response) = try await transport.data(for: request)
 
         APLogger.logResponse(
-            status: response.status.code,
-            headers: response.headers.map { ($0.name, $0.value) },
-            bodySize: response.body?.readableBytes
+            status: UInt(response.statusCode),
+            headers: response.allHeaderFields.map { ("\($0.key)", "\($0.value)") },
+            bodySize: data.count
         )
 
-        guard var body = response.body,
-              let data = body.readData(length: body.readableBytes)
-        else {
+        guard !data.isEmpty else {
             APLogger.debug("bag: empty response body, using default auth endpoint")
             return BagOutput(authEndpoint: URL(string: defaultAuthEndpoint)!)
         }

@@ -5,7 +5,6 @@
 //  Created by qaq on 2025/9/14.
 //
 
-import AsyncHTTPClient
 import Foundation
 
 public enum Lookup {
@@ -14,24 +13,18 @@ public enum Lookup {
         var results: [Software]
     }
 
-    public static func lookup(
+    static func lookup(
         bundleID: String,
         countryCode: String,
-        entityType: EntityType? = nil
+        entityType: EntityType? = nil,
+        transport: any StoreTransport = URLSessionStoreTransport.shared
     ) async throws -> Software {
-        let client = Configuration.makeHTTPClient(redirectConfiguration: .follow(max: 8, allowCycles: false))
-        defer { _ = client.shutdown() }
-
         let request = try makeRequest(bundleID: bundleID, countryCode: countryCode, entityType: entityType)
-        let response = try await client.execute(request: request).get()
+        let (data, response) = try await transport.data(for: request)
 
-        try ensure(response.status == .ok, "lookup request failed with status \(response.status.code)")
+        try ensure(response.statusCode == 200, "lookup request failed with status \(response.statusCode)")
 
-        guard var body = response.body,
-              let data = body.readData(length: body.readableBytes)
-        else {
-            try ensureFailed("response body is empty")
-        }
+        try ensure(!data.isEmpty, "response body is empty")
 
         let decoder = JSONDecoder()
         let lookupResponse = try decoder.decode(LookupResponse.self, from: data)
@@ -45,14 +38,12 @@ public enum Lookup {
         bundleID: String,
         countryCode: String,
         entityType: EntityType?
-    ) throws -> HTTPClient.Request {
+    ) throws -> URLRequest {
         let url = try createLookupURL(bundleID: bundleID, countryCode: countryCode, entityType: entityType)
-        return try .init(
-            url: url.absoluteString,
-            method: .GET,
-            headers: .init([("User-Agent", Configuration.userAgent)]),
-            body: .none
-        )
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(Configuration.userAgent, forHTTPHeaderField: "User-Agent")
+        return request
     }
 
     private static func createLookupURL(

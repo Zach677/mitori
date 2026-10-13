@@ -172,7 +172,8 @@ final class MitoriModel {
             accounts = updatedAccounts
             applyPostRefreshState(for: id, using: result)
         } catch {
-            if !isManualRefresh, isKeychainInteractionNotAllowed(error) {
+            // A cancelled refresh is not a failure; it must not record an issue or start a backoff.
+            if error is CancellationError || (!isManualRefresh && isKeychainInteractionNotAllowed(error)) {
                 if operationIsCurrent(for: id, generation: generation, requireAccount: true) {
                     refreshStates[id] = .idle
                 }

@@ -200,6 +200,33 @@ struct MitoriModelTests {
         #expect(model.bannerMessage == MitoriError.sessionExpired.localizedDescription)
     }
 
+    @Test(arguments: [true, false])
+    func cancelledRefreshReturnsToIdleWithoutIssue(isManualRefresh: Bool) async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let accountStore = AccountStore(baseDirectory: tempDirectory)
+        let secretStore = SecretStore(backend: InMemorySecretBackend())
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+        _ = try await accountStore.upsert(meta)
+        try await secretStore.save(StoredAccountSecret(account: sampleAccount()), for: meta.id)
+        let bridge = SessionBridgeStub()
+        bridge.refreshHandler = { _ in throw CancellationError() }
+        let model = MitoriModel(accountStore: accountStore, secretStore: secretStore, sessionBridge: bridge)
+
+        await model.menuPresented()
+        await model.refreshAccount(id: meta.id, isManualRefresh: isManualRefresh)
+
+        #expect(bridge.refreshCallCount == 1)
+        #expect(model.refreshState(for: meta.id) == .idle)
+        #expect(model.account(with: meta.id)?.lastIssue == nil)
+        #expect(model.account(with: meta.id)?.nextEligibleRefreshAt == nil)
+        #expect(model.bannerMessage == nil)
+    }
+
     @Test
     func completedRefreshDoesNotRestoreDeletedAccount() async throws {
         let context = try await makeSuspendedRefreshContext()

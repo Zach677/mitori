@@ -5,9 +5,7 @@
 //  Created by QAQ on 2023/10/4.
 //
 
-import AsyncHTTPClient
 import Foundation
-import NIOHTTP1
 
 public struct AuthenticationResult: Sendable {
     public var account: Account
@@ -53,17 +51,16 @@ public enum Authenticator {
         ).account
     }
 
-    public static func authenticateWithResponse(
+    static func authenticateWithResponse(
         email: String,
         password: String,
         code: String = "",
         cookies: [Cookie] = [],
-        deviceIdentifier: String = Configuration.deviceIdentifier
+        deviceIdentifier: String = Configuration.deviceIdentifier,
+        transport: any StoreTransport = URLSessionStoreTransport.shared,
+        signAction: (Data) throws -> String = AppleActionSigner.sign
     ) async throws -> AuthenticationResult {
-        let bagOutput = try await Bag.fetchBag(deviceIdentifier: deviceIdentifier)
-
-        let client = Configuration.makeHTTPClient(redirectConfiguration: .disallow)
-        defer { _ = client.shutdown() }
+        let bagOutput = try await Bag.fetchBag(deviceIdentifier: deviceIdentifier, transport: transport)
 
         var requestEndpoint: URL = try createInitialRequestEndpoint(baseURL: bagOutput.authEndpoint, deviceIdentifier: deviceIdentifier)
         var cookies: [Cookie] = cookies
@@ -83,13 +80,15 @@ public enum Authenticator {
                 let request = try makeRequest(
                     endpoint: requestEndpoint,
                     data: requestData,
-                    cookies: cookies
+                    cookies: cookies,
+                    signAction: signAction
                 )
-                let response = try await client.execute(request: request).get()
-                return (response, response.status.code)
+                let response = try await transport.data(for: request)
+                return (response, UInt(response.1.statusCode))
             }
             let result = try parseResponse(
-                response,
+                data: response.0,
+                response: response.1,
                 currentURL: requestEndpoint,
                 email: email,
                 password: password,
@@ -186,15 +185,12 @@ public enum Authenticator {
     /// Cookie-backed reauth often 302s with no Location. Follow Location when we
     /// have one; otherwise parse a plist body or retry once without cookies.
     static func redirectHandling(
-        status: HTTPResponseStatus,
+        status: Int,
         locationHeader: String?,
         currentURL: URL,
         bodyLength: Int
     ) -> RedirectHandling? {
-        let redirectStatuses: [HTTPResponseStatus] = [
-            .movedPermanently, .found, .seeOther, .temporaryRedirect, .permanentRedirect,
-        ]
-        guard redirectStatuses.contains(status) else { return nil }
+        guard [301, 302, 303, 307, 308].contains(status) else { return nil }
         if let url = resolvedRedirectURL(locationHeader: locationHeader, currentURL: currentURL) {
             return .follow(url)
         }
@@ -204,9 +200,9 @@ public enum Authenticator {
         return .retryWithoutCookies
     }
 
-    static func locationCandidate(from headers: HTTPHeaders) -> String? {
+    static func locationCandidate(from response: HTTPURLResponse) -> String? {
         for name in ["location", "x-apple-orig-url"] {
-            if let value = headers.first(name: name)?.trimmingCharacters(in: .whitespacesAndNewlines),
+            if let value = response.value(forHTTPHeaderField: name)?.trimmingCharacters(in: .whitespacesAndNewlines),
                !value.isEmpty
             {
                 return value
@@ -223,7 +219,7 @@ public enum Authenticator {
         cookies: [Cookie],
         deviceIdentifier: String,
         signAction: (Data) throws -> String = AppleActionSigner.sign
-    ) throws -> HTTPClient.Request {
+    ) throws -> URLRequest {
         let data = try makeRequestData(
             email: email,
             password: password,
@@ -263,8 +259,8 @@ public enum Authenticator {
         endpoint: URL,
         data: Data,
         cookies: [Cookie],
-        signAction: (Data) throws -> String = AppleActionSigner.sign
-    ) throws -> HTTPClient.Request {
+        signAction: (Data) throws -> String
+    ) throws -> URLRequest {
         var headers: [(String, String)] = [
             ("User-Agent", Configuration.userAgent),
             ("Content-Type", "application/x-apple-plist"),
@@ -275,16 +271,18 @@ public enum Authenticator {
         let actionSignature = try signAction(data)
         APLogger.logRequest(method: "POST", url: endpoint.absoluteString, headers: headers)
         headers.append(("X-Apple-ActionSignature", actionSignature))
-        return try .init(
-            url: endpoint.absoluteString,
-            method: .POST,
-            headers: .init(headers),
-            body: .data(data)
-        )
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.httpBody = data
+        for (name, value) in headers {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
+        return request
     }
 
     private static func parseResponse(
-        _ response: HTTPClient.Response,
+        data: Data,
+        response: HTTPURLResponse,
         currentURL: URL,
         email: String,
         password: String,
@@ -294,33 +292,30 @@ public enum Authenticator {
         pod: inout String?
     ) throws -> LoginResponse {
         APLogger.logResponse(
-            status: response.status.code,
-            headers: response.headers.map { ($0.name, $0.value) },
-            bodySize: response.body?.readableBytes
+            status: UInt(response.statusCode),
+            headers: response.allHeaderFields.map { ("\($0.key)", "\($0.value)") },
+            bodySize: data.count
         )
 
-        cookies.mergeCookies(response.cookies)
+        cookies.mergeCookies(response.setCookies())
 
-        let readStoreFrontValue = response
-            .headers["x-set-apple-store-front"]
-            .filter { !$0.isEmpty }
-            .compactMap { $0.components(separatedBy: "-").first }
-            .filter { !$0.isEmpty }
-        assert(readStoreFrontValue.count <= 1)
-        if let first = readStoreFrontValue.first {
-            storeFront = first
+        if let storeFrontValue = response.value(forHTTPHeaderField: "x-set-apple-store-front")?
+            .components(separatedBy: "-").first,
+            !storeFrontValue.isEmpty
+        {
+            storeFront = storeFrontValue
         }
 
-        if let podValue = response.headers.first(name: "pod"), !podValue.isEmpty {
+        if let podValue = response.value(forHTTPHeaderField: "pod"), !podValue.isEmpty {
             pod = podValue
             APLogger.info("auth: received pod value: \(podValue)")
         }
 
         if let handling = redirectHandling(
-            status: response.status,
-            locationHeader: locationCandidate(from: response.headers),
+            status: response.statusCode,
+            locationHeader: locationCandidate(from: response),
             currentURL: currentURL,
-            bodyLength: response.body?.readableBytes ?? 0
+            bodyLength: data.count
         ) {
             switch handling {
             case let .follow(url):
@@ -332,10 +327,8 @@ public enum Authenticator {
             }
         }
 
-        guard var body = response.body,
-              let data = body.readData(length: body.readableBytes)
-        else {
-            return .failure("response body is empty (code: \(response.status.code))")
+        guard !data.isEmpty else {
+            return .failure("response body is empty (code: \(response.statusCode))")
         }
 
         let listItem: Any
@@ -347,7 +340,7 @@ public enum Authenticator {
             )
         } catch {
             if redirectHandling(
-                status: response.status,
+                status: response.statusCode,
                 locationHeader: nil,
                 currentURL: currentURL,
                 bodyLength: 0

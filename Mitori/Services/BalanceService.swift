@@ -39,6 +39,11 @@ struct ProbePayloadResult: Sendable {
 
 actor BalanceProbeClient {
     private let maxRedirectCount = 3
+    private let transport: any StoreTransport
+
+    init(transport: any StoreTransport = URLSessionStoreTransport.shared) {
+        self.transport = transport
+    }
 
     func fetchProbePayload(
         account: Account,
@@ -51,25 +56,14 @@ actor BalanceProbeClient {
             throw MitoriError.unsupportedStorefront(account.store)
         }
 
-        let app = try await Lookup.lookup(bundleID: probeBundleID, countryCode: countryCode)
+        let app = try await Lookup.lookup(bundleID: probeBundleID, countryCode: countryCode, transport: transport)
         var url = try makeProbeURL(pod: account.pod, guid: deviceIdentifier)
         let requestBody = try makeRequestBody(deviceIdentifier: deviceIdentifier, adamID: app.id)
-
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        configuration.httpShouldSetCookies = false
-
-        let redirectDelegate = BalanceProbeRedirectDelegate()
-        let session = URLSession(configuration: configuration, delegate: redirectDelegate, delegateQueue: nil)
-        defer { session.finishTasksAndInvalidate() }
 
         var redirectCount = 0
         while true {
             let request = makeRequest(url: url, body: requestBody, account: account)
-            let (data, response) = try await session.data(for: request)
-            guard let response = response as? HTTPURLResponse else {
-                throw MitoriError.unknown("Unexpected response type from Apple.")
-            }
+            let (data, response) = try await transport.data(for: request)
 
             updateAccount(&account, from: response)
 
@@ -214,17 +208,5 @@ actor BalanceProbeClient {
         }
 
         return nil
-    }
-}
-
-private final class BalanceProbeRedirectDelegate: NSObject, URLSessionTaskDelegate {
-    func urlSession(
-        _: URLSession,
-        task _: URLSessionTask,
-        willPerformHTTPRedirection _: HTTPURLResponse,
-        newRequest _: URLRequest,
-        completionHandler: @escaping @Sendable (URLRequest?) -> Void
-    ) {
-        completionHandler(nil)
     }
 }

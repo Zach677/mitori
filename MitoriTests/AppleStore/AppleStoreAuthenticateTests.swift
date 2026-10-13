@@ -31,7 +31,7 @@ struct AppleStoreAuthenticateTests {
         #expect(propertyList["appleId"] == "test@example.com")
         #expect(propertyList["password"] == "password123456")
         #expect(propertyList["guid"] == "ABCDEF123456")
-        #expect(request.headers.first(name: "X-Apple-ActionSignature") == "dGVzdC1zaWduYXR1cmU=")
+        #expect(request.value(forHTTPHeaderField: "X-Apple-ActionSignature") == "dGVzdC1zaWduYXR1cmU=")
     }
 
     @Test
@@ -103,7 +103,7 @@ struct AppleStoreAuthenticateTests {
         let current = URL(string: "https://auth.itunes.apple.com/auth/v1/native/fast/?guid=ABCDEF123456")!
         #expect(
             Authenticator.redirectHandling(
-                status: .found,
+                status: 302,
                 locationHeader: nil,
                 currentURL: current,
                 bodyLength: 0
@@ -111,7 +111,7 @@ struct AppleStoreAuthenticateTests {
         )
         #expect(
             Authenticator.redirectHandling(
-                status: .found,
+                status: 302,
                 locationHeader: nil,
                 currentURL: current,
                 bodyLength: 162
