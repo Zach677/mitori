@@ -62,7 +62,17 @@ test runs only with `APPLEPACKAGE_TEST_SAP=1`, as in the source.
 
 ## Package products
 
-The app target links `AsyncHTTPClient`, `NIOHTTP1`, `NIOSSL`, and `Logging`
-explicitly. They were transitive dependencies of ApplePackage; the resolved
-versions in `Package.resolved` do not change. T6b removes AsyncHTTPClient and
-NIO.
+T6a linked `AsyncHTTPClient`, `NIOHTTP1`, `NIOSSL`, and `Logging` to the app
+target explicitly. They were transitive dependencies of ApplePackage; the
+resolved versions in `Package.resolved` do not change. T6b moved all traffic
+to URLSession and unlinked AsyncHTTPClient and NIO. Only `Logging` stays
+linked until T6c.
+
+## Changes after the port (T6b)
+
+- `Configuration+HTTPClient.swift` and `Then.swift` are removed.
+  `Mitori/AppleStore/Transport/StoreTransport.swift` replaces them.
+- `Errors.swift` (`ApplePackageError`) is removed.
+  `Mitori/AppleStore/Errors/StoreAuthError.swift` holds the typed errors.
+- `Mitori/AppleStore/Transport/StoreRedirectPolicy.swift` is the one redirect
+  validator for authenticate and the probe.

@@ -141,7 +141,7 @@ if a real bug needs it.
 | B1 | P0 | `¥1,000` parsed as 1 (comma-only amounts read as decimals) | T1 | fixed @c011c00 |
 | B2 | P0 | Empty auth `creditDisplay` fabricates a `$0.00` snapshot | T2 | fixed @d32a0b0 |
 | B3 | P1 | Probe `sessionExpired` after reauth is swallowed; background refresh becomes login + 2 probes forever | T3 | fixed @2908d9d |
-| B4 | P1 | Authenticate follows a redirect `Location` with no scheme/host validation on a credential-bearing POST | T6b | open |
+| B4 | P1 | Authenticate follows a redirect `Location` with no scheme/host validation on a credential-bearing POST | T6b | fixed @c481531 |
 | B5 | P2 | Any account's success clears another account's error banner | T4 | fixed @930a763 |
 | B6 | P2 | Re-adding an existing email wipes its snapshot/history | T4 | fixed @6b5498a |
 | B7 | P3 | `recordFailure` mutates `accounts[index]` before the generation check | T4 | fixed @33dfdc2 |
@@ -277,3 +277,18 @@ validation or log redaction. A card does not authorize commit, push, or release.
   accounts and secrets decode the same (`StoredAccountCompatibilityTests`).
   G5: Zach confirmed an existing account renders. The ApplePackage product
   stays linked until T6c.
+- **D-16** (2026-10-13) T6b landed at `b118274` (transport), `c481531`
+  (redirect allowlist, B4), and `ddf8a63` (typed errors). All store traffic
+  goes through `StoreTransport`, an ephemeral URLSession that refuses
+  redirects and stores no cookies. AsyncHTTPClient, NIOHTTP1, and NIOSSL are
+  unlinked from the app target; `Logging` stays until T6c. Bag, lookup, and
+  search no longer follow redirects either; per I-7 no follow rule is added
+  without evidence. The NIO DEBUG build skipped TLS certificate checks;
+  URLSession always verifies them. A cancelled refresh returns to idle and
+  records no issue. Unknown probe `customerMessage` text stays visible as
+  `MitoriError.unknown`, and a non-2xx probe status stays a network error, so
+  5xx keeps the network backoff. `mise run test-macos` exit 0 after each
+  commit; the B4 tests failed (exit 65) with the validation removed.
+  `mise run build-macos` and `mise run run-macos` exit 0, and the app stays
+  running. Acceptance waits for Zach to confirm in the UI that an existing
+  account renders.
