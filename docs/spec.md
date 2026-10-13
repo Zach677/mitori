@@ -141,7 +141,7 @@ if a real bug needs it.
 | B1 | P0 | `¥1,000` parsed as 1 (comma-only amounts read as decimals) | T1 | fixed @c011c00 |
 | B2 | P0 | Empty auth `creditDisplay` fabricates a `$0.00` snapshot | T2 | fixed @d32a0b0 |
 | B3 | P1 | Probe `sessionExpired` after reauth is swallowed; background refresh becomes login + 2 probes forever | T3 | fixed @2908d9d |
-| B4 | P1 | Authenticate follows a redirect `Location` with no scheme/host validation on a credential-bearing POST | T6b | fixed @c481531 |
+| B4 | P1 | Authenticate follows a redirect `Location` with no scheme/host validation on a credential-bearing POST | T6b | fixed @c481531, @d91468c |
 | B5 | P2 | Any account's success clears another account's error banner | T4 | fixed @930a763 |
 | B6 | P2 | Re-adding an existing email wipes its snapshot/history | T4 | fixed @6b5498a |
 | B7 | P3 | `recordFailure` mutates `accounts[index]` before the generation check | T4 | fixed @33dfdc2 |
@@ -149,6 +149,7 @@ if a real bug needs it.
 | B9 | P1 | Automatic refresh sends password logins for no-probe accounts and after probe expiry | T3 | fixed @2908d9d |
 | B10 | P1 | Add account with a 2FA code fails: `authentication failed: response body is empty (code: 204)` | T5 | open |
 | B11 | P3 | `recordFailure` upserts the meta from the start of the refresh; a probe edit between the generation check and the repository lock can be overwritten on disk | - | open |
+| B12 | P3 | `Cookie` has no host-only flag: a cookie set without `Domain` is sent to subdomains of its host. The redirect allowlist limits the reachable hosts | - | open |
 
 Update the Status column (open / in-progress / fixed @commit) as tasks land.
 
@@ -286,8 +287,17 @@ validation or log redaction. A card does not authorize commit, push, or release.
   without evidence. The NIO DEBUG build skipped TLS certificate checks;
   URLSession always verifies them. A cancelled refresh returns to idle and
   records no issue. Unknown probe `customerMessage` text stays visible as
-  `MitoriError.unknown`, and a non-2xx probe status stays a network error, so
-  5xx keeps the network backoff. `mise run test-macos` exit 0 after each
+  `MitoriError.unknown`. A server failure keeps the network backoff: a probe
+  non-2xx is a network error even with a `customerMessage`, and a lookup or
+  search non-200 is a typed transport error (`44ed599`). A probe 3xx without
+  `Location` or a pod with an invalid host is now a malformed response, so
+  automatic refresh pauses until a user action instead of retrying. This is
+  deliberate: it is the B8 shape, and T5 must see it live before any retry
+  rule (I-7). An independent verifier run found that the bag-provided login
+  URL skipped the redirect policy and that the legacy authenticate rewrite
+  hid a rejected `Location`; `d91468c` validates both before the login POST.
+  A missing storefront header is a malformed response (`fa8d21d`). B12 was
+  found in the same run. `mise run test-macos` exit 0 after each
   commit; the B4 tests failed (exit 65) with the validation removed.
   `mise run build-macos` and `mise run run-macos` exit 0, and the app stays
   running. Acceptance waits for Zach to confirm in the UI that an existing
