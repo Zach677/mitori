@@ -161,7 +161,7 @@ Update the Status column (open / in-progress / fixed @commit) as tasks land.
 | G2 Build | `mise run build-macos` exits 0 | Project, dependency, resource, or bridging-header changes |
 | G3 Live | Supervised: login, manual refresh, second manual refresh (no-probe), and one owned-probe refresh each make a real request and return new balance data | T5; every release |
 | G4 Docs | Re-read changed docs; `git diff --check` passes | Document changes |
-| G5 Runtime | `mise run run-macos`; confirm the changed UI/state, including the failure state | Cards that change visible state |
+| G5 Runtime | `mise run run-macos`; confirm the changed UI/state, including the failure state. `mise run test-ui-macos` covers the menu panel states it asserts | Cards that change visible state |
 | G6 Community | `mise run test-community`, `mise run package-community`, `bash scripts/smoke-community-dmg.sh <dmg-path>` exit 0 | Every release |
 
 G3 is supervised by Zach. Agents never start real credential entry or live
@@ -302,3 +302,17 @@ validation or log redaction. A card does not authorize commit, push, or release.
   `mise run build-macos` and `mise run run-macos` exit 0, and the app stays
   running. Acceptance waits for Zach to confirm in the UI that an existing
   account renders.
+- **D-17** (2026-10-13) Add `MitoriUITests`, an XCUITest target, so agents
+  can check menu panel states without a person. Exception to I-11: it uses
+  XCTest, because XCUITest has no Swift Testing support; unit tests stay on
+  Swift Testing. A DEBUG-only launch fixture (`MITORI_UI_FIXTURE=1`) runs the
+  app on a temporary account file, an in-memory secret store, a separate
+  defaults suite, and an offline session bridge, so UI tests never touch real
+  accounts, the Keychain, or the network (I-6, I-8). Tests assert
+  accessibility identifiers and values, and keep a screenshot and the
+  accessibility tree in the result bundle. `mise run test-macos` now runs
+  only `MitoriTests`; `mise run test-ui-macos` runs the UI tests. Three tests
+  cover the account list, a manual refresh with a new balance, and a failure
+  that belongs to one account (I-10). The refresh test failed when the
+  fixture balance changed. The UI tests need an unlocked screen and Automation
+  Mode without authentication.

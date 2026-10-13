@@ -39,6 +39,16 @@
                ReferencedContainer = "container:Mitori.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "AA0000000000000000000030"
+               BuildableName = "MitoriUITests.xctest"
+               BlueprintName = "MitoriUITests"
+               ReferencedContainer = "container:Mitori.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

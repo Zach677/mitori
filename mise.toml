@@ -33,6 +33,10 @@ run = [{ task = "test-macos" }]
 description = "Run tests with xcodebuild"
 run = "bash scripts/test-macos.sh"
 
+[tasks.test-ui-macos]
+description = "Run the XCUITest suite against the offline UI fixture"
+run = "TEST_TARGET=MitoriUITests bash scripts/test-macos.sh"
+
 [tasks.test-community]
 description = "Run tests with the ad hoc community build settings"
 run = "COMMUNITY_BUILD=1 bash scripts/test-macos.sh"

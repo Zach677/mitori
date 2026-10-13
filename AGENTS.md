@@ -9,10 +9,10 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
 - The project uses synchronized folder references, so files added on disk join the right target automatically; no project regeneration is ever needed.
 - App source lives in `Mitori/` (`App`, `UI`, `Services`, `Domain`).
 - App resources live in `Mitori/Resources`.
-- Tests live in `MitoriTests/`.
-- The app target is `Mitori`; the test target is `MitoriTests`.
+- Tests live in `MitoriTests/`; UI tests live in `MitoriUITests/`.
+- The app target is `Mitori`; the test targets are `MitoriTests` and `MitoriUITests`.
 - Dependencies: the `ApplePackage` fork (`Zach677/ApplePackage`) is an SPM package reference inside the Xcode project. Credentials use the native Security framework (`SecItem`), not a third-party keychain wrapper.
-- The app uses AppKit for UI and Swift Testing (`import Testing`) for tests.
+- The app uses AppKit for UI and Swift Testing (`import Testing`) for tests. `MitoriUITests` uses XCTest, because XCUITest has no Swift Testing support.
 
 ## Spec And Tasks
 
@@ -32,6 +32,7 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
 - Preferred run command: `mise run run-macos`
 - Preferred build command: `mise run build-macos`
 - Preferred test command: `mise run test-macos`
+- UI test command: `mise run test-ui-macos`. It needs an unlocked screen and Automation Mode without authentication (`sudo automationmodetool enable-automationmode-without-authentication`, run once by Zach). Do not move the mouse while it runs.
 - Build and test commands should stay routed through `mise`; they wrap `xcodebuild` against `Mitori.xcodeproj` with the shared `Mitori` scheme.
 - The app bundle is staged under `.app-build/<configuration>/Mitori.app`.
 - If Xcode is needed, open `Mitori.xcodeproj`.

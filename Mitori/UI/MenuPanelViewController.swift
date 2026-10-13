@@ -101,6 +101,7 @@ private extension MenuPanelViewController {
         bannerLabel.textColor = .secondaryLabelColor
         bannerLabel.lineBreakMode = .byWordWrapping
         bannerLabel.maximumNumberOfLines = 2
+        bannerLabel.setAccessibilityIdentifier("menu-banner")
         bannerLabel.translatesAutoresizingMaskIntoConstraints = false
         contentStack.addArrangedSubview(wrapped(
             bannerLabel,

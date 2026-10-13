@@ -21,6 +21,7 @@ XCODEBUILD_ARGUMENTS=(
     -destination "platform=macOS"
     -derivedDataPath "$DERIVED_DATA_PATH"
     -parallel-testing-enabled NO
+    -only-testing:"${TEST_TARGET:-MitoriTests}"
 )
 if [[ "$COMMUNITY_BUILD" == "1" ]]; then
     XCODEBUILD_ARGUMENTS+=(

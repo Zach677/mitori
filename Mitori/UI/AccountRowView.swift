@@ -86,7 +86,9 @@ final class AccountRowView: NSView {
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
         setAccessibilityLabel("Open \(presentation.name)")
+        setAccessibilityValue([account.balanceDisplayText ?? "No balance", hint].compactMap { $0 }.joined(separator: ", "))
         setAccessibilityHelp("Open account details")
+        setAccessibilityIdentifier("account-row.\(account.id)")
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -264,6 +266,7 @@ final class AccountRowView: NSView {
             accessibilityDescription: "Refresh"
         )
         button.toolTip = "Refresh"
+        button.setAccessibilityIdentifier("account-row.\(account.id).refresh")
         button.target = self
         button.action = action
         actionButton = button
@@ -280,6 +283,7 @@ final class AccountRowView: NSView {
         progress.controlSize = .small
         progress.isIndeterminate = true
         progress.setAccessibilityLabel("Refreshing balance")
+        progress.setAccessibilityIdentifier("account-row.\(account.id).progress")
         progress.translatesAutoresizingMaskIntoConstraints = false
         wrapper.addSubview(progress)
         NSLayoutConstraint.activate([

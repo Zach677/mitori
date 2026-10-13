@@ -3,8 +3,14 @@ import Foundation
 
 @MainActor
 final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
+    #if DEBUG
+    private let uiTestFixture = UITestFixture.fromEnvironment()
+    private lazy var settings = uiTestFixture?.settings ?? RefreshSettingsStore()
+    private lazy var model = uiTestFixture?.model ?? MitoriModel(settings: settings)
+    #else
     private let settings = RefreshSettingsStore()
     private lazy var model = MitoriModel(settings: settings)
+    #endif
     private lazy var menuBarController = MenuBarController(model: model, settings: settings)
     private lazy var autoRefreshScheduler = AutoRefreshScheduler { [weak self] in
         guard let self else { return }
@@ -13,6 +19,15 @@ final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        #if DEBUG
+        if let uiTestFixture {
+            Task { @MainActor in
+                try? await uiTestFixture.seed()
+                _ = menuBarController
+            }
+            return
+        }
+        #endif
         _ = menuBarController
         autoRefreshScheduler.start()
         #if DEBUG

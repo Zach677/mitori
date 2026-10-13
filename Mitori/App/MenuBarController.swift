@@ -153,6 +153,7 @@ final class MenuBarController: NSObject {
         }
 
         button.toolTip = "Mitori"
+        button.setAccessibilityIdentifier("mitori-status-item")
         button.target = self
         button.action = #selector(handleStatusItemClick(_:))
         button.sendAction(on: [.leftMouseUp])
