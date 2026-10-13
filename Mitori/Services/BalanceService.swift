@@ -80,7 +80,7 @@ actor BalanceProbeClient {
                 continue
             }
 
-            if let knownFailure = parseKnownFailure(from: data) {
+            if let knownFailure = parseKnownFailure(from: data, statusCode: response.statusCode) {
                 throw knownFailure
             }
 
@@ -155,7 +155,7 @@ actor BalanceProbeClient {
         }
     }
 
-    private func parseKnownFailure(from data: Data) -> Error? {
+    private func parseKnownFailure(from data: Data, statusCode: Int) -> Error? {
         guard let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
               let dictionary = plist as? [String: Any]
         else {
@@ -175,7 +175,8 @@ actor BalanceProbeClient {
         }
 
         // Unknown failures stay visible, but their text never selects a state (I-3).
-        if let customerMessage, !customerMessage.isEmpty {
+        // A server error keeps its network backoff even when it carries a message (§3).
+        if (200 ..< 300).contains(statusCode), let customerMessage, !customerMessage.isEmpty {
             return MitoriError.unknown(customerMessage)
         }
 

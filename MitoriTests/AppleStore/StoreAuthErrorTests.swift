@@ -124,6 +124,56 @@ struct StoreAuthErrorTests {
         #expect(transport.requests.isEmpty)
     }
 
+    // A server failure is transient: automatic refresh keeps the network backoff (§3).
+    @Test(arguments: [500, 503])
+    func probeServerFailureWithMessageIsANetworkIssue(status: Int) async throws {
+        let transport = StoreTransportStub([
+            .lookup(adamID: 42, bundleID: "com.example.probe"),
+            try .plist(["customerMessage": "Service unavailable"], status: status),
+        ])
+
+        await #expect {
+            try await refreshProbe(over: transport)
+        } throws: { error in
+            MitoriError.map(error).issueKind == .network
+        }
+    }
+
+    @Test
+    func probeKnownFailureWinsOverServerStatus() async throws {
+        let transport = StoreTransportStub([
+            .lookup(adamID: 42, bundleID: "com.example.probe"),
+            try .plist(["failureType": "2034"], status: 500),
+        ])
+
+        await #expect(throws: StoreAuthError.sessionExpired) {
+            try await refreshProbe(over: transport)
+        }
+    }
+
+    @Test
+    func lookupServerFailureIsANetworkIssue() async throws {
+        let transport = StoreTransportStub([.init(status: 503)])
+
+        await #expect {
+            try await refreshProbe(over: transport)
+        } throws: { error in
+            MitoriError.map(error).issueKind == .network
+        }
+        #expect(transport.requests.count == 1)
+    }
+
+    @Test
+    func searchServerFailureIsANetworkIssue() async throws {
+        let transport = StoreTransportStub([.init(status: 503)])
+
+        await #expect {
+            try await Searcher.search(term: "probe", countryCode: "US", transport: transport)
+        } throws: { error in
+            MitoriError.map(error).issueKind == .network
+        }
+    }
+
     @Test
     func liveTransportWrapsConnectionFailures() async throws {
         // Nothing listens on port 1, so this fails fast without leaving the machine.

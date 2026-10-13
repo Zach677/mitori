@@ -28,7 +28,12 @@ public enum Searcher {
         )
         let (data, response) = try await transport.data(for: request)
 
-        try ensure(response.statusCode == 200, "search request failed with status \(response.statusCode)")
+        guard response.statusCode == 200 else {
+            throw StoreAuthError.transport(URLError(
+                .badServerResponse,
+                userInfo: [NSLocalizedDescriptionKey: "search request failed with status \(response.statusCode)"]
+            ))
+        }
         try ensure(!data.isEmpty, "response body is empty")
 
         let decoder = JSONDecoder()

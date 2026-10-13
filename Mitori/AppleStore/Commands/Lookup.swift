@@ -22,7 +22,12 @@ public enum Lookup {
         let request = try makeRequest(bundleID: bundleID, countryCode: countryCode, entityType: entityType)
         let (data, response) = try await transport.data(for: request)
 
-        try ensure(response.statusCode == 200, "lookup request failed with status \(response.statusCode)")
+        guard response.statusCode == 200 else {
+            throw StoreAuthError.transport(URLError(
+                .badServerResponse,
+                userInfo: [NSLocalizedDescriptionKey: "lookup request failed with status \(response.statusCode)"]
+            ))
+        }
 
         try ensure(!data.isEmpty, "response body is empty")
 
