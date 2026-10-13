@@ -175,6 +175,8 @@ private extension SettingsViewController {
 
         let label = NSTextField(labelWithString: title)
         label.font = .systemFont(ofSize: 13)
+        // Switches and pop-ups have no title of their own; VoiceOver reads the row title.
+        control.setAccessibilityLabel(title)
 
         row.addArrangedSubview(label)
         row.addArrangedSubview(NSView())
