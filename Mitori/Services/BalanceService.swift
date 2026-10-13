@@ -53,7 +53,7 @@ actor BalanceProbeClient {
         var account = account
 
         guard let countryCode = Configuration.countryCode(for: account.store) else {
-            throw MitoriError.unsupportedStorefront(account.store)
+            throw StoreAuthError.unsupportedStorefront(account.store)
         }
 
         let app = try await Lookup.lookup(bundleID: probeBundleID, countryCode: countryCode, transport: transport)
@@ -69,11 +69,11 @@ actor BalanceProbeClient {
 
             if isRedirect(response.statusCode) {
                 guard redirectCount < maxRedirectCount else {
-                    throw MitoriError.network("Apple returned too many redirects.")
+                    throw StoreAuthError.redirectExhausted(status: response.statusCode)
                 }
                 guard let location = response.value(forHTTPHeaderField: "Location"),
                       !location.isEmpty else {
-                    throw MitoriError.network("Apple returned a redirect without a Location header.")
+                    throw StoreAuthError.malformedResponse("redirect without a Location header (HTTP \(response.statusCode))")
                 }
                 url = try StoreRedirectPolicy.validatedURL(location: location, relativeTo: url)
                 redirectCount += 1
@@ -102,7 +102,7 @@ actor BalanceProbeClient {
             throw MitoriError.unknown("Failed to build Apple balance probe URL.")
         }
         guard StoreRedirectPolicy.isTrustedHost(url.host) else {
-            throw MitoriError.network("Apple returned an invalid store host.")
+            throw StoreAuthError.malformedResponse("invalid store host from pod \(pod ?? "nil")")
         }
         return url
     }
@@ -155,7 +155,7 @@ actor BalanceProbeClient {
         }
     }
 
-    private func parseKnownFailure(from data: Data) -> MitoriError? {
+    private func parseKnownFailure(from data: Data) -> Error? {
         guard let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
               let dictionary = plist as? [String: Any]
         else {
@@ -167,19 +167,16 @@ actor BalanceProbeClient {
 
         switch failureType {
         case "2034", "2042":
-            return .sessionExpired
+            return StoreAuthError.sessionExpired
         case "9610":
-            return .probeAppNotOwned
+            return StoreAuthError.probeAppNotOwned
         default:
             break
         }
 
-        if customerMessage == "Your password has changed." {
-            return .sessionExpired
-        }
-
+        // Unknown failures stay visible, but their text never selects a state (I-3).
         if let customerMessage, !customerMessage.isEmpty {
-            return .unknown(customerMessage)
+            return MitoriError.unknown(customerMessage)
         }
 
         return nil

@@ -82,6 +82,23 @@ struct StoreTransportTests {
         #expect(transport.requests.isEmpty)
     }
 
+    @Test(arguments: [true, false])
+    func cancelledBridgeRefreshStaysCancellation(allowsReauthentication: Bool) async throws {
+        let transport = StoreTransportStub([])
+        let bridge = liveBridge(over: transport)
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await bridge.refreshBalance(
+                meta: probeMeta(),
+                secret: StoredAccountSecret(account: sampleAccount()),
+                allowsReauthentication: allowsReauthentication
+            )
+        }
+
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(transport.requests.isEmpty)
+    }
+
     // T3 policy through the real stack: automatic refresh never sends a password (I-6).
     @Test
     func automaticProbeExpiryMakesNoAuthenticationRequest() async throws {

@@ -24,11 +24,7 @@ struct AddAccountFlowModelTests {
         flow.email = "demo@example.com"
         flow.password = "secret"
 
-        flow.handleFailure(NSError(
-            domain: "Test",
-            code: 1,
-            userInfo: [NSLocalizedDescriptionKey: "Authentication requires verification code"]
-        ))
+        flow.handleFailure(StoreAuthError.codeRequired)
 
         #expect(flow.requiresVerificationCode == true)
         #expect(flow.canSubmit == false)
@@ -44,11 +40,7 @@ struct AddAccountFlowModelTests {
         flow.email = "demo@example.com"
         flow.password = "secret"
 
-        flow.handleFailure(NSError(
-            domain: "Test",
-            code: 2,
-            userInfo: [NSLocalizedDescriptionKey: "Invalid or expired 2FA code"]
-        ))
+        flow.handleFailure(StoreAuthError.invalid2FACode)
 
         #expect(flow.requiresVerificationCode == true)
         #expect(flow.errorMessage == MitoriError.invalidTwoFactorCode.localizedDescription)

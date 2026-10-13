@@ -311,21 +311,34 @@ struct AccountPresentationTests {
 }
 
 struct MitoriErrorTests {
-    @Test
-    func mapsVerificationAndSessionErrors() {
-        let verificationError = NSError(
-            domain: "Test",
-            code: 1,
-            userInfo: [NSLocalizedDescriptionKey: "Authentication requires verification code"]
-        )
-        let expiredError = NSError(
-            domain: "Test",
-            code: 2,
-            userInfo: [NSLocalizedDescriptionKey: "password token is expired"]
-        )
+    @Test(arguments: [
+        (StoreAuthError.codeRequired, MitoriError.twoFactorCodeRequired),
+        (.invalid2FACode, .invalidTwoFactorCode),
+        (.sessionExpired, .sessionExpired),
+        (.probeAppNotOwned, .probeAppNotOwned),
+        (.unsupportedStorefront("999999"), .unsupportedStorefront("999999")),
+        (.badLogin(message: "Wrong password"), .unknown("Authentication failed: Wrong password")),
+        (.transport(URLError(.timedOut)), .network(URLError(.timedOut).localizedDescription)),
+        (.redirectExhausted(status: 302), .network("Apple returned too many redirects (HTTP 302).")),
+        (.untrustedRedirect(host: "example.com"), .network("Apple returned an untrusted redirect URL.")),
+        (.malformedResponse("missing accountInfo"), .unknown("Apple returned an unexpected response: missing accountInfo")),
+    ])
+    func mapsTypedStoreErrors(error: StoreAuthError, expected: MitoriError) {
+        #expect(MitoriError.map(error) == expected)
+    }
 
-        #expect(MitoriError.map(verificationError) == .twoFactorCodeRequired)
-        #expect(MitoriError.map(expiredError) == .sessionExpired)
+    @Test(arguments: [
+        "Authentication requires verification code",
+        "invalid or expired 2FA code (failureType: 5005)",
+        "password token is expired",
+        "Your password has changed.",
+        "unsupported store identifier: 999999",
+        "keychain storage failed",
+    ])
+    func messageTextNeverSelectsAState(message: String) {
+        let error = NSError(domain: "Test", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+
+        #expect(MitoriError.map(error) == .unknown(message))
     }
 
     @Test

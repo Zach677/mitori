@@ -116,8 +116,10 @@ actor AppleSessionBridge: AppleSessionBridging {
 
         do {
             return try await refreshBalanceOnly(meta: meta, secret: secret)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
-            let mappedError = MitoriError.mapApplePackage(error)
+            let mappedError = MitoriError.map(error)
             if allowsReauthentication, case .sessionExpired = mappedError {
                 return try await reauthenticate(meta: meta, secret: secret)
             }
@@ -143,8 +145,10 @@ actor AppleSessionBridge: AppleSessionBridging {
                 cookies: cookies,
                 deviceIdentifier: deviceIdentifier
             )
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
-            throw MitoriError.mapApplePackage(error)
+            throw MitoriError.map(error)
         }
 
         var meta = StoredAccountMeta(
@@ -174,9 +178,11 @@ actor AppleSessionBridge: AppleSessionBridging {
             let balanceResult = try await balanceService.refreshBalance(for: meta, secret: secret)
             meta = updatedMeta(from: meta, account: balanceResult.account, snapshot: balanceResult.snapshot)
             return SessionRefreshResult(meta: meta, secret: StoredAccountSecret(account: balanceResult.account))
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             // Keep the fresh session and auth snapshot, but never swallow the probe failure (I-9).
-            let mappedError = MitoriError.mapApplePackage(error)
+            let mappedError = MitoriError.map(error)
             if case .sessionExpired = mappedError {
                 // A new session cannot fix this, so retrying would only repeat the login.
                 meta.lastIssue = RefreshIssue(
@@ -221,18 +227,6 @@ actor AppleSessionBridge: AppleSessionBridging {
         updated.nextEligibleRefreshAt = nil
         updated.consecutiveFailureCount = 0
         return updated
-    }
-}
-
-private extension MitoriError {
-    static func mapApplePackage(_ error: Error) -> MitoriError {
-        if let error = error as? ApplePackageError {
-            switch error {
-            case .licenseRequired:
-                return .probeAppNotOwned
-            }
-        }
-        return map(error)
     }
 }
 

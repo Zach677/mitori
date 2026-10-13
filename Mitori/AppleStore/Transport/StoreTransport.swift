@@ -32,11 +32,14 @@ final class URLSessionStoreTransport: StoreTransport {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
-        } catch let error as URLError where error.code == .cancelled {
-            throw CancellationError()
+        } catch let error as URLError {
+            if error.code == .cancelled {
+                throw CancellationError()
+            }
+            throw StoreAuthError.transport(error)
         }
         guard let response = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
+            throw StoreAuthError.malformedResponse("not an HTTP response")
         }
         return (data, response)
     }

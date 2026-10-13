@@ -67,6 +67,7 @@ public enum Authenticator {
         var storeFront = ""
         var pod: String?
         var redirectAttempt = 0
+        var lastStatus = 0
         var didClearCookies = false
         let requestData = try makeRequestData(
             email: email,
@@ -86,6 +87,7 @@ public enum Authenticator {
                 let response = try await transport.data(for: request)
                 return (response, UInt(response.1.statusCode))
             }
+            lastStatus = response.1.statusCode
             let result = try parseResponse(
                 data: response.0,
                 response: response.1,
@@ -106,18 +108,18 @@ public enum Authenticator {
                 redirectAttempt += 1
             case .retryWithoutCookies:
                 guard !didClearCookies else {
-                    try ensureFailed("\(Strings.authFailed): \(Strings.failedToRetrieveRedirect)")
+                    throw StoreAuthError.redirectExhausted(status: lastStatus)
                 }
                 cookies = []
                 didClearCookies = true
             case .codeRequired:
-                try ensureFailed(Strings.authRequiresVerificationCode)
-            case let .failure(string):
-                try ensureFailed("\(Strings.authFailed): \(string)")
+                throw StoreAuthError.codeRequired
+            case let .failure(message):
+                throw StoreAuthError.badLogin(message: message)
             }
         }
 
-        try ensureFailed(Strings.authFailedUnknown)
+        throw StoreAuthError.redirectExhausted(status: lastStatus)
     }
 
     static func sendAuthenticationRequest<Response>(
@@ -329,7 +331,7 @@ public enum Authenticator {
         }
 
         guard !data.isEmpty else {
-            return .failure("response body is empty (code: \(response.statusCode))")
+            throw StoreAuthError.malformedResponse("\(Strings.responseBodyEmpty) (HTTP \(response.statusCode))")
         }
 
         let listItem: Any
@@ -349,9 +351,11 @@ public enum Authenticator {
             {
                 return .retryWithoutCookies
             }
-            throw error
+            throw StoreAuthError.malformedResponse("response is not a property list (HTTP \(response.statusCode))")
         }
-        let dic = try (listItem as? [String: Any]).get(Strings.responseNotDictionary)
+        guard let dic = listItem as? [String: Any] else {
+            throw StoreAuthError.malformedResponse(Strings.responseNotDictionary)
+        }
 
         if let failureType = dic["failureType"] as? String,
            failureType.isEmpty,
@@ -363,25 +367,39 @@ public enum Authenticator {
         }
 
         if let failureType = dic["failureType"] as? String, failureType == "5005" {
-            return .failure(Strings.invalid2FACode)
+            throw StoreAuthError.invalid2FACode
         }
 
         let failureMessage = (dic["dialog"] as? [String: Any])?["explanation"] as? String ?? (dic["customerMessage"] as? String)
-        let accountInfoDic = try (dic["accountInfo"] as? [String: Any]).get(failureMessage ?? Strings.missingAccountInfo)
-        let addressInfoDic = try (accountInfoDic["address"] as? [String: Any]).get(failureMessage ?? Strings.missingAddress)
+        guard let accountInfoDic = dic["accountInfo"] as? [String: Any] else {
+            if let failureMessage { return .failure(failureMessage) }
+            throw StoreAuthError.malformedResponse(Strings.missingAccountInfo)
+        }
+        guard let addressInfoDic = accountInfoDic["address"] as? [String: Any] else {
+            if let failureMessage { return .failure(failureMessage) }
+            throw StoreAuthError.malformedResponse(Strings.missingAddress)
+        }
+        guard Configuration.countryCode(for: storeFront) != nil else {
+            throw StoreAuthError.unsupportedStorefront(storeFront)
+        }
 
-        let account = try Account(
-            email: email,
-            password: password,
-            appleId: accountInfoDic["appleId"] as? String,
-            store: storeFront,
-            firstName: addressInfoDic["firstName"] as? String,
-            lastName: addressInfoDic["lastName"] as? String,
-            passwordToken: dic["passwordToken"] as? String,
-            directoryServicesIdentifier: dic["dsPersonId"] as? String,
-            cookie: cookies,
-            pod: pod
-        )
+        let account: Account
+        do {
+            account = try Account(
+                email: email,
+                password: password,
+                appleId: accountInfoDic["appleId"] as? String,
+                store: storeFront,
+                firstName: addressInfoDic["firstName"] as? String,
+                lastName: addressInfoDic["lastName"] as? String,
+                passwordToken: dic["passwordToken"] as? String,
+                directoryServicesIdentifier: dic["dsPersonId"] as? String,
+                cookie: cookies,
+                pod: pod
+            )
+        } catch {
+            throw StoreAuthError.malformedResponse(error.localizedDescription)
+        }
         return .success(AuthenticationResult(account: account, responsePlist: data))
     }
 }

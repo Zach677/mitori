@@ -21,10 +21,7 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
         }
 
         if let error = error as? StoreAuthError {
-            switch error {
-            case .untrustedRedirect:
-                return .network("Apple returned an untrusted redirect URL.")
-            }
+            return map(error)
         }
 
         if let error = error as? URLError {
@@ -32,33 +29,41 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
         }
 
         let message = error.localizedDescription
-        let normalized = message.lowercased()
-
-        if normalized.contains("verification code") {
-            return .twoFactorCodeRequired
-        }
-        if normalized.contains("invalid or expired 2fa code") {
-            return .invalidTwoFactorCode
-        }
-        if normalized.contains("password token is expired") || normalized.contains("password has changed") {
-            return .sessionExpired
-        }
-        if normalized.contains("unsupported store identifier") {
-            return .unsupportedStorefront(message)
-        }
-        if (error as NSError).domain == NSOSStatusErrorDomain {
+        let nsError = error as NSError
+        if nsError.domain == NSOSStatusErrorDomain {
             return .storage(message)
         }
-        let nsError = error as NSError
         if nsError.domain == NSCocoaErrorDomain,
            CocoaError(CocoaError.Code(rawValue: nsError.code)).isFileError
         {
             return .storage(message)
         }
-        if normalized.contains("keychain") || normalized.contains("storage") {
-            return .storage(message)
-        }
         return .unknown(message)
+    }
+
+    private static func map(_ error: StoreAuthError) -> MitoriError {
+        switch error {
+        case .codeRequired:
+            return .twoFactorCodeRequired
+        case .invalid2FACode:
+            return .invalidTwoFactorCode
+        case let .badLogin(message):
+            return .unknown("Authentication failed: \(message)")
+        case .sessionExpired:
+            return .sessionExpired
+        case .probeAppNotOwned:
+            return .probeAppNotOwned
+        case let .unsupportedStorefront(storefront):
+            return .unsupportedStorefront(storefront)
+        case let .redirectExhausted(status):
+            return .network("Apple returned too many redirects (HTTP \(status)).")
+        case .untrustedRedirect:
+            return .network("Apple returned an untrusted redirect URL.")
+        case let .transport(error):
+            return .network(error.localizedDescription)
+        case let .malformedResponse(detail):
+            return .unknown("Apple returned an unexpected response: \(detail)")
+        }
     }
 
     static func from(refreshIssue: RefreshIssue) -> MitoriError {
