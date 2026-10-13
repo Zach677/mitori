@@ -75,7 +75,7 @@ actor BalanceProbeClient {
                       !location.isEmpty else {
                     throw MitoriError.network("Apple returned a redirect without a Location header.")
                 }
-                url = try Self.validatedRedirectURL(location: location, relativeTo: url)
+                url = try StoreRedirectPolicy.validatedURL(location: location, relativeTo: url)
                 redirectCount += 1
                 continue
             }
@@ -101,35 +101,10 @@ actor BalanceProbeClient {
         guard let url = components.url else {
             throw MitoriError.unknown("Failed to build Apple balance probe URL.")
         }
-        guard Self.isTrustedStoreHost(url.host) else {
+        guard StoreRedirectPolicy.isTrustedHost(url.host) else {
             throw MitoriError.network("Apple returned an invalid store host.")
         }
         return url
-    }
-
-    static func validatedRedirectURL(location: String, relativeTo baseURL: URL) throws -> URL {
-        guard let url = URL(string: location, relativeTo: baseURL)?.absoluteURL,
-              url.scheme?.lowercased() == "https",
-              url.user == nil,
-              url.password == nil,
-              url.port == nil || url.port == 443,
-              isTrustedStoreHost(url.host)
-        else {
-            throw MitoriError.network("Apple returned an untrusted redirect URL.")
-        }
-        return url
-    }
-
-    private static func isTrustedStoreHost(_ host: String?) -> Bool {
-        guard let host = host?.lowercased() else { return false }
-        if host == "buy.itunes.apple.com" || host == "downloaddispatch.itunes.apple.com" {
-            return true
-        }
-
-        let suffix = "-buy.itunes.apple.com"
-        guard host.hasPrefix("p"), host.hasSuffix(suffix) else { return false }
-        let pod = host.dropFirst().dropLast(suffix.count)
-        return !pod.isEmpty && pod.allSatisfy { ("0" ... "9").contains($0) }
     }
 
     private func makeRequestBody(deviceIdentifier: String, adamID: Int64) throws -> Data {

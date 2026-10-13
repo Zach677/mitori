@@ -101,7 +101,8 @@ public enum Authenticator {
             case let .success(authenticationResult):
                 return authenticationResult
             case let .redirect(url):
-                requestEndpoint = url
+                // The login POST carries credentials, so validate before following (I-2).
+                requestEndpoint = try StoreRedirectPolicy.validated(url)
                 redirectAttempt += 1
             case .retryWithoutCookies:
                 guard !didClearCookies else {

@@ -20,6 +20,13 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
             return error
         }
 
+        if let error = error as? StoreAuthError {
+            switch error {
+            case .untrustedRedirect:
+                return .network("Apple returned an untrusted redirect URL.")
+            }
+        }
+
         if let error = error as? URLError {
             return .network(error.localizedDescription)
         }
