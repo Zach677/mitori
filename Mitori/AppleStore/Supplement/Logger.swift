@@ -6,29 +6,25 @@
 //
 
 import Foundation
-import Logging
+import os
 
 public enum APLogger {
     public static var verbose: Bool = false
 
-    private static var _logger: Logger = .init(label: "com.applepackage")
-
-    public static var logger: Logger {
-        get { _logger }
-        set { _logger = newValue }
-    }
+    // Interpolated values stay private in the unified log (I-8).
+    private static let logger = Logger(subsystem: "dev.zach.mitori", category: "AppleStore")
 
     static func info(_ message: String) {
-        _logger.info("\(message)")
+        logger.info("\(message, privacy: .private)")
     }
 
     static func debug(_ message: String) {
         guard verbose else { return }
-        _logger.debug("\(message)")
+        logger.debug("\(message, privacy: .private)")
     }
 
     static func error(_ message: String) {
-        _logger.error("\(message)")
+        logger.error("\(message, privacy: .private)")
     }
 
     static func logRequest(method: String, url: String, headers: [(String, String)] = []) {

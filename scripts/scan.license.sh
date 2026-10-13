@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PACKAGE_RESOLVED="$ROOT_DIR/Mitori.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
 CHECKOUTS_DIR="$ROOT_DIR/.xcodebuild/community/SourcePackages/checkouts"
 MANUAL_LICENSES_DIR="$ROOT_DIR/Resources/AdditionalLicenses"
+# Ported code with no package checkout; these notices must always ship.
+REQUIRED_MANUAL_LICENSE_FILES=(ApplePackage/LICENSE ApplePackage/NOTICE)
 OUTPUT_PATH="$ROOT_DIR/Mitori/Resources/OpenSourceLicenses.md"
 
 typeset -A MANUAL_LICENSE_OVERRIDES
@@ -46,6 +48,13 @@ if ! command -v npm >/dev/null 2>&1; then
     exit 69
 fi
 
+for required_file in "${REQUIRED_MANUAL_LICENSE_FILES[@]}"; do
+    if [[ ! -f "$MANUAL_LICENSES_DIR/$required_file" ]]; then
+        echo "[!] required manual license notice is missing: Resources/AdditionalLicenses/$required_file" >&2
+        exit 1
+    fi
+done
+
 echo "[*] installing locked formatter..."
 (
     cd "$ROOT_DIR"
@@ -55,7 +64,7 @@ echo "[*] installing locked formatter..."
 echo "[*] resolving packages..."
 with_retry resolve_packages
 
-if [[ ! -d "$CHECKOUTS_DIR" ]]; then
+if [[ -f "$PACKAGE_RESOLVED" && ! -d "$CHECKOUTS_DIR" ]]; then
     echo "[!] Swift package checkouts are missing after dependency resolution." >&2
     exit 1
 fi
@@ -140,10 +149,10 @@ while IFS= read -r package_directory; do
     fi
     append_license "$package_directory" "$license_files[1]" scanned
     package_count=$((package_count + 1))
-done < <(find "$CHECKOUTS_DIR" -mindepth 1 -maxdepth 1 -type d | LC_ALL=C sort -f)
+done < <(find "$CHECKOUTS_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | LC_ALL=C sort -f)
 
-if (( package_count == 0 )); then
-    echo "[!] no Swift package licenses were found." >&2
+if [[ -f "$PACKAGE_RESOLVED" ]] && (( package_count == 0 )); then
+    echo "[!] Package.resolved lists packages, but no Swift package licenses were found." >&2
     exit 1
 fi
 
