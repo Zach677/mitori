@@ -33,6 +33,7 @@ final class URLSessionStoreTransport: StoreTransport {
         do {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError {
+            StoreTrace.record(request: request, response: nil, data: nil, error: error)
             if error.code == .cancelled {
                 throw CancellationError()
             }
@@ -41,6 +42,7 @@ final class URLSessionStoreTransport: StoreTransport {
         guard let response = response as? HTTPURLResponse else {
             throw StoreAuthError.malformedResponse("not an HTTP response")
         }
+        StoreTrace.record(request: request, response: response, data: data, error: nil)
         return (data, response)
     }
 }

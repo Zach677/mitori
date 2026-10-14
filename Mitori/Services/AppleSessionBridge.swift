@@ -76,15 +76,17 @@ actor AppleSessionBridge: AppleSessionBridging {
         probeBundleID: String,
         existing: StoredAccountMeta?
     ) async throws -> SessionRefreshResult {
-        try await authenticate(
-            email: email,
-            password: password,
-            code: code,
-            cookies: [],
-            deviceIdentifier: deviceIdentifier,
-            probeBundleID: probeBundleID,
-            existing: existing
-        )
+        try await StoreTrace.run("login") {
+            try await authenticate(
+                email: email,
+                password: password,
+                code: code,
+                cookies: [],
+                deviceIdentifier: deviceIdentifier,
+                probeBundleID: probeBundleID,
+                existing: existing
+            )
+        }
     }
 
     func reauthenticate(
@@ -92,19 +94,31 @@ actor AppleSessionBridge: AppleSessionBridging {
         secret: StoredAccountSecret,
         code: String = ""
     ) async throws -> SessionRefreshResult {
-        try await authenticate(
-            email: meta.email,
-            password: secret.password,
-            code: code,
-            cookies: secret.cookies.map(\.appleCookie),
-            deviceIdentifier: meta.deviceIdentifier,
-            probeBundleID: meta.probeBundleID,
-            existing: meta
-        )
+        try await StoreTrace.run("reauth") {
+            try await authenticate(
+                email: meta.email,
+                password: secret.password,
+                code: code,
+                cookies: secret.cookies.map(\.appleCookie),
+                deviceIdentifier: meta.deviceIdentifier,
+                probeBundleID: meta.probeBundleID,
+                existing: meta
+            )
+        }
     }
 
     /// With `allowsReauthentication == false` this only probes and never sends a password (I-6).
     func refreshBalance(
+        meta: StoredAccountMeta,
+        secret: StoredAccountSecret,
+        allowsReauthentication: Bool
+    ) async throws -> SessionRefreshResult {
+        try await StoreTrace.run(allowsReauthentication ? "refresh.manual" : "refresh.auto") {
+            try await refreshBalanceUntraced(meta: meta, secret: secret, allowsReauthentication: allowsReauthentication)
+        }
+    }
+
+    private func refreshBalanceUntraced(
         meta: StoredAccountMeta,
         secret: StoredAccountSecret,
         allowsReauthentication: Bool
