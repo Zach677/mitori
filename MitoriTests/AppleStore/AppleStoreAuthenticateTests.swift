@@ -42,14 +42,64 @@ struct AppleStoreAuthenticateTests {
         let response = try await Authenticator.sendAuthenticationRequest(
             execute: {
                 let status = statuses.removeFirst()
-                return (status, status)
+                return (status, status, nil)
             },
             sleep: { sleepDurations.append($0) }
         )
 
         #expect(response == 200)
         #expect(statuses.isEmpty)
-        #expect(sleepDurations == [250_000_000, 500_000_000])
+        // Each retry resends the password, so wait like ipatool does (B14).
+        #expect(sleepDurations == [10_000_000_000, 20_000_000_000])
+    }
+
+    @Test
+    func rateLimitHonorsRetryAfter() async throws {
+        var statuses: [UInt] = [429, 200]
+        var sleepDurations: [UInt64] = []
+
+        let response = try await Authenticator.sendAuthenticationRequest(
+            execute: {
+                let status = statuses.removeFirst()
+                return (status, status, status == 429 ? " 3 " : nil)
+            },
+            sleep: { sleepDurations.append($0) }
+        )
+
+        #expect(response == 200)
+        #expect(sleepDurations == [3_000_000_000])
+    }
+
+    @Test(arguments: ["0", "1"])
+    func retryAfterWaitsAtLeastOneSecond(retryAfter: String) async throws {
+        var statuses: [UInt] = [204, 200]
+        var sleepDurations: [UInt64] = []
+
+        _ = try await Authenticator.sendAuthenticationRequest(
+            execute: {
+                let status = statuses.removeFirst()
+                return (status, status, retryAfter)
+            },
+            sleep: { sleepDurations.append($0) }
+        )
+
+        #expect(sleepDurations == [1_000_000_000])
+    }
+
+    @Test
+    func retryAfterBeyondBudgetStopsWithoutAnotherPassword() async throws {
+        var callCount = 0
+
+        let response = try await Authenticator.sendAuthenticationRequest(
+            execute: {
+                callCount += 1
+                return (429, 429, "120")
+            },
+            sleep: { _ in Issue.record("a wait beyond 30 s must end the sign-in") }
+        )
+
+        #expect(response == 429)
+        #expect(callCount == 1)
     }
 
     @Test
@@ -59,7 +109,7 @@ struct AppleStoreAuthenticateTests {
         let response = try await Authenticator.sendAuthenticationRequest(
             execute: {
                 callCount += 1
-                return (403, 403)
+                return (403, 403, nil)
             },
             sleep: { _ in Issue.record("non-transient response must not sleep") }
         )
@@ -154,7 +204,7 @@ struct AppleStoreAuthenticateTests {
         let response = try await Authenticator.sendAuthenticationRequest(
             execute: {
                 callCount += 1
-                return (204, 204)
+                return (204, 204, nil)
             },
             sleep: { _ in }
         )

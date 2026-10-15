@@ -33,7 +33,9 @@ public enum Authenticator {
     }
 
     private static let maxTransientRequestAttempts = 3
-    private static let transientRetryDelayNanoseconds: UInt64 = 250_000_000
+    // Each retry resends the password; pace it like ipatool (B14).
+    private static let transientRetryDelayNanoseconds: UInt64 = 10_000_000_000
+    private static let maxTransientRetryDelayNanoseconds: UInt64 = 30_000_000_000
 
     public static func authenticate(
         email: String,
@@ -85,7 +87,7 @@ public enum Authenticator {
                     signAction: signAction
                 )
                 let response = try await transport.data(for: request)
-                return (response, UInt(response.1.statusCode))
+                return (response, UInt(response.1.statusCode), response.1.value(forHTTPHeaderField: "Retry-After"))
             }
             lastStatus = response.1.statusCode
             let result = try parseResponse(
@@ -123,7 +125,7 @@ public enum Authenticator {
     }
 
     static func sendAuthenticationRequest<Response>(
-        execute: () async throws -> (response: Response, statusCode: UInt),
+        execute: () async throws -> (response: Response, statusCode: UInt, retryAfter: String?),
         sleep: (UInt64) async throws -> Void = { try await Task.sleep(nanoseconds: $0) }
     ) async throws -> Response {
         for attempt in 1 ... maxTransientRequestAttempts {
@@ -133,13 +135,21 @@ public enum Authenticator {
             else {
                 return result.response
             }
-            try await sleep(UInt64(attempt) * transientRetryDelayNanoseconds)
+            var delay = min(transientRetryDelayNanoseconds << (attempt - 1), maxTransientRetryDelayNanoseconds)
+            // shortcut: only the delta-seconds form of Retry-After is read; an HTTP date falls back to the backoff.
+            if let retryAfter = result.retryAfter.flatMap({ UInt64($0.trimmingCharacters(in: .whitespaces)) }) {
+                guard retryAfter <= maxTransientRetryDelayNanoseconds / 1_000_000_000 else {
+                    return result.response
+                }
+                delay = max(retryAfter, 1) * 1_000_000_000
+            }
+            try await sleep(delay)
         }
         preconditionFailure("authentication retry loop must return")
     }
 
     private static func isTransientAuthenticationStatus(_ statusCode: UInt) -> Bool {
-        statusCode == 204 || statusCode == 404 || statusCode / 100 == 5
+        statusCode == 204 || statusCode == 404 || statusCode == 429 || statusCode / 100 == 5
     }
 
     public static func rotatePasswordToken(for account: inout Account) async throws {

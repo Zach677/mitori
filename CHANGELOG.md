@@ -15,6 +15,7 @@ All notable changes to Mitori are documented in this file.
 - Mitori no longer depends on third-party Swift packages; the Apple Store code it used now ships inside the app.
 - Fix sign-in and manual refresh for accounts without a probe app, which failed with a redirect error.
 - Clearing the probe app in account details now saves.
+- Wait 10 and 20 seconds before retrying a failed Apple sign-in and follow Apple's Retry-After, instead of resending the password within a second.
 
 ## 0.2.3 - 2026-09-02
 

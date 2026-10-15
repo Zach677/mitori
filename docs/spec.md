@@ -151,7 +151,7 @@ if a real bug needs it.
 | B11 | P3 | `recordFailure` upserts the meta from the start of the refresh; a probe edit between the generation check and the repository lock can be overwritten on disk | - | open |
 | B12 | P3 | `Cookie` has no host-only flag: a cookie set without `Domain` is sent to subdomains of its host. The redirect allowlist limits the reachable hosts | - | open |
 | B13 | P2 | Clearing the probe app and pressing Save kept the old probe: the save read the field after `reload()` refilled it | - | fixed @d80e368 |
-| B14 | P2 | One failed sign-in sends up to 4 password POSTs: 204/404 retry after 0.25 s and 0.5 s, then a cookie-less retry. ipatool waits 10 s and 20 s and honors `Retry-After` | - | open |
+| B14 | P2 | One failed sign-in sends up to 4 password POSTs: 204/404 retry after 0.25 s and 0.5 s, then a cookie-less retry. ipatool waits 10 s and 20 s and honors `Retry-After` | - | fixed (see commit) |
 
 Update the Status column (open / in-progress / fixed @commit) as tasks land.
 
