@@ -26,8 +26,22 @@ struct StoreTransportTests {
         #expect(requests.count == 2)
         #expect(requests[0].url?.host == "init.itunes.apple.com")
         #expect(requests[1].httpMethod == "POST")
-        #expect(requests[1].url?.absoluteString == "https://auth.itunes.apple.com/auth/v1/native/fast/?guid=ABCDEF123456")
+        #expect(requests[1].url?.absoluteString == "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/?guid=ABCDEF123456")
         #expect(requests[1].value(forHTTPHeaderField: "Cookie") == nil)
+    }
+
+    // The live bag (2026-10-15) advertises the bare MZFinance path.
+    @Test
+    func authenticatePostsToTheBagEndpointWithTrailingSlash() async throws {
+        let transport = StoreTransportStub([
+            try .plist(["authenticateAccount": "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate"]),
+            try .plist(authSuccessPlist(), headers: storeFrontHeader),
+        ])
+
+        _ = try await authenticate(over: transport)
+
+        #expect(transport.requests.last?.url?.absoluteString
+            == "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/?guid=ABCDEF123456")
     }
 
     @Test

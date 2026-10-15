@@ -343,3 +343,16 @@ validation or log redaction. A card does not authorize commit, push, or release.
   `SourcePackages`; `mise run scan-license` exit 0 twice with identical output,
   and exit 1 with the NOTICE or the LICENSE removed; `mise run test-macos`
   exit 0.
+- **D-20** (2026-10-15, **pending live check**) Authenticate posts to the
+  bag's MZFinance `authenticate` URL with a trailing slash and keeps the bag
+  host; it no longer rewrites to `auth.itunes.apple.com/auth/v1/native/fast/`.
+  Evidence: the T5 trace of B8 shows the native endpoint answering a signed
+  login with 204, 301, 302, and 404, every 3xx without `Location`, with and
+  without cookies. The live bag (2026-10-15) advertises
+  `buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate` with no
+  trailing slash. ipatool (`f9aa653`, 2026-10-05) uses that host with the
+  slash and records that the bare path returns "a 301 without Location", the
+  symptom ApplePackage took as a reason to move to the native endpoint. This
+  removes a special case rather than adding one (I-7). Only the endpoint
+  changes; guid binding (H2) and retry pacing (H3) stay as they are until this
+  check ends.

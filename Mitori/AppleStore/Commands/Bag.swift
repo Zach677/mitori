@@ -12,7 +12,7 @@ public enum Bag {
         public var authEndpoint: URL
     }
 
-    private static let defaultAuthEndpoint = "https://auth.itunes.apple.com/auth/v1/native/fast/"
+    private static let defaultAuthEndpoint = "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/"
 
     static func fetchBag(
         deviceIdentifier: String = Configuration.deviceIdentifier,
@@ -87,19 +87,15 @@ public enum Bag {
         return BagOutput(authEndpoint: authURL)
     }
 
-    /// The bag still advertises MZFinance `authenticate`, but that host now 301s
-    /// without a Location header. Signed login has to hit native `/fast/`.
-    /// `auth.itunes.apple.com` URLs without the `/fast/` trailing slash have the
-    /// same 301-without-Location failure mode.
+    /// The bag advertises MZFinance `authenticate` without a trailing slash, and
+    /// that bare path 301s without a Location header. Keep the bag host and add
+    /// the slash, as ipatool does (D-20). The native `/fast` path has the same
+    /// failure mode without its trailing slash.
     static func normalizedAuthEndpoint(from urlString: String) -> URL? {
         guard var comps = URLComponents(string: urlString) else { return nil }
         let host = comps.host?.lowercased() ?? ""
-        if host == "buy.itunes.apple.com",
-           comps.path.contains("authenticate")
-        {
-            var native = URLComponents(string: defaultAuthEndpoint)
-            native?.query = comps.query
-            return native?.url
+        if comps.path.hasSuffix("/MZFinance.woa/wa/authenticate") {
+            comps.path += "/"
         }
         if host == "auth.itunes.apple.com" {
             var path = comps.path

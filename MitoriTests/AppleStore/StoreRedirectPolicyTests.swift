@@ -52,7 +52,7 @@ struct StoreRedirectPolicyTests {
     }
 
     @Test(arguments: [
-        ("/auth/v1/native/fast/?attempt=2", "auth.itunes.apple.com"),
+        ("/WebObjects/MZFinance.woa/wa/authenticate/?attempt=2", "buy.itunes.apple.com"),
         ("https://auth.itunes.apple.com:443/auth/v1/native/fast/", "auth.itunes.apple.com"),
         ("https://P25-Buy.iTunes.Apple.com/WebObjects/MZFinance.woa/wa/authenticate", "p25-buy.itunes.apple.com"),
     ])

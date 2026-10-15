@@ -68,20 +68,27 @@ struct AppleStoreAuthenticateTests {
         #expect(callCount == 1)
     }
 
+    // The bare MZFinance path 301s without Location; the trailing slash fixes it (D-20).
+    @Test(arguments: [
+        ("https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate",
+         "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/"),
+        ("https://p25-buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate?guid=ABCDEF123456",
+         "https://p25-buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/?guid=ABCDEF123456"),
+        ("https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/",
+         "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/"),
+    ])
+    func legacyAuthenticateEndpointKeepsHostAndAddsTrailingSlash(raw: String, expected: String) {
+        #expect(Bag.normalizedAuthEndpoint(from: raw)?.absoluteString == expected)
+    }
+
     @Test
-    func legacyAuthenticateEndpointRewritesToNativeFast() {
-        #expect(
-            Bag.normalizedAuthEndpoint(
-                from: "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate"
-            )?.absoluteString
-                == "https://auth.itunes.apple.com/auth/v1/native/fast/"
-        )
+    func redirectWithoutLocationAddsAuthenticateTrailingSlash() {
         #expect(
             Authenticator.resolvedRedirectURL(
                 locationHeader: nil,
                 currentURL: URL(string: "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate?guid=ABCDEF123456")!
             )?.absoluteString
-                == "https://auth.itunes.apple.com/auth/v1/native/fast/?guid=ABCDEF123456"
+                == "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/?guid=ABCDEF123456"
         )
     }
 
@@ -136,7 +143,8 @@ struct AppleStoreAuthenticateTests {
             locationHeader: " https://p25-buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate?guid=ABCDEF123456",
             currentURL: current
         )
-        #expect(url?.absoluteString == "https://p25-buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate?guid=ABCDEF123456")
+        // A bare MZFinance Location also gets the trailing slash (D-20).
+        #expect(url?.absoluteString == "https://p25-buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/?guid=ABCDEF123456")
     }
 
     @Test
