@@ -33,8 +33,8 @@ card as the task. Cards assume the agent has repo access and has read
 | T4 | Banner ownership, duplicate add, recordFailure order | T3 | done @6b5498a |
 | T6a | Port the ApplePackage subset into `Mitori/AppleStore/` (verbatim) | T4 | done @ac31c60 |
 | T6b | One URLSession transport, redirect allowlist, typed errors | T6a | done @fa8d21d |
-| T6c | Drop the ApplePackage SPM dependency | T6b | in-progress |
-| T5 | Safe diagnostics and the supervised live run (B8, B10) | T6c; Zach at keyboard | todo |
+| T6c | Drop the ApplePackage SPM dependency | T6b | done @e21bd45 |
+| T5 | Safe diagnostics and the supervised live run (B8, B10) | T6c; Zach at keyboard | done @720c628 (B10 open) |
 
 Dispatch order (D-10): T3 → T4 → T6a → T6b → T6c → T5. T4 has no semantic
 dependency on T3 but shares model files, so run it after T3. T5 runs last on

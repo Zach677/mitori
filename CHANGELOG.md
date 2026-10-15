@@ -13,6 +13,8 @@ All notable changes to Mitori are documented in this file.
 - Apple server errors keep the normal retry backoff instead of pausing automatic refresh.
 - VoiceOver names each switch and pop-up in Settings.
 - Mitori no longer depends on third-party Swift packages; the Apple Store code it used now ships inside the app.
+- Fix sign-in and manual refresh for accounts without a probe app, which failed with a redirect error.
+- Clearing the probe app in account details now saves.
 
 ## 0.2.3 - 2026-09-02
 

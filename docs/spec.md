@@ -82,8 +82,7 @@ without putting the Apple ID at risk*.
 - Manual refresh always makes a real request. Repeated clicks reuse the
   in-flight operation guard; there is no cache shortcut.
 - Use the existing persisted issue kind as the pause signal; no extra flag.
-- **Open (D-4):** whether manual no-probe reauth sends stored cookies or
-  `cookies: []`. Decided by T5 live evidence, not by guessing.
+- **Decided (D-4):** manual no-probe reauth sends the stored cookies.
 
 ## 4. Error taxonomy (target)
 
@@ -146,11 +145,13 @@ if a real bug needs it.
 | B5 | P2 | Any account's success clears another account's error banner | T4 | fixed @930a763 |
 | B6 | P2 | Re-adding an existing email wipes its snapshot/history | T4 | fixed @6b5498a |
 | B7 | P3 | `recordFailure` mutates `accounts[index]` before the generation check | T4 | fixed @33dfdc2 |
-| B8 | P1 | Manual refresh of a no-probe account 302s (`failed to retrieve redirect location (HTTP 302)`) | T5 | open |
+| B8 | P1 | Manual refresh of a no-probe account 302s (`failed to retrieve redirect location (HTTP 302)`) | T5 | fixed @720c628 |
 | B9 | P1 | Automatic refresh sends password logins for no-probe accounts and after probe expiry | T3 | fixed @2908d9d |
-| B10 | P1 | Add account with a 2FA code fails: `authentication failed: response body is empty (code: 204)` | T5 | open |
+| B10 | P1 | Add account with a 2FA code fails: `authentication failed: response body is empty (code: 204)` | T5 | open (likely fixed by D-20; 2FA branch not seen live) |
 | B11 | P3 | `recordFailure` upserts the meta from the start of the refresh; a probe edit between the generation check and the repository lock can be overwritten on disk | - | open |
 | B12 | P3 | `Cookie` has no host-only flag: a cookie set without `Domain` is sent to subdomains of its host. The redirect allowlist limits the reachable hosts | - | open |
+| B13 | P2 | Clearing the probe app and pressing Save kept the old probe: the save read the field after `reload()` refilled it | - | fixed @d80e368 |
+| B14 | P2 | One failed sign-in sends up to 4 password POSTs: 204/404 retry after 0.25 s and 0.5 s, then a cookie-less retry. ipatool waits 10 s and 20 s and honors `Retry-After` | - | open |
 
 Update the Status column (open / in-progress / fixed @commit) as tasks land.
 
@@ -189,7 +190,7 @@ validation or log redaction. A card does not authorize commit, push, or release.
 - **D-3** (2026-09-05) Migration is a port, not a rewrite (§5). Fix order:
   app-side bugs first (T1-T4), refresh policy + live 302 evidence (T5), then
   the port (T6a-c). No porting while B8 is unresolved.
-- **D-4** (2026-09-05, **open**) Cookie policy for silent reauth of no-probe
+- **D-4** (2026-09-05, **closed 2026-10-15**, see D-21) Cookie policy for silent reauth of no-probe
   accounts - stored cookies vs `cookies: []` - decided by T5's instrumented
   live run, per I-7. The fork's `3b535f1` cookie-clear retry is reverted if
   cookie-less becomes the verified no-probe refresh default, only after tests
@@ -343,7 +344,7 @@ validation or log redaction. A card does not authorize commit, push, or release.
   `SourcePackages`; `mise run scan-license` exit 0 twice with identical output,
   and exit 1 with the NOTICE or the LICENSE removed; `mise run test-macos`
   exit 0.
-- **D-20** (2026-10-15, **pending live check**) Authenticate posts to the
+- **D-20** (2026-10-15, **verified live**, see D-21) Authenticate posts to the
   bag's MZFinance `authenticate` URL with a trailing slash and keeps the bag
   host; it no longer rewrites to `auth.itunes.apple.com/auth/v1/native/fast/`.
   Evidence: the T5 trace of B8 shows the native endpoint answering a signed
@@ -356,3 +357,28 @@ validation or log redaction. A card does not authorize commit, push, or release.
   removes a special case rather than adding one (I-7). Only the endpoint
   changes; guid binding (H2) and retry pacing (H3) stay as they are until this
   check ends.
+- **D-21** (2026-10-15) T5 accepted; this run is the release G3. Build:
+  `720c628`, Debug, ad hoc community signing, trace on
+  (`debug.storeTrace`). Part 1 (`2657c05`): the sentinel test fails when the
+  trace prints a URL. Part 2, sanitized trace evidence:
+  - Owned-probe manual refresh, twice: lookup 200 + probe 200 (plist) each,
+    no authenticate request. New balance data.
+  - B8 before D-20 (native endpoint): each no-probe manual refresh sent 4
+    password POSTs and got 204, 302/301, 404/302, 301 with no `Location`,
+    with 8 stored cookies and with none. The cookie-less attempts failed too,
+    so `cookies: []` was not tried as a policy.
+  - B8 after D-20 (`720c628`), twice: bag 200 + one authenticate POST with the
+    stored cookies, 200 plist. New balance data. B8 fixed.
+  - Login (add account), twice: bag 200, authenticate with no cookies 302 with
+    `Location` to the pod (validated), then 200 plist. Apple asked for no 2FA
+    code: login sends no cookies, so the account most likely trusts this
+    Mac's device identifier. B10's 204 came from the native endpoint that D-20
+    removed, but the 2FA branch was not seen live; B10 stays open.
+  D-4 closes: manual no-probe reauth keeps the stored cookies. The cookie-less
+  retry in `Authenticator` did not fire in any passing run; it stays, scoped
+  to a 3xx with no usable `Location`, at most once per sign-in. B13 was found while
+  preparing the run; B14 is registered from the trace. Follow-ups, not
+  scheduled: B14 retry pacing; a stable device identifier that does not
+  depend on `en0` (ipatool `0cc226a`, `50312a9`), because both stored
+  identifiers differ from the current `en0` address. T6c acceptance 3 holds:
+  the stored accounts loaded and refreshed in this run.
