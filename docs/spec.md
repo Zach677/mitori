@@ -382,3 +382,17 @@ validation or log redaction. A card does not authorize commit, push, or release.
   depend on `en0` (ipatool `0cc226a`, `50312a9`), because both stored
   identifiers differ from the current `en0` address. T6c acceptance 3 holds:
   the stored accounts loaded and refreshed in this run.
+- **D-22** (2026-10-15) A new or re-added account uses the permanent hardware
+  MAC of the primary network interface as its device identifier, read from
+  IOKit (`IOPrimaryInterface`, then `en0`, `en1`). The old reader took the
+  `en0` link address from sysctl. On this Mac that is a rotating private Wi-Fi
+  address, so each account added on a different network stored a different
+  identifier: three accounts held three values, none the hardware address.
+  macOS 27 can also redact the link address as `02:00:00:00:00:00` (ipatool
+  `50312a9`); IOKit avoids both. When no hardware address is readable, one
+  random identifier is generated and kept in user defaults, instead of a new
+  one per add. Stored accounts keep their identifier; there is no migration,
+  because reauthentication and the probe use the stored value. Evidence that
+  a changed identifier is low risk: in T5 a re-add sent a new private address
+  and Apple asked for no 2FA code. Not verified live: the first sign-in of a
+  re-added account with the hardware identifier.
