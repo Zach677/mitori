@@ -65,7 +65,7 @@ class MitoriUITestCase: XCTestCase {
         let field = require(identifier)
         field.click()
         field.typeKey("a", modifierFlags: .command)
-        field.typeText(text)
+        field.typeText(XCUIKeyboardKey.delete.rawValue + text)
     }
 
     /// The window or popover that contains `identifier`.

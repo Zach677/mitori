@@ -29,6 +29,17 @@ final class AccountDetailUITests: MitoriUITestCase {
         XCTAssertFalse(element("account-detail.balance").exists)
     }
 
+    func testClearingProbeSavesAnEmptyProbe() throws {
+        openDetail(readyRow)
+
+        type("", into: "account-detail.probe-bundle-id")
+        require("account-detail.save-probe").click()
+        XCTAssertTrue(waitUntil { !self.element("account-detail.balance").exists }, "a changed probe closes the window")
+
+        require(readyRow, timeout: 10).click()
+        XCTAssertEqual(value(of: require("account-detail.probe-bundle-id")), "")
+    }
+
     func testReauthenticationRejectsWrongCodeAndClearsIssue() throws {
         openMenu()
         element("\(expiredRow).refresh").click()

@@ -466,7 +466,8 @@ private extension AccountDetailViewController {
         Task { [weak self] in
             guard let self else { return }
             do {
-                try await model.saveProbeBundleID(probeBundleIDField.stringValue, for: accountID)
+                // reload() refills an empty field with the stored probe, so save the value read before it.
+                try await model.saveProbeBundleID(newProbe, for: accountID)
                 onProbeSaved(oldProbe != newProbe)
             } catch {
                 isSavingProbe = false
