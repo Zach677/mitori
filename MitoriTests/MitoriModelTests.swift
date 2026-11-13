@@ -179,10 +179,11 @@ struct MitoriModelTests {
         )
         _ = try await accountStore.upsert(meta)
 
+        let sessionBridge = SessionBridgeStub()
         let model = MitoriModel(
             accountStore: accountStore,
             secretStore: SecretStore(backend: InMemorySecretBackend()),
-            sessionBridge: SessionBridgeStub()
+            sessionBridge: sessionBridge
         )
 
         await model.menuPresented()
@@ -190,6 +191,8 @@ struct MitoriModelTests {
         #expect(model.account(with: meta.id) != nil)
         #expect(model.refreshState(for: meta.id) == .idle)
         #expect(model.bannerMessage == nil)
+        #expect(sessionBridge.refreshCallCount == 0)
+        #expect(sessionBridge.loginRequests.isEmpty)
     }
 
     @Test
@@ -409,6 +412,34 @@ struct MitoriModelTests {
 
         #expect(model.account(with: meta.id) != nil)
         #expect(try await secretStore.loadSecret(for: meta.id) != nil)
+    }
+
+    @Test
+    func deleteAccountSucceedsWhenStoredSecretCannotBeDecoded() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let accountStore = AccountStore(baseDirectory: tempDirectory)
+        let backend = InMemorySecretBackend()
+        let secretStore = SecretStore(backend: backend)
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+        _ = try await accountStore.upsert(meta)
+        try backend.set(Data("not json".utf8), for: "account.\(meta.id)")
+        let model = MitoriModel(
+            accountStore: accountStore,
+            secretStore: secretStore,
+            sessionBridge: SessionBridgeStub()
+        )
+        await model.menuPresented()
+
+        try await model.deleteAccount(id: meta.id)
+
+        #expect(model.account(with: meta.id) == nil)
+        #expect(try await accountStore.loadAccounts().isEmpty)
+        #expect(try backend.data(for: "account.\(meta.id)") == nil)
     }
 
     @Test

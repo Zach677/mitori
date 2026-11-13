@@ -114,7 +114,8 @@ actor AccountRepository {
         await acquireLock(for: id)
         defer { releaseLock(for: id) }
 
-        let previousSecret = try await secretStore.loadSecret(for: id)
+        // An unreadable secret has nothing to restore and must not block deletion.
+        let previousSecret = try? await secretStore.loadSecret(for: id)
         try await secretStore.deleteSecret(for: id)
         do {
             return try await accountStore.deleteAccount(id: id)

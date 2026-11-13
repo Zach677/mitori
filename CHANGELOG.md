@@ -21,6 +21,7 @@ All notable changes to Mitori are documented in this file.
 - An error in account details stays visible until your next action.
 - Mitori reads the account list again after a failed load, without a restart.
 - A probe app lookup no longer fails when Apple leaves out app details that Mitori does not use.
+- You can delete an account when its stored credentials cannot be read.
 - Credentials now live in the Data Protection Keychain. Items that older builds saved in the login Keychain move there the first time Mitori reads them.
 - Mitori is no longer built ad hoc signed. Developer ID signing and notarization are planned for this release.
 
