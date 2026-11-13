@@ -14,11 +14,10 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
 - Dependencies: none. The Apple Store protocol code is ported from the `ApplePackage` fork into `Mitori/AppleStore/` (see `docs/applestore-port.md`); its MIT notices live in `Resources/AdditionalLicenses/`. Credentials use the native Security framework (`SecItem`), not a third-party keychain wrapper.
 - The app uses AppKit for UI and Swift Testing (`import Testing`) for tests. `MitoriUITests` uses XCTest, because XCUITest has no Swift Testing support.
 
-## Spec And Tasks
+## Spec
 
-- `docs/spec.md` is the normative product/architecture spec: invariants, refresh policy, defect register, decision log. Read it before implementing anything non-trivial.
-- `docs/tasks/` holds self-contained task cards; when your assignment matches a card, follow the card exactly, including its acceptance criteria and verification commands.
-- Spec-first rule: if the work you are asked to do conflicts with `docs/spec.md`, stop and flag it instead of silently diverging. Update the spec (Decision Log entry) together with the change when a decision is revised.
+- `docs/spec.md` is the normative spec: product definition, invariants, refresh policy, and the decisions in force. Open defects and backlog are GitHub Issues (`gh issue list`). Read the spec before a change to sign-in, refresh, storage, or the store protocol.
+- Spec-first rule: if the work you are asked to do conflicts with `docs/spec.md`, stop and flag it instead of silently diverging. When a decision changes, update the spec in the same change.
 
 ## Working Rules
 
@@ -33,8 +32,10 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
 - Preferred build command: `mise run build-macos`
 - Preferred test command: `mise run test-macos`
 - UI test command: `mise run test-ui-macos`. It needs an unlocked screen and Automation Mode without authentication (`sudo automationmodetool enable-automationmode-without-authentication`, run once by Zach). Do not move the mouse while it runs. It exports named screenshots of each screen state to `.artifacts/ui-screens/`.
+- UI tests away from the host screen: `mise run test-ui-vm`. It starts the tart VM `mitori-ui`, copies the working tree into it, runs `CI=1 mise run test-ui-macos` there, and copies the screenshots back. It needs `tart` and a VM made from a `cirruslabs/macos-*-xcode` image; set `TART_HOME` in the untracked `mise.local.toml` when the VM is not in `~/.tart`. Prefer it over `test-ui-macos` when the VM exists.
 - UI tests find controls by accessibility identifier (`menu.*`, `account-row.*`, `add-account.*`, `account-detail.*`, `settings.*`, `document.*`). A UI rewrite keeps these identifiers and the accessibility values the tests read, or updates the tests in the same change.
 - Build and test commands should stay routed through `mise`; they wrap `xcodebuild` against `Mitori.xcodeproj` with the shared `Mitori` scheme.
+- There is one build variant. It signs with the developer team set in the project. When `CI` is set, `scripts/test-macos.sh` signs to run locally without entitlements, and the tests that need the Keychain skip.
 - The app bundle is staged under `.app-build/<configuration>/Mitori.app`.
 - If Xcode is needed, open `Mitori.xcodeproj`.
 
