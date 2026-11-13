@@ -11,8 +11,11 @@ final class URLSessionStoreTransport: StoreTransport {
 
     private let session: URLSession
 
-    init() {
+    init(protocolClasses: [AnyClass]? = nil) {
         let configuration = URLSessionConfiguration.ephemeral
+        if let protocolClasses {
+            configuration.protocolClasses = protocolClasses
+        }
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.urlCache = nil
         configuration.httpShouldSetCookies = false

@@ -343,6 +343,65 @@ struct AppleSessionBridgeTests {
     }
 
     @Test
+    func manualProbeNetworkFailureDoesNotReauthenticate() async throws {
+        let authenticator = AppleAuthenticatorStub(
+            result: try authenticationResult(fixture: "auth_success_balance")
+        )
+        let balanceService = BalanceRefreshingStub(error: MitoriError.network("offline"))
+        let bridge = AppleSessionBridge(
+            authenticator: authenticator,
+            balanceService: balanceService
+        )
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+
+        await #expect(throws: MitoriError.network("offline")) {
+            try await bridge.refreshBalance(
+                meta: meta,
+                secret: StoredAccountSecret(account: sampleAccount()),
+                allowsReauthentication: true
+            )
+        }
+        #expect(authenticator.callCount == 0)
+    }
+
+    @Test
+    func reauthenticationSendsStoredCookiesAndLoginSendsNone() async throws {
+        let authenticator = AppleAuthenticatorStub(
+            result: try authenticationResult(fixture: "auth_success_balance")
+        )
+        let bridge = AppleSessionBridge(
+            authenticator: authenticator,
+            balanceService: BalanceRefreshingStub()
+        )
+        let cookie = Cookie(name: "mz_at0", value: "session", path: "/", httpOnly: true, secure: true)
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: ""
+        )
+
+        _ = try await bridge.reauthenticate(
+            meta: meta,
+            secret: StoredAccountSecret(account: sampleAccount(cookies: [cookie])),
+            code: ""
+        )
+        _ = try await bridge.login(
+            email: "demo@example.com",
+            password: "password",
+            code: "",
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "",
+            existing: nil
+        )
+
+        #expect(authenticator.cookies.map { $0.map(\.name) } == [["mz_at0"], []])
+    }
+
+    @Test
     func loginRecordsProbeNetworkFailureAndKeepsAuthBalance() async throws {
         let authenticator = AppleAuthenticatorStub(
             result: try authenticationResult(fixture: "auth_success_balance")
@@ -371,6 +430,7 @@ private final class AppleAuthenticatorStub: AppleAuthenticating, @unchecked Send
     var result: AuthenticationResult
     var error: Error?
     private(set) var callCount = 0
+    private(set) var cookies: [[Cookie]] = []
 
     init(result: AuthenticationResult, error: Error? = nil) {
         self.result = result
@@ -381,10 +441,11 @@ private final class AppleAuthenticatorStub: AppleAuthenticating, @unchecked Send
         email _: String,
         password _: String,
         code _: String,
-        cookies _: [Cookie],
+        cookies: [Cookie],
         deviceIdentifier _: String
     ) async throws -> AuthenticationResult {
         callCount += 1
+        self.cookies.append(cookies)
         if let error {
             throw error
         }

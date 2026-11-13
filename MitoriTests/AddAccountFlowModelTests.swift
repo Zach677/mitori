@@ -7,7 +7,7 @@ import Testing
 struct AddAccountFlowModelTests {
     @Test
     func requiresEmailAndPasswordBeforeLogin() {
-        let flow = AddAccountFlowModel()
+        let flow = AddAccountFlowModel(deviceIdentifier: "ABCDEF123456")
 
         #expect(flow.canSubmit == false)
 
@@ -20,7 +20,7 @@ struct AddAccountFlowModelTests {
 
     @Test
     func revealingTwoFactorRequiresCodeBeforeRetry() {
-        let flow = AddAccountFlowModel()
+        let flow = AddAccountFlowModel(deviceIdentifier: "ABCDEF123456")
         flow.email = "demo@example.com"
         flow.password = "secret"
 
@@ -36,7 +36,7 @@ struct AddAccountFlowModelTests {
 
     @Test
     func invalidTwoFactorCodeKeepsFieldVisible() {
-        let flow = AddAccountFlowModel()
+        let flow = AddAccountFlowModel(deviceIdentifier: "ABCDEF123456")
         flow.email = "demo@example.com"
         flow.password = "secret"
 
@@ -61,7 +61,7 @@ struct AddAccountFlowModelTests {
 
     @Test
     func beginSubmissionClearsErrorAndLocksButton() {
-        let flow = AddAccountFlowModel()
+        let flow = AddAccountFlowModel(deviceIdentifier: "ABCDEF123456")
         flow.email = "demo@example.com"
         flow.password = "secret"
         flow.errorMessage = "Old error"
