@@ -37,6 +37,10 @@ run = "bash scripts/test-macos.sh"
 description = "Run the XCUITest suite against the offline UI fixture"
 run = "TEST_TARGET=MitoriUITests bash scripts/test-macos.sh || status=$?; bash scripts/export-ui-screens.sh; exit ${status:-0}"
 
+[tasks.test-ui-vm]
+description = "Run the XCUITest suite in a local tart VM, away from the host screen"
+run = "bash scripts/test-ui-vm.sh"
+
 [tasks.scan-license]
 description = "Regenerate bundled open-source license notices"
 run = "zsh scripts/scan.license.sh"

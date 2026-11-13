@@ -64,6 +64,9 @@ dist/
 .artifacts/
 .codex/
 
+### Machine-local mise settings (for example TART_HOME) ###
+mise.local.toml
+
 ### Repo-local tool cache ###
 .cache/
 
