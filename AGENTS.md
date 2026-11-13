@@ -7,7 +7,7 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
 - This repo is a native Xcode project for a macOS menu bar app.
 - `Mitori.xcodeproj` is the source of truth. Do not reintroduce Tuist, XcodeGen, or a standalone `Package.swift`.
 - The project uses synchronized folder references, so files added on disk join the right target automatically; no project regeneration is ever needed.
-- App source lives in `Mitori/` (`App`, `UI`, `Services`, `Domain`).
+- App source lives in `Mitori/` (`App`, `UI`, `Services`, `Domain`, `AppleStore`).
 - App resources live in `Mitori/Resources`.
 - Tests live in `MitoriTests/`; UI tests live in `MitoriUITests/`.
 - The app target is `Mitori`; the test targets are `MitoriTests` and `MitoriUITests`.
@@ -33,7 +33,7 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
 - Preferred build command: `mise run build-macos`
 - Preferred test command: `mise run test-macos`
 - UI test command: `mise run test-ui-macos`. It needs an unlocked screen and Automation Mode without authentication (`sudo automationmodetool enable-automationmode-without-authentication`, run once by Zach). Do not move the mouse while it runs. It exports named screenshots of each screen state to `.artifacts/ui-screens/`.
-- UI tests find controls by accessibility identifier (`menu.*`, `account-row.*`, `add-account.*`, `account-detail.*`, `settings.*`). A UI rewrite keeps these identifiers and the accessibility values the tests read, or updates the tests in the same change.
+- UI tests find controls by accessibility identifier (`menu.*`, `account-row.*`, `add-account.*`, `account-detail.*`, `settings.*`, `document.*`). A UI rewrite keeps these identifiers and the accessibility values the tests read, or updates the tests in the same change.
 - Build and test commands should stay routed through `mise`; they wrap `xcodebuild` against `Mitori.xcodeproj` with the shared `Mitori` scheme.
 - The app bundle is staged under `.app-build/<configuration>/Mitori.app`.
 - If Xcode is needed, open `Mitori.xcodeproj`.
@@ -45,7 +45,7 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
 - For launch verification, use: `mise run run-macos`
 - If verification is blocked, name the exact command, blocker, and current failure.
 - For doc-only changes, verify by re-reading the edited file and checking that commands and paths still match the repo.
-- Use `mise run clean` to remove generated build output, including stale SwiftPM/Tuist artifacts.
+- Use `mise run clean` to remove generated build output, including stale SwiftPM artifacts.
 
 ## Code Preferences
 
@@ -54,6 +54,7 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
   - `UI` for AppKit view controllers and controls
   - `Services` for persistence, session, parsing, and external integrations
   - `Domain` for models and app-level error types
+  - `AppleStore` for the Apple Store protocol: requests, transport, redirect policy, and typed protocol errors
 - Keep files focused. If a file starts doing two jobs, split it.
 - Prefer small, explicit state transitions over clever abstraction.
 - Match existing Swift style and naming before introducing new patterns.

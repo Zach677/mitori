@@ -152,6 +152,10 @@ if a real bug needs it.
 | B12 | P3 | `Cookie` has no host-only flag: a cookie set without `Domain` is sent to subdomains of its host. The redirect allowlist limits the reachable hosts | - | open |
 | B13 | P2 | Clearing the probe app and pressing Save kept the old probe: the save read the field after `reload()` refilled it | - | fixed @d80e368 |
 | B14 | P2 | One failed sign-in sends up to 4 password POSTs: 204/404 retry after 0.25 s and 0.5 s, then a cookie-less retry. ipatool waits 10 s and 20 s and honors `Retry-After` | - | fixed @74c2d1d |
+| B15 | P2 | Add Account opened again while its window is visible rebuilds the window: the typed email and password are lost and a sign-in in progress is not cancelled | - | fixed @544f993 |
+| B16 | P3 | A failed read of `accounts.json` is not tried again until relaunch | - | fixed @544f993 |
+| B17 | P2 | `Software` requires App Store fields that Mitori does not use; a lookup or search result without one of them fails the probe | - | fixed @502723f |
+| B18 | P3 | An error in account details disappears on the next model change of any account | - | fixed @544f993 |
 
 Update the Status column (open / in-progress / fixed @commit) as tasks land.
 
@@ -396,3 +400,23 @@ validation or log redaction. A card does not authorize commit, push, or release.
   a changed identifier is low risk: in T5 a re-add sent a new private address
   and Apple asked for no 2FA code. Not verified live: the first sign-in of a
   re-added account with the hardware identifier.
+- **D-23** (2026-11-10) Project audit. Code that no caller used is removed
+  from the port; `docs/applestore-port.md` lists it. B15-B18 are registered
+  and fixed. `AppWindowController.focus()` no longer rebuilds the window
+  content; only the account details window is rebuilt, and only when the
+  account changes. Two accessibility identifiers change to follow the D-18
+  contract: `menu-banner` becomes `menu.banner`, and `mitori-status-item`
+  becomes `menu.status-item`. The undocumented `MITORI_OPEN_*` launch hooks
+  are removed; the UI fixture covers those screens. The unit test host no
+  longer creates the status item, the model on real accounts, or the refresh
+  timer (I-6, I-8). A test now sends a request through the real
+  `URLSessionStoreTransport` and fails when the transport follows a redirect
+  (I-2). `mise run test-macos` exit 0 (144 passed); the new tests for B15,
+  B16, and B17 failed before their fixes. `mise run test-ui-macos` 18 passed;
+  `mise run build-macos`, `mise run package-community`,
+  `bash scripts/smoke-community-dmg.sh`, and `mise run run-macos` exit 0.
+  Not verified: the development-signed build. `COMMUNITY_BUILD=0 bash
+  scripts/test-macos.sh` exits 65, because this Mac has no provisioning
+  profile for `dev.zach.mitori`. No task or CI job builds that configuration,
+  so the Data Protection Keychain path and its migration tests do not run.
+  The signing method for the next release is not decided.

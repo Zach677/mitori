@@ -17,6 +17,10 @@ All notable changes to Mitori are documented in this file.
 - Clearing the probe app in account details now saves.
 - New accounts use this Mac's hardware address as their device identifier, so it no longer changes with the Wi-Fi network.
 - Wait 10 and 20 seconds before retrying a failed Apple sign-in and follow Apple's Retry-After, instead of resending the password within a second.
+- Opening Add Account again no longer clears the email and password you typed.
+- An error in account details stays visible until your next action.
+- Mitori reads the account list again after a failed load, without a restart.
+- A probe app lookup no longer fails when Apple leaves out app details that Mitori does not use.
 
 ## 0.2.3 - 2026-09-02
 

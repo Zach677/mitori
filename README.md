@@ -50,7 +50,7 @@ shasum -a 256 -c Mitori-<version>.dmg.sha256
 
 ## Add an account
 
-You need an Apple ID email and password, and a two-factor authentication code when Apple asks for one. Mitori generates a device identifier automatically.
+You need an Apple ID email and password, and a two-factor authentication code when Apple asks for one. Mitori uses the hardware address of this Mac's primary network interface as the device identifier that Apple sees.
 
 After sign-in, Mitori reads store credit from Apple's login response. When you refresh an account, Mitori reuses the session, or signs in again silently when needed.
 
@@ -63,6 +63,7 @@ Mitori has no backend. Account traffic goes directly to Apple, and your data sta
 - Development-signed builds store credentials in the macOS Data Protection Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`.
 - Ad hoc community builds use the local login Keychain because Apple restricts Data Protection Keychain access to provisioned apps. Stored items do not sync through iCloud.
 - Account metadata is stored at `~/Library/Application Support/Mitori/accounts.json`.
+- Apple receives a device identifier with each sign-in and balance request. For a new account, it is the hardware address of this Mac's primary network interface.
 - Automatic refresh pauses while the screen is locked.
 
 The [Privacy Policy](https://zaxh.org/mitori/privacy) is also available under **Settings > Privacy & Legal**.
