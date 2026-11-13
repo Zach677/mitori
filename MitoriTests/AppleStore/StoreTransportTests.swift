@@ -129,8 +129,7 @@ struct StoreTransportTests {
                 allowsReauthentication: false
             )
         }
-        #expect(transport.requests.count == 2)
-        #expect(!transport.requests.contains { $0.url?.host == "auth.itunes.apple.com" })
+        #expect(transport.requests.map(\.url?.host) == ["itunes.apple.com", "p25-buy.itunes.apple.com"])
     }
 
     @Test

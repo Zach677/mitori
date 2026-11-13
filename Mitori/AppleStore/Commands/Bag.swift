@@ -15,7 +15,7 @@ public enum Bag {
     private static let defaultAuthEndpoint = "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/"
 
     static func fetchBag(
-        deviceIdentifier: String = Configuration.deviceIdentifier,
+        deviceIdentifier: String,
         transport: any StoreTransport = URLSessionStoreTransport.shared
     ) async throws -> BagOutput {
         var comps = URLComponents()
@@ -24,7 +24,6 @@ public enum Bag {
         comps.path = "/bag.xml"
         comps.queryItems = [URLQueryItem(name: "guid", value: deviceIdentifier)]
         guard let url = comps.url else {
-            APLogger.debug("bag: failed to construct URL, using default auth endpoint")
             return BagOutput(authEndpoint: URL(string: defaultAuthEndpoint)!)
         }
 
@@ -33,24 +32,15 @@ public enum Bag {
             ("Accept", "application/xml"),
         ]
 
-        APLogger.logRequest(method: "GET", url: url.absoluteString, headers: headers)
-
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         for (name, value) in headers {
             request.setValue(value, forHTTPHeaderField: name)
         }
 
-        let (data, response) = try await transport.data(for: request)
-
-        APLogger.logResponse(
-            status: UInt(response.statusCode),
-            headers: response.allHeaderFields.map { ("\($0.key)", "\($0.value)") },
-            bodySize: data.count
-        )
+        let (data, _) = try await transport.data(for: request)
 
         guard !data.isEmpty else {
-            APLogger.debug("bag: empty response body, using default auth endpoint")
             return BagOutput(authEndpoint: URL(string: defaultAuthEndpoint)!)
         }
 
@@ -61,7 +51,6 @@ public enum Bag {
             options: [],
             format: nil
         ) as? [String: Any] else {
-            APLogger.debug("bag: failed to parse plist, using default auth endpoint")
             return BagOutput(authEndpoint: URL(string: defaultAuthEndpoint)!)
         }
 
@@ -73,7 +62,6 @@ public enum Bag {
         guard let authURLString,
               let authURL = normalizedAuthEndpoint(from: authURLString)
         else {
-            APLogger.debug("bag: no authenticateAccount in plist, using default auth endpoint")
             return BagOutput(authEndpoint: URL(string: defaultAuthEndpoint)!)
         }
 

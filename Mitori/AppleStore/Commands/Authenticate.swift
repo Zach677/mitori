@@ -37,28 +37,12 @@ public enum Authenticator {
     private static let transientRetryDelayNanoseconds: UInt64 = 10_000_000_000
     private static let maxTransientRetryDelayNanoseconds: UInt64 = 30_000_000_000
 
-    public static func authenticate(
-        email: String,
-        password: String,
-        code: String = "",
-        cookies: [Cookie] = [],
-        deviceIdentifier: String = Configuration.deviceIdentifier
-    ) async throws -> Account {
-        try await authenticateWithResponse(
-            email: email,
-            password: password,
-            code: code,
-            cookies: cookies,
-            deviceIdentifier: deviceIdentifier
-        ).account
-    }
-
     static func authenticateWithResponse(
         email: String,
         password: String,
         code: String = "",
         cookies: [Cookie] = [],
-        deviceIdentifier: String = Configuration.deviceIdentifier,
+        deviceIdentifier: String,
         transport: any StoreTransport = URLSessionStoreTransport.shared,
         signAction: (Data) throws -> String = AppleActionSigner.sign
     ) async throws -> AuthenticationResult {
@@ -150,16 +134,6 @@ public enum Authenticator {
 
     private static func isTransientAuthenticationStatus(_ statusCode: UInt) -> Bool {
         statusCode == 204 || statusCode == 404 || statusCode == 429 || statusCode / 100 == 5
-    }
-
-    public static func rotatePasswordToken(for account: inout Account) async throws {
-        let newAccount = try await authenticate(
-            email: account.email,
-            password: account.password,
-            code: "",
-            cookies: account.cookie
-        )
-        account = newAccount
     }
 
     private static func createInitialRequestEndpoint(
@@ -284,7 +258,6 @@ public enum Authenticator {
             headers.append(item)
         }
         let actionSignature = try signAction(data)
-        APLogger.logRequest(method: "POST", url: endpoint.absoluteString, headers: headers)
         headers.append(("X-Apple-ActionSignature", actionSignature))
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
@@ -306,12 +279,6 @@ public enum Authenticator {
         storeFront: inout String,
         pod: inout String?
     ) throws -> LoginResponse {
-        APLogger.logResponse(
-            status: UInt(response.statusCode),
-            headers: response.allHeaderFields.map { ("\($0.key)", "\($0.value)") },
-            bodySize: data.count
-        )
-
         cookies.mergeCookies(response.setCookies())
 
         if let storeFrontValue = response.value(forHTTPHeaderField: "x-set-apple-store-front")?

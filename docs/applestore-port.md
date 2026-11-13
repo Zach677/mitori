@@ -77,3 +77,32 @@ app has no Swift package dependency.
   `Mitori/AppleStore/Errors/StoreAuthError.swift` holds the typed errors.
 - `Mitori/AppleStore/Transport/StoreRedirectPolicy.swift` is the one redirect
   validator for authenticate and the probe.
+
+## Unused code removed (2026-11-10)
+
+No app or test code called these parts of the port:
+
+- `Supplement/Accounts.swift` and `Supplement/MD5.swift` are removed. Their
+  helpers write an account, with its password, as plain JSON under
+  `~/.ipatool/`.
+- `Configuration` loses `deviceIdentifier`, `homePath`, `accountPath`,
+  `saveLoginAccount`, and `withAccount`. `Authenticator.authenticateWithResponse`
+  and `Bag.fetchBag` now require the `deviceIdentifier` argument; every caller
+  already supplied it.
+- `Authenticator.authenticate` and `Authenticator.rotatePasswordToken`,
+  `EntityType.metadataPlatformValue`, `APLogger.error`, and the download,
+  purchase, and version messages in `Strings` are removed.
+
+Only tests called these parts, or no caller changed their value:
+
+- `Models/EntityType.swift` and the `entityType` parameters of `Lookup` and
+  `Searcher` are removed. The requests keep the same `entity` values:
+  `software,iPadSoftware` for lookup and `software` for search.
+- `Configuration.purchaseAPIHost` and `Configuration.storeId(for:)` are
+  removed, with the test of `purchaseAPIHost`.
+- `APLogger` keeps only `info`. Nothing set `verbose`, so `debug`,
+  `logRequest`, and `logResponse` never wrote a line; `StoreTrace` is the
+  request diagnostic.
+- `Software` decodes only `trackId`, `bundleId`, and `trackName`. The other
+  fields were required but not used, so a result without one of them failed
+  the probe (B17).

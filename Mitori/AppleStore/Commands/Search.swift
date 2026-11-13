@@ -17,14 +17,12 @@ public enum Searcher {
         term: String,
         countryCode: String,
         limit: Int = 5,
-        entityType: EntityType = .iPhone,
         transport: any StoreTransport = URLSessionStoreTransport.shared
     ) async throws -> [Software] {
         let request = try makeRequest(
             term: term,
             countryCode: countryCode,
-            limit: limit,
-            entityType: entityType
+            limit: limit
         )
         let (data, response) = try await transport.data(for: request)
 
@@ -44,14 +42,12 @@ public enum Searcher {
     private static func makeRequest(
         term: String,
         countryCode: String,
-        limit: Int,
-        entityType: EntityType
+        limit: Int
     ) throws -> URLRequest {
         let url = try createSearchURL(
             term: term,
             countryCode: countryCode,
-            limit: limit,
-            entityType: entityType
+            limit: limit
         )
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -62,15 +58,14 @@ public enum Searcher {
     private static func createSearchURL(
         term: String,
         countryCode: String,
-        limit: Int,
-        entityType: EntityType
+        limit: Int
     ) throws -> URL {
         var comps = URLComponents()
         comps.scheme = "https"
         comps.host = "itunes.apple.com"
         comps.path = "/search"
         comps.queryItems = [
-            URLQueryItem(name: "entity", value: entityType.searchEntityValue),
+            URLQueryItem(name: "entity", value: "software"),
             URLQueryItem(name: "limit", value: "\(limit)"),
             URLQueryItem(name: "media", value: "software"),
             URLQueryItem(name: "term", value: term),

@@ -317,11 +317,6 @@ final class AccountRowView: NSView {
     }
 
     @objc
-    private func open() {
-        onOpen()
-    }
-
-    @objc
     private func refresh() {
         onRefresh()
     }

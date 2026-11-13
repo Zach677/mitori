@@ -16,10 +16,9 @@ public enum Lookup {
     static func lookup(
         bundleID: String,
         countryCode: String,
-        entityType: EntityType? = nil,
         transport: any StoreTransport = URLSessionStoreTransport.shared
     ) async throws -> Software {
-        let request = try makeRequest(bundleID: bundleID, countryCode: countryCode, entityType: entityType)
+        let request = try makeRequest(bundleID: bundleID, countryCode: countryCode)
         let (data, response) = try await transport.data(for: request)
 
         guard response.statusCode == 200 else {
@@ -41,10 +40,9 @@ public enum Lookup {
 
     private static func makeRequest(
         bundleID: String,
-        countryCode: String,
-        entityType: EntityType?
+        countryCode: String
     ) throws -> URLRequest {
-        let url = try createLookupURL(bundleID: bundleID, countryCode: countryCode, entityType: entityType)
+        let url = try createLookupURL(bundleID: bundleID, countryCode: countryCode)
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue(Configuration.userAgent, forHTTPHeaderField: "User-Agent")
@@ -53,8 +51,7 @@ public enum Lookup {
 
     private static func createLookupURL(
         bundleID: String,
-        countryCode: String,
-        entityType: EntityType?
+        countryCode: String
     ) throws -> URL {
         var comps = URLComponents()
         comps.scheme = "https"
@@ -63,7 +60,7 @@ public enum Lookup {
         comps.queryItems = [
             URLQueryItem(name: "bundleId", value: bundleID),
             URLQueryItem(name: "country", value: countryCode),
-            URLQueryItem(name: "entity", value: entityType?.entityValue ?? "software,iPadSoftware"),
+            URLQueryItem(name: "entity", value: "software,iPadSoftware"),
             URLQueryItem(name: "limit", value: "1"),
             URLQueryItem(name: "media", value: "software"),
         ]

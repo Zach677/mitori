@@ -9,14 +9,9 @@ struct AppleStoreConfigurationTests {
         #expect(Configuration.storeAPIHost(pod: pod) == host)
     }
 
-    @Test(arguments: [("42", "p42-buy.itunes.apple.com"), (nil, "buy.itunes.apple.com"), ("", "buy.itunes.apple.com")] as [(String?, String)])
-    func purchaseAPIHost(pod: String?, host: String) {
-        #expect(Configuration.purchaseAPIHost(pod: pod) == host)
-    }
-
     @Test
     func countryCodeRoundTrip() {
-        #expect(Configuration.storeId(for: "US") == "143441")
+        #expect(Configuration.storeFrontValues["US"] == "143441")
         #expect(Configuration.countryCode(for: "143441") == "US")
     }
 

@@ -8,45 +8,11 @@
 import Foundation
 
 public enum Configuration {
-    /**
-     DeviceIdentifier is a unique identifier for your device.
-
-     - On macOS, it is a MAC address and can be read by calling DeviceIdentifier.system.
-     - If that fails and throws an error, use DeviceIdentifier.random and **save it**
-
-     **It is a must set value before any network request**
-     **otherwise your account may be locked for security reason**
-     */
-    public static var deviceIdentifier: String = (try? DeviceIdentifier.system()) ?? "" {
-        didSet {
-            assert(!deviceIdentifier.contains(":"))
-            assert(!deviceIdentifier.contains("-"))
-            assert(!deviceIdentifier.contains(" "))
-            assert(!deviceIdentifier.contains("\n"))
-        }
-    }
-
     public static var userAgent: String = "Configurator/2.17 (Macintosh; OS X 15.2; 24C5089c) AppleWebKit/0620.1.16.11.6"
 
     public static let storeFrontValues: [String: String] = kCountryCodes
     public static let timeoutRead: TimeInterval = 30
     public static let timeoutResource: TimeInterval = 60
-
-    #if os(macOS)
-        public static var homePath: URL = FileManager.default
-            .homeDirectoryForCurrentUser
-            .appendingPathComponent(".ipatool", isDirectory: true)
-        {
-            didSet { assert(homePath.isFileURL) }
-        }
-    #else
-        public static var homePath: URL = FileManager.default
-            .urls(for: .documentDirectory, in: .userDomainMask).first!
-            .appendingPathComponent(".ipatool", isDirectory: true)
-        {
-            didSet { assert(homePath.isFileURL) }
-        }
-    #endif
 
     public static func storeAPIHost(pod: String?) -> String {
         guard let pod, !pod.isEmpty else {
@@ -55,35 +21,8 @@ public enum Configuration {
         return "p\(pod)-buy.itunes.apple.com"
     }
 
-    public static func purchaseAPIHost(pod: String?) -> String {
-        guard let pod, !pod.isEmpty else {
-            return "buy.itunes.apple.com"
-        }
-        return "p\(pod)-buy.itunes.apple.com"
-    }
-
-    public static func storeId(for countryCode: String) -> String? {
-        storeFrontValues[countryCode]
-    }
-
     public static func countryCode(for storeId: String) -> String? {
         storeFrontValues.first(where: { $0.value == storeId })?.key
-    }
-
-    public static func accountPath(for email: String) -> URL {
-        let emailLower = email.lowercased()
-        let hash = emailLower.md5
-        let accountDir = homePath.appendingPathComponent(hash)
-        try? FileManager.default.createDirectory(at: accountDir, withIntermediateDirectories: true)
-        return accountDir.appendingPathComponent("account.json")
-    }
-
-    public static func saveLoginAccount(_ account: Account, for email: String) {
-        Mitori.saveLoginAccount(account, for: email)
-    }
-
-    public static func withAccount<T>(email: String, _ body: (inout Account) async throws -> T) async throws -> T {
-        try await Mitori.withAccount(email: email, body)
     }
 }
 
