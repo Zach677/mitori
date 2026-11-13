@@ -41,6 +41,10 @@ run = "TEST_TARGET=MitoriUITests bash scripts/test-macos.sh || status=$?; bash s
 description = "Run the XCUITest suite in a local tart VM, away from the host screen"
 run = "bash scripts/test-ui-vm.sh"
 
+[tasks.release]
+description = "Make a notarized Developer ID DMG in dist/; PUBLISH=1 also creates the GitHub release"
+run = "bash scripts/release-macos.sh"
+
 [tasks.scan-license]
 description = "Regenerate bundled open-source license notices"
 run = "zsh scripts/scan.license.sh"

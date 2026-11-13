@@ -36,6 +36,7 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
 - UI tests find controls by accessibility identifier (`menu.*`, `account-row.*`, `add-account.*`, `account-detail.*`, `settings.*`, `document.*`). A UI rewrite keeps these identifiers and the accessibility values the tests read, or updates the tests in the same change.
 - Build and test commands should stay routed through `mise`; they wrap `xcodebuild` against `Mitori.xcodeproj` with the shared `Mitori` scheme.
 - There is one build variant. It signs with the developer team set in the project. When `CI` is set, `scripts/test-macos.sh` signs to run locally without entitlements, and the tests that need the Keychain skip.
+- Release command: `mise run release`. It archives, signs with Developer ID, notarizes, and writes a stapled DMG to `dist/`; `PUBLISH=1 mise run release` also creates the GitHub release. Run it only when Zach asks: each run uploads the app to Apple's notary service.
 - The app bundle is staged under `.app-build/<configuration>/Mitori.app`.
 - If Xcode is needed, open `Mitori.xcodeproj`.
 
