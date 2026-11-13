@@ -203,8 +203,9 @@ The numbers are the original log numbers, so references in code stay valid.
   do not run in CI; they run with the same signing in a local tart VM
   (`mise run test-ui-vm`), which is not in the development profile. Releases are
   made on Zach's Mac with `mise run release`: Developer ID signing with a
-  Developer ID provisioning profile, notarization, and a stapled DMG. The
-  Homebrew cask is updated by hand. A stored
+  Developer ID provisioning profile, notarization, and a stapled DMG. A
+  scheduled workflow in the tap `Zach677/homebrew-star` bumps the Homebrew
+  cask. A stored
   secret that cannot be read no longer blocks deleting its account (B19).
 - **D-25** (2026-11-13) Task cards and per-card acceptance records are
   retired. This spec holds current rules; a commit message holds the evidence

@@ -128,8 +128,7 @@ hdiutil verify "$DMG_PATH"
 
 if [[ "$PUBLISH" == 1 ]]; then
     gh release create "v$VERSION" "$DMG_PATH" "$DMG_PATH.sha256" --generate-notes --verify-tag
-    # shortcut: the Homebrew cask is updated by hand, automate it when releases are frequent.
-    echo "Update the Homebrew cask: version $VERSION, sha256 $(cut -d ' ' -f 1 "$DMG_PATH.sha256")"
+    # The scheduled workflow in the tap Zach677/homebrew-star bumps the Homebrew cask.
 fi
 
 echo "$DMG_PATH"
