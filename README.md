@@ -27,13 +27,11 @@ brew tap Zach677/star
 brew install --cask mitori
 ```
 
-The Homebrew cask handles Gatekeeper quarantine for the ad hoc-signed releases up to 0.2.3.
-
 ### Manual download
 
 Download the latest DMG from [GitHub Releases](https://github.com/Zach677/mitori/releases/latest), then drag Mitori into `/Applications`.
 
-Releases up to 0.2.3 are ad hoc signed and not notarized. If macOS blocks the first launch, open **System Settings > Privacy & Security** and choose **Open Anyway**. You can verify the downloaded files before opening them:
+Releases after 0.2.3 are signed with Developer ID and notarized by Apple. To verify a download:
 
 ```sh
 shasum -a 256 -c Mitori-<version>.dmg.sha256
@@ -90,7 +88,7 @@ To work in Xcode, open `Mitori.xcodeproj`.
 - Apple ID login, two-factor authentication, and session management live in `Mitori/AppleStore/`, ported from [ApplePackage](https://github.com/Zach677/ApplePackage). All Apple Store requests use one URLSession transport that validates every redirect against an Apple host allowlist. Mitori has no third-party Swift package dependencies.
 - Balance lookup sends a `volumeStoreDownloadProduct` request for an app owned by the account, then extracts store credit from Apple's response.
 - A 60-second timer checks whether each account with a probe app is due for refresh. The default interval is one hour, the minimum is 15 minutes, and failed requests back off before retrying.
-- Releases up to 0.2.3 use ad hoc signing with Hardened Runtime and include both `arm64` and `x86_64` slices. The Intel build is verified but has not been tested on Intel hardware.
+- Releases use the Hardened Runtime and include both `arm64` and `x86_64` slices. The Intel build is verified but has not been tested on Intel hardware.
 
 </details>
 
@@ -98,9 +96,8 @@ To work in Xcode, open `Mitori.xcodeproj`.
 
 - Mitori is under early development and relies on Apple Store services that may change without notice.
 - Mitori is not affiliated with or endorsed by Apple Inc. Use it only with accounts you are authorized to access and follow Apple's terms.
-- Releases up to 0.2.3 are ad hoc signed and not notarized. Developer ID signing and notarization are planned for the next release.
 
-See [CHANGELOG.md](CHANGELOG.md) for release notes.
+See [CHANGELOG.md](CHANGELOG.md) for release notes, and [CONTRIBUTING.md](CONTRIBUTING.md) to report a bug or change the code.
 
 ## Acknowledgements
 
@@ -112,4 +109,4 @@ Mitori is available under the [MIT License](LICENSE). Third-party license terms 
 
 ---
 
-Copyright © 2026 Zach. All Rights Reserved.
+Copyright © 2026 Zach.

@@ -23,7 +23,7 @@ All notable changes to Mitori are documented in this file.
 - A probe app lookup no longer fails when Apple leaves out app details that Mitori does not use.
 - You can delete an account when its stored credentials cannot be read.
 - Credentials now live in the Data Protection Keychain. Items that older builds saved in the login Keychain move there the first time Mitori reads them.
-- Mitori is no longer built ad hoc signed. Developer ID signing and notarization are planned for this release.
+- Mitori is now signed with Developer ID and notarized by Apple, so macOS opens it without a Gatekeeper warning.
 
 ## 0.2.3 - 2026-09-02
 
