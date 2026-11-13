@@ -33,13 +33,12 @@ enum StoreTrace {
     }
 
     /// Runs `body` as `name` unless an outer operation already owns this task.
-    static func run<T>(
+    nonisolated(nonsending) static func run<T>(
         _ name: String,
-        isolation: isolated (any Actor)? = #isolation,
-        _ body: () async throws -> T
+        _ body: nonisolated(nonsending) () async throws -> T
     ) async rethrows -> T {
         if operation != nil { return try await body() }
-        return try await $operation.withValue(Operation(name), operation: body, isolation: isolation)
+        return try await $operation.withValue(Operation(name), operation: body)
     }
 
     static func record(request: URLRequest, response: HTTPURLResponse?, data: Data?, error: Error?) {
