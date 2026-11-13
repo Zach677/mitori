@@ -10,18 +10,12 @@ protocol SecretKeyValueStore {
 
 final class KeychainSecretBackend: SecretKeyValueStore {
     private let service: String
-    private let usesDataProtectionKeychain: Bool
 
-    init(service: String, usesDataProtectionKeychain: Bool? = nil) {
+    init(service: String) {
         self.service = service
-        self.usesDataProtectionKeychain = usesDataProtectionKeychain ?? Self.defaultUsesDataProtectionKeychain
     }
 
     func data(for key: String, allowsAuthenticationUI: Bool = true) throws -> Data? {
-        guard usesDataProtectionKeychain else {
-            return try copyData(matching: legacyQuery(for: key), allowsAuthenticationUI: allowsAuthenticationUI)
-        }
-
         if let data = try copyData(
             matching: protectedQuery(for: key),
             allowsAuthenticationUI: allowsAuthenticationUI
@@ -48,20 +42,18 @@ final class KeychainSecretBackend: SecretKeyValueStore {
         for key: String,
         allowsAuthenticationUI: Bool = true
     ) throws {
-        let baseQuery = usesDataProtectionKeychain ? protectedQuery(for: key) : legacyQuery(for: key)
+        let baseQuery = protectedQuery(for: key)
         let query = authenticationQuery(baseQuery, allowsAuthenticationUI: allowsAuthenticationUI)
         var attributes = query
         attributes[kSecValueData as String] = data
-        if usesDataProtectionKeychain {
-            attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        }
+        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
 
         let status = SecItemAdd(attributes as CFDictionary, nil)
         if status == errSecDuplicateItem {
-            var update: [String: Any] = [kSecValueData as String: data]
-            if usesDataProtectionKeychain {
-                update[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-            }
+            let update: [String: Any] = [
+                kSecValueData as String: data,
+                kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+            ]
             let updateStatus = SecItemUpdate(query as CFDictionary, update as CFDictionary)
             guard updateStatus == errSecSuccess else {
                 throw keychainError(updateStatus)
@@ -80,33 +72,21 @@ final class KeychainSecretBackend: SecretKeyValueStore {
                 userInfo: [NSLocalizedDescriptionKey: "Keychain write verification failed."]
             )
         }
-        if usesDataProtectionKeychain {
-            try delete(
-                matching: legacyQuery(for: key),
-                allowsAuthenticationUI: allowsAuthenticationUI
-            )
-        }
-    }
-
-    func removeValue(for key: String, allowsAuthenticationUI: Bool = true) throws {
-        if usesDataProtectionKeychain {
-            try delete(
-                matching: protectedQuery(for: key),
-                allowsAuthenticationUI: allowsAuthenticationUI
-            )
-        }
         try delete(
             matching: legacyQuery(for: key),
             allowsAuthenticationUI: allowsAuthenticationUI
         )
     }
 
-    private static var defaultUsesDataProtectionKeychain: Bool {
-#if MITORI_COMMUNITY_BUILD
-        false
-#else
-        true
-#endif
+    func removeValue(for key: String, allowsAuthenticationUI: Bool = true) throws {
+        try delete(
+            matching: protectedQuery(for: key),
+            allowsAuthenticationUI: allowsAuthenticationUI
+        )
+        try delete(
+            matching: legacyQuery(for: key),
+            allowsAuthenticationUI: allowsAuthenticationUI
+        )
     }
 
     private func copyData(

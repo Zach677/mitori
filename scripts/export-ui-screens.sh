@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RESULT="$(ls -td "$ROOT_DIR"/.xcodebuild/Logs/Test/*.xcresult "$ROOT_DIR"/.xcodebuild/community/Logs/Test/*.xcresult 2>/dev/null | head -1 || true)"
+RESULT="$(ls -td "$ROOT_DIR"/.xcodebuild/Logs/Test/*.xcresult 2>/dev/null | head -1 || true)"
 [[ -n "$RESULT" ]] || { echo "No xcresult found" >&2; exit 1; }
 
 EXPORT_DIR="$(mktemp -d)"

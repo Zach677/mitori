@@ -9,11 +9,7 @@ for arg in "$@"; do
 done
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMMUNITY_BUILD="${COMMUNITY_BUILD:-1}"
 DERIVED_DATA_PATH=".xcodebuild"
-if [[ "$COMMUNITY_BUILD" == "1" ]]; then
-    DERIVED_DATA_PATH=".xcodebuild/community"
-fi
 
 XCODEBUILD_ARGUMENTS=(
     -project Mitori.xcodeproj
@@ -28,11 +24,11 @@ if [[ "${TEST_TARGET:-}" == MitoriUITests* ]]; then
     # instead of adding sleeps. A retried test still shows in the result bundle.
     XCODEBUILD_ARGUMENTS+=(-retry-tests-on-failure -test-iterations 2)
 fi
-if [[ "$COMMUNITY_BUILD" == "1" ]]; then
+if [[ -n "${CI:-}" ]]; then
+    # CI runners have no team certificate, so sign to run locally without entitlements.
     XCODEBUILD_ARGUMENTS+=(
-        "SWIFT_ACTIVE_COMPILATION_CONDITIONS=\$(inherited) MITORI_COMMUNITY_BUILD"
-        CODE_SIGN_ENTITLEMENTS=
         CODE_SIGN_IDENTITY=-
+        CODE_SIGN_ENTITLEMENTS=
         CODE_SIGN_STYLE=Manual
         DEVELOPMENT_TEAM=
         PROVISIONING_PROFILE_SPECIFIER=

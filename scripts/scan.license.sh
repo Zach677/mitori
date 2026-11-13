@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PACKAGE_RESOLVED="$ROOT_DIR/Mitori.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
-CHECKOUTS_DIR="$ROOT_DIR/.xcodebuild/community/SourcePackages/checkouts"
+CHECKOUTS_DIR="$ROOT_DIR/.xcodebuild/SourcePackages/checkouts"
 MANUAL_LICENSES_DIR="$ROOT_DIR/Resources/AdditionalLicenses"
 # Ported code with no package checkout; these notices must always ship.
 REQUIRED_MANUAL_LICENSE_FILES=(ApplePackage/LICENSE ApplePackage/NOTICE)
@@ -34,7 +34,7 @@ function resolve_packages {
     xcodebuild -resolvePackageDependencies \
         -project "$ROOT_DIR/Mitori.xcodeproj" \
         -scheme Mitori \
-        -derivedDataPath "$ROOT_DIR/.xcodebuild/community" 2>&1 | \
+        -derivedDataPath "$ROOT_DIR/.xcodebuild" 2>&1 | \
         xcbeautify --disable-colored-output --disable-logging
 }
 

@@ -9,7 +9,6 @@ for arg in "$@"; do
 done
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMMUNITY_BUILD="${COMMUNITY_BUILD:-1}"
 CONFIGURATION="${CONFIGURATION:-Debug}"
 PRODUCT_NAME="Mitori"
 
@@ -27,9 +26,6 @@ case "$CONFIGURATION" in
 esac
 
 DERIVED_DATA_PATH=".xcodebuild"
-if [[ "$COMMUNITY_BUILD" == "1" ]]; then
-    DERIVED_DATA_PATH=".xcodebuild/community"
-fi
 
 XCODEBUILD_ARGUMENTS=(
     -project "$PRODUCT_NAME.xcodeproj"
@@ -38,33 +34,6 @@ XCODEBUILD_ARGUMENTS=(
     -derivedDataPath "$DERIVED_DATA_PATH"
 )
 OUTPUT_CONFIGURATION="$(printf '%s' "$CONFIGURATION" | tr '[:upper:]' '[:lower:]')"
-if [[ "$COMMUNITY_BUILD" == "1" ]]; then
-    XCODEBUILD_ARGUMENTS+=(
-        "SWIFT_ACTIVE_COMPILATION_CONDITIONS=\$(inherited) MITORI_COMMUNITY_BUILD"
-        "OTHER_CFLAGS=\$(inherited) -fmacro-prefix-map=$ROOT_DIR=."
-        "OTHER_CPLUSPLUSFLAGS=\$(inherited) -fmacro-prefix-map=$ROOT_DIR=."
-        CODE_SIGN_ENTITLEMENTS=
-        CODE_SIGN_IDENTITY=-
-        CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO
-        CODE_SIGN_STYLE=Manual
-        DEVELOPMENT_TEAM=
-        PROVISIONING_PROFILE_SPECIFIER=
-    )
-    if [[ "$CONFIGURATION" == "Release" ]]; then
-        XCODEBUILD_ARGUMENTS+=(
-            CLANG_ENABLE_CODE_COVERAGE=NO
-            COPY_PHASE_STRIP=YES
-            DEPLOYMENT_POSTPROCESSING=YES
-            ENABLE_CODE_COVERAGE=NO
-            ENABLE_HARDENED_RUNTIME=YES
-            GCC_GENERATE_TEST_COVERAGE_FILES=NO
-            GCC_INSTRUMENT_PROGRAM_FLOW_ARCS=NO
-            STRIP_INSTALLED_PRODUCT=YES
-            STRIP_SWIFT_SYMBOLS=YES
-        )
-        OUTPUT_CONFIGURATION="community"
-    fi
-fi
 
 cd "$ROOT_DIR"
 

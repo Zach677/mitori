@@ -27,13 +27,13 @@ brew tap Zach677/star
 brew install --cask mitori
 ```
 
-The Homebrew cask handles Gatekeeper quarantine for the current ad hoc-signed community build.
+The Homebrew cask handles Gatekeeper quarantine for the ad hoc-signed releases up to 0.2.3.
 
 ### Manual download
 
 Download the latest DMG from [GitHub Releases](https://github.com/Zach677/mitori/releases/latest), then drag Mitori into `/Applications`.
 
-Community builds are not notarized yet. If macOS blocks the first launch, open **System Settings > Privacy & Security** and choose **Open Anyway**. You can verify the downloaded files before opening them:
+Releases up to 0.2.3 are ad hoc signed and not notarized. If macOS blocks the first launch, open **System Settings > Privacy & Security** and choose **Open Anyway**. You can verify the downloaded files before opening them:
 
 ```sh
 shasum -a 256 -c Mitori-<version>.dmg.sha256
@@ -60,8 +60,8 @@ You can optionally pick an app this Apple ID already owns (a probe app). Automat
 
 Mitori has no backend. Account traffic goes directly to Apple, and your data stays on your Mac.
 
-- Development-signed builds store credentials in the macOS Data Protection Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`.
-- Ad hoc community builds use the local login Keychain because Apple restricts Data Protection Keychain access to provisioned apps. Stored items do not sync through iCloud.
+- Credentials are stored in the macOS Data Protection Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`. Stored items do not sync through iCloud.
+- Releases up to 0.2.3 stored credentials in the login Keychain. Newer builds move each item to the Data Protection Keychain the first time they read it.
 - Account metadata is stored at `~/Library/Application Support/Mitori/accounts.json`.
 - Apple receives a device identifier with each sign-in and balance request. For a new account, it is the hardware address of this Mac's primary network interface.
 - Automatic refresh pauses while the screen is locked.
@@ -78,11 +78,9 @@ brew install mise xcbeautify node
 mise run build-macos
 mise run run-macos
 mise run test-macos
-mise run test-community
-mise run package-community
 ```
 
-Builds are staged under `.app-build/`. Community DMGs and SHA-256 checksums are written to `dist/`.
+Builds are staged under `.app-build/`. The project signs with the maintainer's development team, so a fork must set its own `DEVELOPMENT_TEAM` in `Mitori.xcodeproj`.
 
 To work in Xcode, open `Mitori.xcodeproj`.
 
@@ -92,7 +90,7 @@ To work in Xcode, open `Mitori.xcodeproj`.
 - Apple ID login, two-factor authentication, and session management live in `Mitori/AppleStore/`, ported from [ApplePackage](https://github.com/Zach677/ApplePackage). All Apple Store requests use one URLSession transport that validates every redirect against an Apple host allowlist. Mitori has no third-party Swift package dependencies.
 - Balance lookup sends a `volumeStoreDownloadProduct` request for an app owned by the account, then extracts store credit from Apple's response.
 - A 60-second timer checks whether each account with a probe app is due for refresh. The default interval is one hour, the minimum is 15 minutes, and failed requests back off before retrying.
-- Community releases use ad hoc signing with Hardened Runtime and include both `arm64` and `x86_64` slices. The Intel build is verified but has not been tested on Intel hardware.
+- Releases up to 0.2.3 use ad hoc signing with Hardened Runtime and include both `arm64` and `x86_64` slices. The Intel build is verified but has not been tested on Intel hardware.
 
 </details>
 
@@ -100,7 +98,7 @@ To work in Xcode, open `Mitori.xcodeproj`.
 
 - Mitori is under early development and relies on Apple Store services that may change without notice.
 - Mitori is not affiliated with or endorsed by Apple Inc. Use it only with accounts you are authorized to access and follow Apple's terms.
-- Community releases are ad hoc signed and not notarized. Developer ID signing and notarization are planned.
+- Releases up to 0.2.3 are ad hoc signed and not notarized. Developer ID signing and notarization are planned for the next release.
 
 See [CHANGELOG.md](CHANGELOG.md) for release notes.
 

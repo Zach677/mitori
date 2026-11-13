@@ -10,7 +10,6 @@ done
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIGURATION="${CONFIGURATION:-Debug}"
-COMMUNITY_BUILD="${COMMUNITY_BUILD:-1}"
 
 case "$CONFIGURATION" in
     debug|Debug)
@@ -20,9 +19,6 @@ case "$CONFIGURATION" in
     release|Release)
         CONFIGURATION="Release"
         OUTPUT_CONFIGURATION="release"
-        if [[ "$COMMUNITY_BUILD" == "1" ]]; then
-            OUTPUT_CONFIGURATION="community"
-        fi
         ;;
     *)
         echo "Unsupported CONFIGURATION: $CONFIGURATION" >&2
@@ -30,9 +26,7 @@ case "$CONFIGURATION" in
         ;;
 esac
 
-"$ROOT_DIR/scripts/build-macos.sh" \
-    CONFIGURATION="$CONFIGURATION" \
-    COMMUNITY_BUILD="$COMMUNITY_BUILD"
+"$ROOT_DIR/scripts/build-macos.sh" CONFIGURATION="$CONFIGURATION"
 APP_PATH="$ROOT_DIR/.app-build/$OUTPUT_CONFIGURATION/Mitori.app"
 
 if pgrep -x Mitori >/dev/null 2>&1; then

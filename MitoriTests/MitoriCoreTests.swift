@@ -34,6 +34,13 @@ struct BundledDocumentTests {
     }
 }
 
+// CI test hosts are signed without entitlements, so the Data Protection Keychain is not available there.
+private var testHostHasKeychainEntitlement: Bool {
+    guard let task = SecTaskCreateFromSelf(nil) else { return false }
+    return SecTaskCopyValueForEntitlement(task, "keychain-access-groups" as CFString, nil) != nil
+}
+
+@Suite(.enabled(if: testHostHasKeychainEntitlement))
 struct KeychainSecretBackendTests {
     @Test
     func roundTripsDataThroughRealKeychain() throws {
@@ -56,23 +63,6 @@ struct KeychainSecretBackendTests {
         try backend.removeValue(for: key)
     }
 
-    @Test
-    func roundTripsDataThroughFileBasedKeychain() throws {
-        let backend = KeychainSecretBackend(
-            service: "dev.zach.mitori.tests.\(UUID().uuidString)",
-            usesDataProtectionKeychain: false
-        )
-        let key = "account.community@example.com"
-        defer { try? backend.removeValue(for: key) }
-
-        try backend.set(Data("community".utf8), for: key)
-        #expect(try backend.data(for: key) == Data("community".utf8))
-
-        try backend.removeValue(for: key)
-        #expect(try backend.data(for: key) == nil)
-    }
-
-#if !MITORI_COMMUNITY_BUILD
     @Test
     func migratesLegacyItemToDataProtectionKeychain() throws {
         let service = "dev.zach.mitori.tests.\(UUID().uuidString)"
@@ -144,7 +134,6 @@ struct KeychainSecretBackendTests {
         var legacyResult: AnyObject?
         #expect(SecItemCopyMatching(legacyQuery as CFDictionary, &legacyResult) == errSecItemNotFound)
     }
-#endif
 }
 
 struct SecretStoreTests {
