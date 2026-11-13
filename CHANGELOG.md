@@ -24,6 +24,7 @@ All notable changes to Mitori are documented in this file.
 - You can delete an account when its stored credentials cannot be read.
 - Credentials now live in the Data Protection Keychain. Items that older builds saved in the login Keychain move there the first time Mitori reads them.
 - Mitori is now signed with Developer ID and notarized by Apple, so macOS opens it without a Gatekeeper warning.
+- New app icon and menu bar icon.
 
 ## 0.2.3 - 2026-09-02
 
