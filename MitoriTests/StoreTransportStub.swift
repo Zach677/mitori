@@ -57,10 +57,7 @@ extension StoreTransportStub.Response {
 
     static func lookup(adamID: Int64, bundleID: String) -> Self {
         let json = """
-        {"resultCount":1,"results":[{"trackId":\(adamID),"bundleId":"\(bundleID)","trackName":"Probe",\
-        "version":"1.0","artistName":"Example","sellerName":"Example","description":"",\
-        "averageUserRating":0,"userRatingCount":0,"artworkUrl512":"","screenshotUrls":[],\
-        "minimumOsVersion":"14.0","currentVersionReleaseDate":"","primaryGenreName":"Utilities"}]}
+        {"resultCount":1,"results":[{"trackId":\(adamID),"bundleId":"\(bundleID)","trackName":"Probe"}]}
         """
         return Self(status: 200, body: Data(json.utf8))
     }

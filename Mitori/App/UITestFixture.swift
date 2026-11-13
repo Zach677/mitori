@@ -160,8 +160,8 @@ private struct FixtureProbeAppSearch: ProbeAppSearching {
     func searchApps(matching term: String, countryCode _: String, limit _: Int) async throws -> [ProbeAppCandidate] {
         guard term != "none" else { return [] }
         return [
-            ProbeAppCandidate(id: 1, bundleID: "com.example.notes", name: "Fixture Notes", sellerName: "Example"),
-            ProbeAppCandidate(id: 2, bundleID: "com.example.reader", name: "Fixture Reader", sellerName: "Example"),
+            ProbeAppCandidate(id: 1, bundleID: "com.example.notes", name: "Fixture Notes"),
+            ProbeAppCandidate(id: 2, bundleID: "com.example.reader", name: "Fixture Reader"),
         ]
     }
 }

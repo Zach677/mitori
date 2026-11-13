@@ -4,22 +4,15 @@ struct ProbeAppCandidate: Equatable, Identifiable, Sendable {
     var id: Int64
     var bundleID: String
     var name: String
-    var sellerName: String
 
-    init(id: Int64, bundleID: String, name: String, sellerName: String) {
+    init(id: Int64, bundleID: String, name: String) {
         self.id = id
         self.bundleID = bundleID
         self.name = name
-        self.sellerName = sellerName
     }
 
     init(software: Software) {
-        self.init(
-            id: software.id,
-            bundleID: software.bundleID,
-            name: software.name,
-            sellerName: software.sellerName
-        )
+        self.init(id: software.id, bundleID: software.bundleID, name: software.name)
     }
 }
 

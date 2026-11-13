@@ -12,8 +12,7 @@ struct ProbeAppLookupModelTests {
                 ProbeAppCandidate(
                     id: 1,
                     bundleID: "com.example.app",
-                    name: "Example App",
-                    sellerName: "Example Studio"
+                    name: "Example App"
                 )
             ]
         )
@@ -38,8 +37,7 @@ struct ProbeAppLookupModelTests {
         let candidate = ProbeAppCandidate(
             id: 2,
             bundleID: "com.example.pickme",
-            name: "Pick Me",
-            sellerName: "Example Studio"
+            name: "Pick Me"
         )
         model.query = "pick"
         model.results = [candidate]
@@ -112,9 +110,9 @@ private final class OutOfOrderProbeAppSearchService: ProbeAppSearching {
     func searchApps(matching term: String, countryCode _: String, limit _: Int) async throws -> [ProbeAppCandidate] {
         if term == "first" {
             await gate.suspend()
-            return [ProbeAppCandidate(id: 1, bundleID: "com.example.first", name: "First", sellerName: "Example")]
+            return [ProbeAppCandidate(id: 1, bundleID: "com.example.first", name: "First")]
         }
-        return [ProbeAppCandidate(id: 2, bundleID: "com.example.second", name: "Second", sellerName: "Example")]
+        return [ProbeAppCandidate(id: 2, bundleID: "com.example.second", name: "Second")]
     }
 }
 
