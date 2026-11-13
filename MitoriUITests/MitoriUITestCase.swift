@@ -29,7 +29,7 @@ class MitoriUITestCase: XCTestCase {
 
     func openMenu() {
         if element("menu.refresh-all").exists || element("menu.empty-state").exists { return }
-        let statusItem = element("mitori-status-item")
+        let statusItem = element("menu.status-item")
         XCTAssertTrue(statusItem.waitForExistence(timeout: 10), "status item did not appear")
         statusItem.click()
     }

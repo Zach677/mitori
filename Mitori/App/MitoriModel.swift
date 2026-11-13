@@ -271,15 +271,10 @@ final class MitoriModel {
     }
 
     private func ensureAccountsLoaded() async {
-        if !hasLoadedAccounts {
-            await reloadAccounts()
-            hasLoadedAccounts = true
-        }
-    }
-
-    private func reloadAccounts() async {
+        guard !hasLoadedAccounts else { return }
         do {
             accounts = try await repository.loadAccounts()
+            hasLoadedAccounts = true
         } catch {
             bannerMessage = MitoriError.map(error).localizedDescription
         }

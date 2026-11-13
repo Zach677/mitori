@@ -23,7 +23,6 @@ final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_: Notification) {
-        NSApp.setActivationPolicy(.accessory)
         NSApp.mainMenu = Self.makeMainMenu()
         #if DEBUG
         if let uiTestFixture {
@@ -33,29 +32,13 @@ final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
+        // A unit test host must not touch real accounts, Keychain, or the refresh timer.
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            return
+        }
         #endif
         _ = menuBarController
         autoRefreshScheduler.start()
-        #if DEBUG
-        if ProcessInfo.processInfo.environment["MITORI_OPEN_ADD_ACCOUNT"] == "1" {
-            Task { @MainActor in
-                menuBarController.presentAddAccountWindowForDebugging()
-            }
-        }
-        if ProcessInfo.processInfo.environment["MITORI_OPEN_SETTINGS"] == "1" {
-            Task { @MainActor in
-                menuBarController.presentSettingsWindowForDebugging()
-            }
-        }
-        if ProcessInfo.processInfo.environment["MITORI_OPEN_DETAIL"] == "1" {
-            Task { @MainActor in
-                await model.menuPresented()
-                if let first = model.accounts.first {
-                    menuBarController.presentAccountDetailWindowForDebugging(accountID: first.id)
-                }
-            }
-        }
-        #endif
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {

@@ -30,16 +30,14 @@ final class MenuBarController: NSObject {
             NSApp.terminate(nil)
         }
     )
-    private lazy var interactionController: MenuBarInteractionController = {
-        let popoverPresenter = StatusItemPopoverController(
-            statusItem: statusItem,
-            popover: popover,
-            beforePresent: { [weak self] in
-                self?.menuPanelController.prepareForPresentation()
-            }
-        )
-        return MenuBarInteractionController(popover: popoverPresenter)
-    }()
+    private lazy var popoverPresenter = StatusItemPopoverController(
+        statusItem: statusItem,
+        popover: popover,
+        beforePresent: { [weak self] in
+            self?.menuPanelController.prepareForPresentation()
+        }
+    )
+    private lazy var interactionController = MenuBarInteractionController(popover: popoverPresenter)
 
     private var detailAccountID: String?
     private weak var addAccountViewController: AddAccountViewController?
@@ -160,7 +158,7 @@ final class MenuBarController: NSObject {
         }
 
         button.toolTip = "Mitori"
-        button.setAccessibilityIdentifier("mitori-status-item")
+        button.setAccessibilityIdentifier("menu.status-item")
         button.target = self
         button.action = #selector(handleStatusItemClick(_:))
         button.sendAction(on: [.leftMouseUp])
@@ -177,20 +175,6 @@ final class MenuBarController: NSObject {
         popover.performClose(nil)
         addAccountWindowPresenter.present()
     }
-
-    #if DEBUG
-    func presentAddAccountWindowForDebugging() {
-        presentAddAccountWindow()
-    }
-
-    func presentSettingsWindowForDebugging() {
-        presentSettingsWindow()
-    }
-
-    func presentAccountDetailWindowForDebugging(accountID: String) {
-        presentAccountDetailWindow(for: accountID)
-    }
-    #endif
 
     private func closeAddAccountWindow() {
         addAccountWindowController.close()
@@ -219,21 +203,19 @@ final class MenuBarController: NSObject {
     }
 
     private func presentAccountDetailWindow(for accountID: String) {
+        let switchesAccount = accountID != detailAccountID
         detailAccountID = accountID
         popover.performClose(nil)
-        accountDetailWindowPresenter.present()
+        // The window content is built for one account, so a different account needs a rebuild.
+        if switchesAccount {
+            accountDetailWindowController.show()
+        } else {
+            accountDetailWindowPresenter.present()
+        }
     }
 
     private func presentPopover() {
-        menuPanelController.reload()
-        guard let button = statusItem.button else { return }
-        menuPanelController.prepareForPresentation()
-        if let preferredContentSize = popover.contentViewController?.preferredContentSize,
-           preferredContentSize != .zero {
-            popover.contentSize = preferredContentSize
-        }
-        NSApp.activate(ignoringOtherApps: true)
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popoverPresenter.present()
     }
 
     private func closeAccountDetailWindow() {

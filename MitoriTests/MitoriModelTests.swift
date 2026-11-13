@@ -6,6 +6,36 @@ import Testing
 @MainActor
 struct MitoriModelTests {
     @Test
+    func menuPresentedRetriesAfterFailedLoad() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        let fileURL = tempDirectory.appendingPathComponent("accounts.json")
+        try Data("not json".utf8).write(to: fileURL)
+        let model = MitoriModel(
+            accountStore: AccountStore(baseDirectory: tempDirectory),
+            secretStore: SecretStore(backend: InMemorySecretBackend()),
+            sessionBridge: SessionBridgeStub()
+        )
+
+        await model.menuPresented()
+        #expect(model.accounts.isEmpty)
+        #expect(model.bannerMessage != nil)
+
+        try FileManager.default.removeItem(at: fileURL)
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+        _ = try await AccountStore(baseDirectory: tempDirectory).upsert(meta)
+
+        await model.menuPresented()
+        #expect(model.accounts.map(\.id) == [meta.id])
+    }
+
+    @Test
     func savingProbeBundleIDClearsProbeConfigurationIssue() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

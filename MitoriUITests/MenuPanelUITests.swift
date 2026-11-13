@@ -18,7 +18,7 @@ final class MenuPanelUITests: MitoriUITestCase {
         element("\(readyRow).refresh").click()
 
         XCTAssertTrue(waitUntil(ready, valueContains: "42.00"), value(of: ready))
-        let banner = element("menu-banner")
+        let banner = element("menu.banner")
         XCTAssertFalse(banner.exists && !value(of: banner).isEmpty, "a success must not show a banner")
     }
 
@@ -30,7 +30,7 @@ final class MenuPanelUITests: MitoriUITestCase {
         element("\(expiredRow).refresh").click()
 
         XCTAssertTrue(waitUntil(expired, valueContains: "Session expired"), value(of: expired))
-        let banner = require("menu-banner")
+        let banner = require("menu.banner")
         XCTAssertTrue(value(of: banner).contains("Session expired"), value(of: banner))
         // The other account keeps its balance and shows no failure (I-10).
         XCTAssertFalse(value(of: element(readyRow)).contains("expired"))

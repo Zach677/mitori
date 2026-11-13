@@ -53,7 +53,6 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
             return
         }
 
-        refresh(window)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }

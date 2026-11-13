@@ -22,6 +22,7 @@ final class AccountDetailViewController: NSViewController {
     private var isSavingProbe = false
     private var isReauthing = false
     private var isDeleting = false
+    private var errorMessage: String?
     private weak var copyFeedbackView: NSView?
 
     private let contentStack = NSStackView()
@@ -66,7 +67,7 @@ final class AccountDetailViewController: NSViewController {
         reload()
     }
 
-    func reload(errorMessage: String? = nil) {
+    func reload() {
         contentStack.arrangedSubviews.forEach { view in
             contentStack.removeArrangedSubview(view)
             view.removeFromSuperview()
@@ -461,6 +462,7 @@ private extension AccountDetailViewController {
         let oldProbe = (account?.probeBundleID ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let newProbe = probeBundleIDField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         isSavingProbe = true
+        errorMessage = nil
         reload()
 
         Task { [weak self] in
@@ -471,7 +473,8 @@ private extension AccountDetailViewController {
                 onProbeSaved(oldProbe != newProbe)
             } catch {
                 isSavingProbe = false
-                reload(errorMessage: MitoriError.map(error).localizedDescription)
+                errorMessage = MitoriError.map(error).localizedDescription
+                reload()
             }
         }
     }
@@ -480,10 +483,10 @@ private extension AccountDetailViewController {
     func reauthenticate() {
         guard !isReauthing, !isSavingProbe, !isDeleting else { return }
         isReauthing = true
+        errorMessage = nil
         reload()
 
         Task {
-            var errorMessage: String?
             do {
                 try await model.reauthenticateAccount(id: accountID, code: verificationCodeField.stringValue)
                 verificationCodeField.stringValue = ""
@@ -491,7 +494,7 @@ private extension AccountDetailViewController {
                 errorMessage = MitoriError.map(error).localizedDescription
             }
             isReauthing = false
-            reload(errorMessage: errorMessage)
+            reload()
         }
     }
 
@@ -499,6 +502,7 @@ private extension AccountDetailViewController {
     func deleteAccount() {
         guard !isDeleting, confirmDeletion() else { return }
         isDeleting = true
+        errorMessage = nil
         reload()
 
         Task {
@@ -507,7 +511,8 @@ private extension AccountDetailViewController {
                 onClose()
             } catch {
                 isDeleting = false
-                reload(errorMessage: MitoriError.map(error).localizedDescription)
+                errorMessage = MitoriError.map(error).localizedDescription
+                reload()
             }
         }
     }
