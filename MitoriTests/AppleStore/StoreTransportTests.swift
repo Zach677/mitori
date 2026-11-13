@@ -193,6 +193,23 @@ struct StoreTransportTests {
 
         #expect(result.meta.balanceSnapshot == previous)
     }
+
+    // A Retry-After above the cap returns the response at once, so the test does not sleep (B20).
+    @Test(arguments: [429, 503])
+    func serverFailureAfterRetriesIsNetworkIssue(status: Int) async throws {
+        let transport = StoreTransportStub([.emptyBag, .init(status: status, headers: ["Retry-After": "3600"])])
+
+        let error = await #expect(throws: StoreAuthError.self) {
+            try await authenticate(over: transport)
+        }
+
+        guard case .transport = error else {
+            Issue.record("Expected a transport error, got \(String(describing: error))")
+            return
+        }
+        #expect(MitoriError.map(try #require(error)).issueKind == .network)
+        #expect(transport.requests.count == 2)
+    }
 }
 
 let storeFrontHeader = ["x-set-apple-store-front": "143441-1,29"]

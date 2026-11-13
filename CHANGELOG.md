@@ -10,7 +10,7 @@ All notable changes to Mitori are documented in this file.
 - Show probe app failures after a manual refresh signs in again, instead of hiding them.
 - Paste, copy, select all, and undo work in text fields again, so a 2FA code or password can be pasted.
 - Sign-in follows a redirect only to an Apple Store host over HTTPS, so your password is never sent elsewhere.
-- Apple server errors keep the normal retry backoff instead of pausing automatic refresh.
+- Apple server errors and rate limits, also during sign-in, keep the normal retry backoff instead of pausing automatic refresh.
 - VoiceOver names each switch and pop-up in Settings.
 - Mitori no longer depends on third-party Swift packages; the Apple Store code it used now ships inside the app.
 - Fix sign-in and manual refresh for accounts without a probe app, which failed with a redirect error.

@@ -74,6 +74,13 @@ public enum Authenticator {
                 return (response, UInt(response.1.statusCode), response.1.value(forHTTPHeaderField: "Retry-After"))
             }
             lastStatus = response.1.statusCode
+            // A server failure that outlasts the retries is a network issue, not a malformed response (B20).
+            if lastStatus == 429 || lastStatus / 100 == 5 {
+                throw StoreAuthError.transport(URLError(
+                    .badServerResponse,
+                    userInfo: [NSLocalizedDescriptionKey: "sign-in failed with status \(lastStatus)"]
+                ))
+            }
             let result = try parseResponse(
                 data: response.0,
                 response: response.1,
@@ -150,9 +157,9 @@ public enum Authenticator {
         return try StoreRedirectPolicy.validated(Bag.normalizedAuthEndpoint(from: url.absoluteString) ?? url)
     }
 
-    /// Apple's native auth host 301s `/fast` (no trailing slash) to an HTML page
-    /// with no Location header. Recover by adding the slash, and trim/resolve
-    /// any Location we do receive against the current request URL.
+    /// The bag's MZFinance `authenticate` URL (and the native `/fast` path) 301s
+    /// without a Location header when the trailing slash is missing. Recover by adding
+    /// the slash, and trim/resolve any Location we do receive against the current request URL.
     static func resolvedRedirectURL(locationHeader: String?, currentURL: URL) -> URL? {
         if let raw = locationHeader?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
             let parsed = URL(string: raw, relativeTo: currentURL)?.absoluteURL ?? URL(string: raw)
