@@ -50,5 +50,5 @@ description = "Regenerate bundled open-source license notices"
 run = "zsh scripts/scan.license.sh"
 
 [tasks.clean]
-description = "Remove local build output and stale SwiftPM/Tuist artifacts"
-run = "rm -rf .build .app-build .xcodebuild Derived .swiftpm .cache/tuist .cache/tuist-state"
+description = "Remove local build output and stale SwiftPM artifacts"
+run = "rm -rf .build .app-build .xcodebuild .swiftpm"

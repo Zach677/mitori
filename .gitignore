@@ -52,8 +52,6 @@ DerivedData/
 !default.perspectivev3
 
 ### Local build output ###
-graph.dot
-Derived/
 .xcodebuild/
 .app-build/
 dist/
