@@ -82,4 +82,41 @@ struct AccountRepositoryConcurrencyTests {
         #expect(stored.balanceSnapshot == snapshot)
         #expect(stored.lastRefreshAt == refreshDate)
     }
+
+    @Test
+    func failedRefreshKeepsProbeEditThatReachedDiskDuringRefresh() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        let accountStore = AccountStore(baseDirectory: tempDirectory)
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+        _ = try await accountStore.upsert(meta)
+        let secretStore = SecretStore(backend: InMemorySecretBackend())
+        try await secretStore.save(StoredAccountSecret(account: sampleAccount()), for: meta.id)
+
+        let bridge = SessionBridgeStub()
+        bridge.beforeRefresh = {
+            var edited = meta
+            edited.probeBundleID = "com.example.new-probe"
+            _ = try? await accountStore.upsert(edited)
+        }
+        bridge.refreshHandler = { _ in throw MitoriError.network("offline") }
+        let model = MitoriModel(
+            accountStore: accountStore,
+            secretStore: secretStore,
+            sessionBridge: bridge
+        )
+        await model.menuPresented()
+
+        await model.refreshAccount(id: meta.id, isManualRefresh: true)
+
+        let stored = try #require(try await accountStore.loadAccounts().first)
+        #expect(stored.probeBundleID == "com.example.new-probe")
+        #expect(stored.lastIssue?.kind == .network)
+        #expect(stored.consecutiveFailureCount == 1)
+    }
 }

@@ -285,16 +285,21 @@ final class MitoriModel {
         error: MitoriError,
         generation: Int
     ) async -> MitoriError? {
-        var failed = meta
         let currentDate = now()
-        failed.lastIssue = error.refreshIssue(at: currentDate)
-        failed.consecutiveFailureCount += 1
-        failed.nextEligibleRefreshAt = currentDate.addingTimeInterval(
-            backoffInterval(for: failed.consecutiveFailureCount)
-        )
+        let issue = error.refreshIssue(at: currentDate)
+        let failureCount = meta.consecutiveFailureCount + 1
+        let retryDate = currentDate.addingTimeInterval(backoffInterval(for: failureCount))
+        // Merge into the latest metadata, so a probe edit made during the refresh survives.
+        let applyFailure: @Sendable (StoredAccountMeta) -> StoredAccountMeta = { latest in
+            var failed = latest
+            failed.lastIssue = issue
+            failed.consecutiveFailureCount = failureCount
+            failed.nextEligibleRefreshAt = retryDate
+            return failed
+        }
 
         do {
-            let updatedAccounts = try await repository.upsert(failed)
+            let updatedAccounts = try await repository.updateMeta(id: meta.id, transform: applyFailure)
             if operationIsCurrent(for: meta.id, generation: generation, requireAccount: true) {
                 accounts = updatedAccounts
             }
@@ -304,7 +309,7 @@ final class MitoriModel {
             if operationIsCurrent(for: meta.id, generation: generation, requireAccount: true),
                let index = accounts.firstIndex(where: { $0.id == meta.id })
             {
-                accounts[index] = failed
+                accounts[index] = applyFailure(accounts[index])
             }
             return MitoriError.map(error)
         }
