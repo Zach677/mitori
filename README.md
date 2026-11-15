@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Mitori/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-128@2x.png" width="128" height="128" alt="Mitori app icon">
+  <img src="docs/assets/app-icon.png" width="128" height="128" alt="Mitori app icon">
 </p>
 
 <h1 align="center">Mitori</h1>
@@ -31,7 +31,7 @@ brew install --cask mitori
 
 Download the latest DMG from [GitHub Releases](https://github.com/Zach677/mitori/releases/latest), then drag Mitori into `/Applications`.
 
-Releases after 0.2.3 are signed with Developer ID and notarized by Apple. To verify a download:
+Releases are signed with Developer ID and notarized by Apple. To verify a download:
 
 ```sh
 shasum -a 256 -c Mitori-<version>.dmg.sha256
@@ -59,7 +59,6 @@ You can optionally pick an app this Apple ID already owns (a probe app). Automat
 Mitori has no backend. Account traffic goes directly to Apple, and your data stays on your Mac.
 
 - Credentials are stored in the macOS Data Protection Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`. Stored items do not sync through iCloud.
-- Releases up to 0.2.3 stored credentials in the login Keychain. Newer builds move each item to the Data Protection Keychain the first time they read it.
 - Account metadata is stored at `~/Library/Application Support/Mitori/accounts.json`.
 - Apple receives a device identifier with each sign-in and balance request. For a new account, it is the hardware address of this Mac's primary network interface.
 - Automatic refresh pauses while the screen is locked.
