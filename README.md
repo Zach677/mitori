@@ -20,11 +20,12 @@ Mitori is a native macOS menu bar app for checking store credit across multiple 
 
 ## Install
 
+Mitori needs macOS 14 or later.
+
 ### Homebrew
 
 ```sh
-brew tap Zach677/star
-brew install --cask mitori
+brew install --cask Zach677/star/mitori
 ```
 
 ### Manual download
@@ -48,7 +49,7 @@ shasum -a 256 -c Mitori-<version>.dmg.sha256
 
 ## Add an account
 
-You need an Apple ID email and password, and a two-factor authentication code when Apple asks for one. Mitori uses the hardware address of this Mac's primary network interface as the device identifier that Apple sees.
+You need an Apple ID email and password, and a two-factor authentication code when Apple asks for one.
 
 After sign-in, Mitori reads store credit from Apple's login response. When you refresh an account, Mitori reuses the session, or signs in again silently when needed.
 
@@ -67,10 +68,10 @@ The [Privacy Policy](https://zaxh.org/mitori/privacy) is also available under **
 
 ## Build from source
 
-You need macOS 14 or later, Xcode 26 or later, [mise](https://mise.jdx.dev/), `xcbeautify`, and Node.js.
+You need Xcode 26 or later, [mise](https://mise.jdx.dev/), and `xcbeautify`. Only `mise run scan-license` needs Node.js.
 
 ```sh
-brew install mise xcbeautify node
+brew install mise xcbeautify
 
 mise run build-macos
 mise run run-macos
@@ -85,7 +86,7 @@ To work in Xcode, open `Mitori.xcodeproj`.
 <summary>Implementation notes</summary>
 
 - Apple ID login, two-factor authentication, and session management live in `Mitori/AppleStore/`, ported from [ApplePackage](https://github.com/Zach677/ApplePackage). All Apple Store requests use one URLSession transport that validates every redirect against an Apple host allowlist. Mitori has no third-party Swift package dependencies.
-- Balance lookup sends a `volumeStoreDownloadProduct` request for an app owned by the account, then extracts store credit from Apple's response.
+- Store credit comes from Apple's sign-in response. For an account with a probe app, a refresh sends a `volumeStoreDownloadProduct` request for that app and reads store credit from the response.
 - A 60-second timer checks whether each account with a probe app is due for refresh. The default interval is one hour, the minimum is 15 minutes, and failed requests back off before retrying.
 - Releases use the Hardened Runtime and include both `arm64` and `x86_64` slices. The Intel build is verified but has not been tested on Intel hardware.
 
