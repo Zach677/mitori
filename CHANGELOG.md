@@ -2,7 +2,7 @@
 
 All notable changes to Mitori are documented in this file.
 
-## Unreleased
+## 0.3.0 - 2026-11-15
 
 - Show store credit from Apple's sign-in response so adding an account no longer requires a probe app first.
 - Refresh accounts without a probe app by signing in silently, and keep probe apps as an optional background-refresh shortcut.
