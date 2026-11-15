@@ -59,6 +59,21 @@ struct StoreTraceTests {
     }
 
     @Test
+    func signInResponseKeyNamesHoldNoValues() throws {
+        let body = try PropertyListSerialization.data(
+            fromPropertyList: [
+                "passwordToken": "SENTINEL-PASSWORDTOKEN",
+                "accountInfo": ["appleId": "SENTINEL-APPLEID", "balance": ["display": "SENTINEL-BALANCE"]],
+            ],
+            format: .xml,
+            options: 0
+        )
+
+        #expect(StoreTrace.plistKeyNames(body) == "accountInfo,accountInfo.appleId,accountInfo.balance,passwordToken")
+        #expect(StoreTrace.plistKeyNames(Data("<html></html>".utf8)) == nil)
+    }
+
+    @Test
     func transportErrorLineHoldsOnlyTheCode() throws {
         let url = try #require(URL(string: "https://auth.itunes.apple.com/auth/v1/native/fast/?guid=SENTINEL-QUERY"))
         let error = URLError(.timedOut, userInfo: [NSURLErrorFailingURLErrorKey: url])

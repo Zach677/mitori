@@ -4,7 +4,8 @@ import os
 /// Sanitized store request trace for live diagnosis (T5), off by default.
 /// Enable: `defaults write dev.zach.mitori debug.storeTrace -bool YES`
 /// Read:   `log stream --predicate 'subsystem == "dev.zach.mitori" && category == "StoreTrace"'`
-/// A line never holds a URL, query, header value, body, or identifier (I-8).
+/// A line never holds a URL, query, header value, body value, or identifier (I-8).
+/// A sign-in response adds one line with its key names.
 enum StoreTrace {
     /// The user-level operation that owns the requests in this task.
     @TaskLocal static var operation: Operation?
@@ -53,6 +54,18 @@ enum StoreTrace {
             attempt: operation?.nextAttempt(for: endpoint) ?? 0
         )
         logger.notice("\(line, privacy: .public)")
+        if endpoint.hasPrefix("auth."), let keys = plistKeyNames(data) {
+            logger.notice("op=\(operation?.name ?? "-", privacy: .public) endpoint=\(endpoint, privacy: .public) keys=[\(keys, privacy: .public)]")
+        }
+    }
+
+    /// The key names of a property list response: the top level and `accountInfo`. Names only.
+    static func plistKeyNames(_ data: Data?) -> String? {
+        guard let data,
+              let root = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any]
+        else { return nil }
+        let accountInfo = (root["accountInfo"] as? [String: Any] ?? [:]).keys.map { "accountInfo.\($0)" }
+        return (root.keys + accountInfo).sorted().joined(separator: ",")
     }
 
     static func describe(
