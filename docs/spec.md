@@ -211,3 +211,9 @@ The numbers are the original log numbers, so references in code stay valid.
   retired. This spec holds current rules; a commit message holds the evidence
   for its change. Open defects and backlog are GitHub Issues. Write a task
   card again only for work that must be handed across sessions.
+- **D-26** (2026-11-15) Store requests use a Mac App Store User-Agent. From
+  about 2026-11-06, Apple's front proxy rejects most sign-in requests that
+  have a `Configurator` User-Agent (#17). With the new value the bag has no
+  `authenticateAccount` key, so sign-in uses the default MZFinance address.
+  Verified live 2026-11-15: new sign-in, manual refresh with and without a
+  probe app, re-authentication. Not verified live: the 2FA prompt.
