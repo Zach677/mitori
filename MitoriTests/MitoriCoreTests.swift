@@ -404,6 +404,16 @@ struct BalanceParserTests {
     }
 
     @Test
+    func parsesZeroCreditAuthenticationFixture() throws {
+        let data = try FixtureLoader.data(named: "auth_success_zero_credit")
+        let snapshot = try BalanceParser.parse(plistData: data, source: .authentication)
+
+        #expect(snapshot.numericValue == 0)
+        #expect(snapshot.source == .authentication)
+        #expect(snapshot.rawFieldPath == "creditDisplay")
+    }
+
+    @Test
     func parsesProbeFixture() throws {
         let data = try FixtureLoader.data(named: "probe_success_balance")
         let snapshot = try BalanceParser.parse(plistData: data, source: .probe)
@@ -516,8 +526,6 @@ struct BalanceParserTests {
         plist(["unrelated": ["creditDisplay": "$5.00"]]),
         plist(["songList": [["balance": "$5.00"]]]),
         plist(["unrelated": ["creditDisplay": ""]]),
-        plist(["creditDisplay": ""]),
-        plist(["creditDisplay": "   "]),
         plist(["accountInfo": ["creditDisplay": ""]]),
         plist(["balance": true]),
         plist([:]),
@@ -526,6 +534,25 @@ struct BalanceParserTests {
         #expect(throws: MitoriError.self) {
             try BalanceParser.parse(plistData: response, source: .authentication)
         }
+    }
+
+    @Test(arguments: [plist(["creditDisplay": ""]), plist(["creditDisplay": "   "])])
+    func emptyAuthenticationCreditMeansZero(response: Data) throws {
+        let snapshot = try BalanceParser.parse(plistData: response, source: .authentication)
+
+        #expect(snapshot.numericValue == 0)
+        #expect(snapshot.rawFieldPath == "creditDisplay")
+    }
+
+    @Test
+    func emptyAuthenticationCreditLosesToValidCandidate() throws {
+        let snapshot = try parse(
+            ["creditDisplay": "", "accountInfo": ["balance": "$5.00"]],
+            source: .authentication
+        )
+
+        #expect(snapshot.numericValue == 5)
+        #expect(snapshot.rawFieldPath == "accountInfo.balance")
     }
 
     @Test(arguments: [

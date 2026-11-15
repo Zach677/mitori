@@ -40,9 +40,11 @@ without putting the Apple ID at risk*.
 - **I-3** Protocol errors are typed. UI/state decisions never string-match
   `localizedDescription` or Apple's English messages.
 - **I-4** Balance parsing is strict per source. Explicit field paths per
-  endpoint; an empty `creditDisplay` means zero only in the **probe**
-  response. An authenticate response with no balance field means "no data":
-  keep the previous snapshot, never fabricate 0.
+  endpoint. An empty `creditDisplay` means zero in the **probe** response and
+  at the top level of the authenticate response (#18, seen live 2026-11-15:
+  `creditBalance` is `1311811` with and without credit, so it is no check).
+  An authenticate response with no `creditDisplay` key means "no data": keep
+  the previous snapshot, never fabricate 0.
 - **I-5** Numeric parsing must round-trip real storefront formats:
   `$1,234.56`, `¥1,000`, `1.234,56 €`, `1,50 €`.
 - **I-6** Automatic refresh never sends a password. It only runs the probe on

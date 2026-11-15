@@ -7,6 +7,7 @@ All notable changes to Mitori are documented in this file.
 - A probe app change that you make while a refresh fails is no longer lost.
 - Sign-in works again for an account whose stored credentials are damaged.
 - Sign-in and refresh work again. Apple started to reject most sign-in requests from Mitori in November 2026.
+- An account that has no credit and no probe app shows a zero balance, not "Unavailable".
 
 ## 0.3.0 - 2026-11-15
 

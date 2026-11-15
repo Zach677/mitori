@@ -61,7 +61,7 @@ struct AppleSessionBridgeTests {
     }
 
     @Test
-    func loginWithEmptyAuthCreditHasNoBalanceAndNoIssue() async throws {
+    func loginWithEmptyAuthCreditShowsZeroBalance() async throws {
         let authenticator = AppleAuthenticatorStub(
             result: AuthenticationResult(
                 account: sampleAccount(),
@@ -86,8 +86,9 @@ struct AppleSessionBridgeTests {
             existing: nil
         )
 
-        #expect(result.meta.balanceSnapshot == nil)
-        #expect(result.meta.lastRefreshAt == nil)
+        #expect(result.meta.balanceSnapshot?.numericValue == 0)
+        #expect(result.meta.balanceSnapshot?.source == .authentication)
+        #expect(result.meta.lastRefreshAt == result.meta.balanceSnapshot?.fetchedAt)
         #expect(result.meta.lastIssue == nil)
     }
 
@@ -97,7 +98,7 @@ struct AppleSessionBridgeTests {
             result: AuthenticationResult(
                 account: sampleAccount(),
                 responsePlist: try PropertyListSerialization.data(
-                    fromPropertyList: ["creditDisplay": ""],
+                    fromPropertyList: ["accountInfo": ["creditDisplay": ""]],
                     format: .xml,
                     options: 0
                 )

@@ -5,7 +5,7 @@ enum BalanceParser {
         let rootObject = try PropertyListSerialization.propertyList(from: plistData, options: [], format: nil)
 
         let candidate = firstCandidate(in: rootObject, paths: allowedPaths(for: source))
-            ?? emptyProbeCreditPath(in: rootObject, source: source).map { zeroCandidate(path: $0) }
+            ?? emptyCreditPath(in: rootObject, source: source).map { zeroCandidate(path: $0) }
 
         if let candidate {
             return BalanceSnapshot(
@@ -71,11 +71,11 @@ private extension BalanceParser {
         return nil
     }
 
-    // Only the probe response reports zero credit as an empty creditDisplay.
-    // An empty authentication credit means no data, not zero (I-4).
-    static func emptyProbeCreditPath(in rootObject: Any, source: BalanceSnapshot.Source) -> String? {
-        guard source == .probe else { return nil }
-        for path in probePaths where path.last == .key("creditDisplay") {
+    // An empty creditDisplay means zero credit. In the authenticate response only the
+    // top-level key counts; a response without that key is no data (I-4).
+    static func emptyCreditPath(in rootObject: Any, source: BalanceSnapshot.Source) -> String? {
+        let paths = source == .probe ? probePaths : [[.key("creditDisplay")]]
+        for path in paths where path.last == .key("creditDisplay") {
             if let display = value(at: path, in: rootObject) as? String,
                display.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             {

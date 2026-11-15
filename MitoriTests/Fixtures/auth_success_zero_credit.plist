@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>accountInfo</key>
+    <dict>
+        <key>appleId</key>
+        <string>demo@example.com</string>
+    </dict>
+    <key>creditBalance</key>
+    <string>1311811</string>
+    <key>creditDisplay</key>
+    <string></string>
+    <key>freeSongBalance</key>
+    <string>1311811</string>
+</dict>
+</plist>
