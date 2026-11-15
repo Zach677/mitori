@@ -625,12 +625,49 @@ struct MitoriModelTests {
 
         await model.menuPresented()
 
-        await #expect(throws: MitoriError.sessionExpired) {
+        await #expect(throws: MitoriError.unknown(MitoriError.sessionExpired.localizedDescription)) {
             try await model.reauthenticateAccount(id: meta.id, code: "")
         }
 
         #expect(model.refreshState(for: meta.id) == .failed(.sessionExpired))
         #expect(model.bannerMessage == MitoriError.sessionExpired.localizedDescription)
+    }
+
+    @Test
+    func reauthenticateKeepsReturnedIssueKindAndMessage() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let accountStore = AccountStore(baseDirectory: tempDirectory)
+        let secretStore = SecretStore(backend: InMemorySecretBackend())
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+        let secret = StoredAccountSecret(account: sampleAccount())
+        _ = try await accountStore.upsert(meta)
+        try await secretStore.save(secret, for: meta.id)
+
+        let issue = MitoriError.probeAppNotOwned.refreshIssue()
+        var issueMeta = meta
+        issueMeta.lastIssue = issue
+        let model = MitoriModel(
+            accountStore: accountStore,
+            secretStore: secretStore,
+            sessionBridge: SessionBridgeStub(reauthenticateResult: SessionRefreshResult(
+                meta: issueMeta,
+                secret: secret
+            ))
+        )
+        await model.menuPresented()
+
+        let error = await #expect(throws: (any Error).self) {
+            try await model.reauthenticateAccount(id: meta.id, code: "")
+        }
+
+        #expect(error?.localizedDescription == issue.message)
+        #expect(model.refreshState(for: meta.id) == .failed(.balanceUnavailable))
+        #expect(model.bannerMessage == issue.message)
     }
 
     @Test

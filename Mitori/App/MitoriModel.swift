@@ -195,6 +195,7 @@ final class MitoriModel {
             throw MitoriError.operationInProgress
         }
 
+        let issue: RefreshIssue?
         do {
             guard let secret = try await repository.loadSecret(for: id) else {
                 throw MitoriError.missingSecret
@@ -211,9 +212,7 @@ final class MitoriModel {
                 throw MitoriError.operationSuperseded
             }
             accounts = updatedAccounts
-            if let error = applyPostRefreshState(for: id, using: result) {
-                throw error
-            }
+            issue = applyPostRefreshState(for: id, using: result)
         } catch {
             let mappedError = MitoriError.map(error)
             if operationIsCurrent(for: id, generation: generation, requireAccount: true) {
@@ -221,6 +220,10 @@ final class MitoriModel {
                 showBanner(mappedError.localizedDescription, ownedBy: id)
             }
             throw mappedError
+        }
+        // applyPostRefreshState already shows the issue; throw so the caller keeps the code field.
+        if let issue {
+            throw MitoriError.unknown(issue.message)
         }
     }
 
@@ -419,11 +422,11 @@ final class MitoriModel {
     private func applyPostRefreshState(
         for accountID: String,
         using result: SessionRefreshResult
-    ) -> MitoriError? {
+    ) -> RefreshIssue? {
         if let issue = result.meta.lastIssue {
             refreshStates[accountID] = .failed(issue.kind)
             showBanner(issue.message, ownedBy: accountID)
-            return MitoriError.from(refreshIssue: issue)
+            return issue
         }
 
         refreshStates[accountID] = .succeeded(result.meta.lastRefreshAt ?? now())

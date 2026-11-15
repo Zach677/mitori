@@ -66,28 +66,6 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
         }
     }
 
-    static func from(refreshIssue: RefreshIssue) -> MitoriError {
-        switch refreshIssue.kind {
-        case .requiresVerification:
-            if refreshIssue.message == MitoriError.invalidTwoFactorCode.localizedDescription {
-                return .invalidTwoFactorCode
-            }
-            return .twoFactorCodeRequired
-        case .sessionExpired:
-            return .sessionExpired
-        case .probeConfigurationMissing:
-            return .missingProbeBundleID
-        case .balanceUnavailable, .unknown:
-            return .unknown(refreshIssue.message)
-        case .network:
-            let prefix = "Network error: "
-            if refreshIssue.message.hasPrefix(prefix) {
-                return .network(String(refreshIssue.message.dropFirst(prefix.count)))
-            }
-            return .network(refreshIssue.message)
-        }
-    }
-
     var issueKind: RefreshIssueKind {
         switch self {
         case .twoFactorCodeRequired, .invalidTwoFactorCode:
