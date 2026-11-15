@@ -74,6 +74,18 @@ struct StoreTraceTests {
     }
 
     @Test
+    func creditShapeHoldsNoAmount() throws {
+        let body = try PropertyListSerialization.data(
+            fromPropertyList: ["creditDisplay": "$24.90", "creditBalance": "1311811", "freeSongBalance": 0],
+            format: .xml,
+            options: 0
+        )
+
+        #expect(StoreTrace.creditShape(body) == "creditDisplay:text,creditBalance:sentinel-string,freeSongBalance:zero-number")
+        #expect(StoreTrace.creditShape(nil) == "creditDisplay:absent,creditBalance:absent,freeSongBalance:absent")
+    }
+
+    @Test
     func transportErrorLineHoldsOnlyTheCode() throws {
         let url = try #require(URL(string: "https://auth.itunes.apple.com/auth/v1/native/fast/?guid=SENTINEL-QUERY"))
         let error = URLError(.timedOut, userInfo: [NSURLErrorFailingURLErrorKey: url])

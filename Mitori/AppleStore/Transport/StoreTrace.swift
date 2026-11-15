@@ -5,7 +5,7 @@ import os
 /// Enable: `defaults write dev.zach.mitori debug.storeTrace -bool YES`
 /// Read:   `log stream --predicate 'subsystem == "dev.zach.mitori" && category == "StoreTrace"'`
 /// A line never holds a URL, query, header value, body value, or identifier (I-8).
-/// A sign-in response adds one line with its key names.
+/// A sign-in response adds one line with its key names and the class of each credit field.
 enum StoreTrace {
     /// The user-level operation that owns the requests in this task.
     @TaskLocal static var operation: Operation?
@@ -55,7 +55,7 @@ enum StoreTrace {
         )
         logger.notice("\(line, privacy: .public)")
         if endpoint.hasPrefix("auth."), let keys = plistKeyNames(data) {
-            logger.notice("op=\(operation?.name ?? "-", privacy: .public) endpoint=\(endpoint, privacy: .public) keys=[\(keys, privacy: .public)]")
+            logger.notice("op=\(operation?.name ?? "-", privacy: .public) endpoint=\(endpoint, privacy: .public) keys=[\(keys, privacy: .public)] credit=[\(creditShape(data), privacy: .public)]")
         }
     }
 
@@ -66,6 +66,25 @@ enum StoreTrace {
         else { return nil }
         let accountInfo = (root["accountInfo"] as? [String: Any] ?? [:]).keys.map { "accountInfo.\($0)" }
         return (root.keys + accountInfo).sorted().joined(separator: ",")
+    }
+
+    /// The class of each credit field of a sign-in response, never the amount.
+    static func creditShape(_ data: Data?) -> String {
+        let root = data.flatMap {
+            try? PropertyListSerialization.propertyList(from: $0, options: [], format: nil) as? [String: Any]
+        } ?? [:]
+        func shape(_ value: Any?) -> String {
+            guard let value else { return "absent" }
+            let text = "\(value)".trimmingCharacters(in: .whitespacesAndNewlines)
+            let kind = value is String ? "string" : "number"
+            if text.isEmpty { return "empty" }
+            if text == "1311811" { return "sentinel-\(kind)" }
+            guard let number = Double(text) else { return "text" }
+            return number == 0 ? "zero-\(kind)" : "amount-\(kind)"
+        }
+        return ["creditDisplay", "creditBalance", "freeSongBalance"]
+            .map { "\($0):\(shape(root[$0]))" }
+            .joined(separator: ",")
     }
 
     static func describe(
