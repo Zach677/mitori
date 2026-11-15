@@ -94,6 +94,12 @@ VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_
 if [[ "$PUBLISH" == 1 ]]; then
     [[ "$(git rev-parse HEAD)" == "$(git rev-parse "v$VERSION^{commit}" 2>/dev/null)" ]] \
         || fail "The tag v$VERSION is not on HEAD."
+    # The release notes are the section of this version in CHANGELOG.md.
+    NOTES_PATH="$WORK_DIR/release-notes.md"
+    awk -v heading="## $VERSION " \
+        'index($0, heading) == 1 { found = 1; next } found && /^## / { exit } found' \
+        CHANGELOG.md > "$NOTES_PATH"
+    grep -q '[^[:space:]]' "$NOTES_PATH" || fail "CHANGELOG.md has no section for $VERSION."
 fi
 
 ditto -c -k --keepParent "$APP_PATH" "$WORK_DIR/Mitori.zip"
@@ -127,7 +133,8 @@ hdiutil verify "$DMG_PATH"
 )
 
 if [[ "$PUBLISH" == 1 ]]; then
-    gh release create "v$VERSION" "$DMG_PATH" "$DMG_PATH.sha256" --generate-notes --verify-tag
+    gh release create "v$VERSION" "$DMG_PATH" "$DMG_PATH.sha256" \
+        --title "$VERSION" --notes-file "$NOTES_PATH" --verify-tag
     # The scheduled workflow in the tap Zach677/homebrew-star bumps the Homebrew cask.
 fi
 
