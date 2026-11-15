@@ -63,10 +63,17 @@ actor AccountRepository {
         if respectingCancellation {
             try Task.checkCancellation()
         }
-        let previousSecret = try await secretStore.loadSecret(
-            for: accountID,
-            allowsAuthenticationUI: allowsAuthenticationUI
-        )
+        let previousSecret: StoredAccountSecret?
+        do {
+            previousSecret = try await secretStore.loadSecret(
+                for: accountID,
+                allowsAuthenticationUI: allowsAuthenticationUI
+            )
+        } catch is DecodingError {
+            // Undecodable data has nothing to restore. A Keychain read error still stops
+            // the commit, because the stored secret can be good and a rollback would delete it.
+            previousSecret = nil
+        }
         guard respectingCancellation else {
             try await secretStore.save(
                 result.secret,
