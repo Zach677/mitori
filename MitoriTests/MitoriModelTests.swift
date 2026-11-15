@@ -39,6 +39,7 @@ struct MitoriModelTests {
     func savingProbeBundleIDClearsProbeConfigurationIssue() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let accountStore = AccountStore(baseDirectory: tempDirectory)
         let meta = StoredAccountMeta(
             account: sampleAccount(),
@@ -81,6 +82,7 @@ struct MitoriModelTests {
     func clearingProbeBundleIDDoesNotCreateConfigurationIssue() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let accountStore = AccountStore(baseDirectory: tempDirectory)
         let meta = StoredAccountMeta(
             account: sampleAccount(),
@@ -109,6 +111,7 @@ struct MitoriModelTests {
     func changingProbeClearsOnlyProbeRelatedIssues(newProbeBundleID: String) async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let accountStore = AccountStore(baseDirectory: tempDirectory)
         let probeMeta = StoredAccountMeta(
             account: sampleAccount(),
@@ -146,6 +149,7 @@ struct MitoriModelTests {
     func savingUnchangedProbeKeepsProbeIssue() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let accountStore = AccountStore(baseDirectory: tempDirectory)
         let meta = StoredAccountMeta(
             account: sampleAccount(),
@@ -171,6 +175,7 @@ struct MitoriModelTests {
     func menuPresentationDoesNotStartKeychainBackedRefresh() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let accountStore = AccountStore(baseDirectory: tempDirectory)
         let meta = StoredAccountMeta(
             account: sampleAccount(),
@@ -199,6 +204,7 @@ struct MitoriModelTests {
     func refreshAccountMarksReturnedIssueAsFailure() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let accountStore = AccountStore(baseDirectory: tempDirectory)
         let secretBackend = InMemorySecretBackend()
         let secretStore = SecretStore(backend: secretBackend)
@@ -237,6 +243,7 @@ struct MitoriModelTests {
     func cancelledRefreshReturnsToIdleWithoutIssue(isManualRefresh: Bool) async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let accountStore = AccountStore(baseDirectory: tempDirectory)
         let secretStore = SecretStore(backend: InMemorySecretBackend())
         let meta = StoredAccountMeta(
@@ -263,6 +270,7 @@ struct MitoriModelTests {
     @Test
     func completedRefreshDoesNotRestoreDeletedAccount() async throws {
         let context = try await makeSuspendedRefreshContext()
+        defer { try? FileManager.default.removeItem(at: context.tempDirectory) }
 
         let refreshTask = Task {
             await context.model.refreshAccount(id: context.meta.id, isManualRefresh: true)
@@ -281,6 +289,7 @@ struct MitoriModelTests {
     func deleteWaitsForStartedCommitAndStillWins() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let seedStore = AccountStore(baseDirectory: tempDirectory)
         let meta = StoredAccountMeta(
             account: sampleAccount(),
@@ -338,6 +347,7 @@ struct MitoriModelTests {
     func pendingFailureRecordDoesNotChangeVisibleStateAndDeletionWins() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let seedStore = AccountStore(baseDirectory: tempDirectory)
         let meta = StoredAccountMeta(
             account: sampleAccount(),
@@ -389,6 +399,7 @@ struct MitoriModelTests {
     func failedSecretDeletionKeepsAccountVisible() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let accountStore = AccountStore(baseDirectory: tempDirectory)
         let backend = FailingDeleteSecretBackend()
         let secretStore = SecretStore(backend: backend)
@@ -418,6 +429,7 @@ struct MitoriModelTests {
     func deleteAccountSucceedsWhenStoredSecretCannotBeDecoded() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let accountStore = AccountStore(baseDirectory: tempDirectory)
         let backend = InMemorySecretBackend()
         let secretStore = SecretStore(backend: backend)
@@ -446,6 +458,7 @@ struct MitoriModelTests {
     func failedMetadataDeletionRestoresSecret() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let seedStore = AccountStore(baseDirectory: tempDirectory)
         let meta = StoredAccountMeta(
             account: sampleAccount(),
@@ -476,6 +489,7 @@ struct MitoriModelTests {
     func failedMetadataWriteRestoresPreviousSecretAndKeepsBackoffInMemory() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let seedStore = AccountStore(baseDirectory: tempDirectory)
         let meta = StoredAccountMeta(
             account: sampleAccount(),
@@ -516,6 +530,7 @@ struct MitoriModelTests {
     @Test
     func concurrentManualRefreshIsSingleFlight() async throws {
         let context = try await makeSuspendedRefreshContext()
+        defer { try? FileManager.default.removeItem(at: context.tempDirectory) }
         let first = Task {
             await context.model.refreshAccount(id: context.meta.id, isManualRefresh: true)
         }
@@ -535,6 +550,7 @@ struct MitoriModelTests {
     func accountMutationBlocksNewRefreshAndMutation() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let seedStore = AccountStore(baseDirectory: tempDirectory)
         let meta = StoredAccountMeta(
             account: sampleAccount(),
@@ -580,6 +596,7 @@ struct MitoriModelTests {
     @Test
     func probeEditWinsOverInFlightRefresh() async throws {
         let context = try await makeSuspendedRefreshContext()
+        defer { try? FileManager.default.removeItem(at: context.tempDirectory) }
         let refresh = Task {
             await context.model.refreshAccount(id: context.meta.id, isManualRefresh: true)
         }
@@ -596,6 +613,7 @@ struct MitoriModelTests {
     func reauthenticateThrowsWhenReturnedIssuePersists() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let accountStore = AccountStore(baseDirectory: tempDirectory)
         let secretBackend = InMemorySecretBackend()
         let secretStore = SecretStore(backend: secretBackend)
@@ -637,6 +655,7 @@ struct MitoriModelTests {
     func reauthenticateKeepsReturnedIssueKindAndMessage() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let accountStore = AccountStore(baseDirectory: tempDirectory)
         let secretStore = SecretStore(backend: InMemorySecretBackend())
         let meta = StoredAccountMeta(
@@ -674,6 +693,7 @@ struct MitoriModelTests {
     func addAccountUsesFlowDeviceIdentifier() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let bridge = SessionBridgeStub(loginResult: SessionRefreshResult(
             meta: StoredAccountMeta(
                 account: sampleAccount(),
@@ -705,6 +725,7 @@ struct MitoriModelTests {
     func cancelledInFlightLoginDoesNotPersistAccount() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let accountStore = AccountStore(baseDirectory: tempDirectory)
         let secretStore = SecretStore(backend: InMemorySecretBackend())
         let account = sampleAccount()
@@ -751,6 +772,7 @@ struct MitoriModelTests {
     func loginCancelledDuringCommitRollsBackAccount() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let writeGate = BlockingWriteGate()
         let accountStore = AccountStore(baseDirectory: tempDirectory) { data, url in
             writeGate.suspend()
@@ -800,6 +822,7 @@ struct MitoriModelTests {
     func inFlightLoginDoesNotRestoreDeletedAccount() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let accountStore = AccountStore(baseDirectory: tempDirectory)
         let secretStore = SecretStore(backend: InMemorySecretBackend())
         let meta = StoredAccountMeta(
@@ -846,6 +869,7 @@ struct MitoriModelTests {
     func inFlightLoginIsNotSupersededByAutoRefresh() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let accountStore = AccountStore(baseDirectory: tempDirectory)
         let secretStore = SecretStore(backend: InMemorySecretBackend())
         let meta = StoredAccountMeta(
@@ -898,6 +922,7 @@ struct MitoriModelTests {
         var meta: StoredAccountMeta
         var gate: RefreshGate
         var bridge: SessionBridgeStub
+        var tempDirectory: URL
     }
 
     private func makeSuspendedRefreshContext() async throws -> SuspendedRefreshContext {
@@ -937,7 +962,8 @@ struct MitoriModelTests {
             secretStore: secretStore,
             meta: meta,
             gate: gate,
-            bridge: bridge
+            bridge: bridge,
+            tempDirectory: tempDirectory
         )
     }
 }

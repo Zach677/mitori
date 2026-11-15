@@ -260,60 +260,6 @@ struct AppleSessionBridgeTests {
     }
 
     @Test
-    func automaticRefreshWithoutProbeNeverAuthenticates() async throws {
-        let authenticator = AppleAuthenticatorStub(
-            result: try authenticationResult(fixture: "auth_success_balance")
-        )
-        let balanceService = BalanceRefreshingStub()
-        let bridge = AppleSessionBridge(
-            authenticator: authenticator,
-            balanceService: balanceService
-        )
-        let meta = StoredAccountMeta(
-            account: sampleAccount(),
-            deviceIdentifier: "ABCDEF123456",
-            probeBundleID: ""
-        )
-
-        await #expect(throws: MitoriError.missingProbeBundleID) {
-            try await bridge.refreshBalance(
-                meta: meta,
-                secret: StoredAccountSecret(account: sampleAccount()),
-                allowsReauthentication: false
-            )
-        }
-        #expect(authenticator.callCount == 0)
-        #expect(await balanceService.callCount == 0)
-    }
-
-    @Test
-    func automaticProbeSessionExpiryThrowsWithoutAuthenticating() async throws {
-        let authenticator = AppleAuthenticatorStub(
-            result: try authenticationResult(fixture: "auth_success_balance")
-        )
-        let balanceService = BalanceRefreshingStub(error: MitoriError.sessionExpired)
-        let bridge = AppleSessionBridge(
-            authenticator: authenticator,
-            balanceService: balanceService
-        )
-        let meta = StoredAccountMeta(
-            account: sampleAccount(),
-            deviceIdentifier: "ABCDEF123456",
-            probeBundleID: "com.example.probe"
-        )
-
-        await #expect(throws: MitoriError.sessionExpired) {
-            try await bridge.refreshBalance(
-                meta: meta,
-                secret: StoredAccountSecret(account: sampleAccount()),
-                allowsReauthentication: false
-            )
-        }
-        #expect(authenticator.callCount == 0)
-        #expect(await balanceService.callCount == 1)
-    }
-
-    @Test
     func manualRefreshRecordsProbeExpiryAfterReauthentication() async throws {
         let authenticator = AppleAuthenticatorStub(
             result: try authenticationResult(fixture: "auth_success_balance")

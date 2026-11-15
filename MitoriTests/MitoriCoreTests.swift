@@ -9,6 +9,7 @@ struct AccountStoreTests {
     func persistsAndDeletesAccounts() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let store = AccountStore(baseDirectory: tempDirectory)
         let meta = StoredAccountMeta(
             account: sampleAccount(),

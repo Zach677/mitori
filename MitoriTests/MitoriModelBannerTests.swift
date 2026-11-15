@@ -8,6 +8,7 @@ struct MitoriModelBannerTests {
     @Test
     func successClearsOnlyItsOwnBanner() async throws {
         let context = try await makeTwoAccountContext()
+        defer { try? FileManager.default.removeItem(at: context.tempDirectory) }
         context.failingIDs.value = [context.second]
 
         await context.model.refreshAccount(id: context.second, isManualRefresh: true)
@@ -24,6 +25,7 @@ struct MitoriModelBannerTests {
     @Test
     func deletingAnAccountClearsOnlyItsOwnBanner() async throws {
         let context = try await makeTwoAccountContext()
+        defer { try? FileManager.default.removeItem(at: context.tempDirectory) }
         context.failingIDs.value = [context.second]
         await context.model.refreshAccount(id: context.second, isManualRefresh: true)
         let secondBanner = try #require(context.model.bannerMessage)
@@ -38,6 +40,7 @@ struct MitoriModelBannerTests {
     @Test
     func unownedErrorSurvivesAnAccountSuccess() async throws {
         let context = try await makeTwoAccountContext()
+        defer { try? FileManager.default.removeItem(at: context.tempDirectory) }
         context.model.bannerMessage = MitoriError.storage("disk full").localizedDescription
 
         await context.model.refreshAccount(id: context.first, isManualRefresh: true)
@@ -55,6 +58,7 @@ struct MitoriModelBannerTests {
         var failingIDs: FailingIDs
         var first: String
         var second: String
+        var tempDirectory: URL
     }
 
     private func makeTwoAccountContext() async throws -> TwoAccountContext {
@@ -94,6 +98,6 @@ struct MitoriModelBannerTests {
             sessionBridge: bridge
         )
         await model.menuPresented()
-        return TwoAccountContext(model: model, failingIDs: failingIDs, first: ids[0], second: ids[1])
+        return TwoAccountContext(model: model, failingIDs: failingIDs, first: ids[0], second: ids[1], tempDirectory: tempDirectory)
     }
 }

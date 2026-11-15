@@ -22,15 +22,13 @@ struct DeviceIdentifierTests {
         #expect(DeviceIdentifier.identifier(fromMACAddress: Data(bytes)) == nil)
     }
 
-    @Test
+    // A runner without a hardware interface uses the persisted fallback instead.
+    @Test(.enabled(
+        if: (try? DeviceIdentifier.system()) != nil,
+        "No hardware address is readable on this host."
+    ))
     func systemIdentifierIsStableHardwareHex() throws {
-        let first: String
-        do {
-            first = try DeviceIdentifier.system()
-        } catch {
-            // A runner without a hardware interface uses the persisted fallback instead.
-            return
-        }
+        let first = try DeviceIdentifier.system()
 
         #expect(first.count == 12)
         #expect(first.allSatisfy { $0.isHexDigit && !$0.isLowercase })

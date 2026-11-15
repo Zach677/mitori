@@ -234,9 +234,11 @@ struct MitoriModelAutoRefreshTests {
         var settings: RefreshSettingsStore
         var accountID: String
         var defaultsSuiteName: String
+        var tempDirectory: URL
 
         func cleanUp() {
             UserDefaults(suiteName: defaultsSuiteName)?.removePersistentDomain(forName: defaultsSuiteName)
+            try? FileManager.default.removeItem(at: tempDirectory)
         }
     }
 
@@ -293,7 +295,8 @@ struct MitoriModelAutoRefreshTests {
             secretStore: secretStore,
             settings: settings,
             accountID: meta.id,
-            defaultsSuiteName: suiteName
+            defaultsSuiteName: suiteName,
+            tempDirectory: tempDirectory
         )
     }
 }

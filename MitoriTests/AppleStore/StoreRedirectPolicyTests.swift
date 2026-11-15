@@ -53,7 +53,7 @@ struct StoreRedirectPolicyTests {
 
     @Test(arguments: [
         ("/WebObjects/MZFinance.woa/wa/authenticate/?attempt=2", "buy.itunes.apple.com"),
-        ("https://auth.itunes.apple.com:443/auth/v1/native/fast/", "auth.itunes.apple.com"),
+        ("https://buy.itunes.apple.com:443/WebObjects/MZFinance.woa/wa/authenticate/", "buy.itunes.apple.com"),
         ("https://P25-Buy.iTunes.Apple.com/WebObjects/MZFinance.woa/wa/authenticate", "p25-buy.itunes.apple.com"),
     ])
     func authenticateFollowsTrustedRedirect(location: String, host: String) async throws {
@@ -74,9 +74,9 @@ struct StoreRedirectPolicyTests {
     // The bag picks the first login URL; the credential POST must not go anywhere else.
     @Test(arguments: [
         "https://example.invalid/login",
-        "http://auth.itunes.apple.com/fast/",
-        "https://auth.itunes.apple.com:8443/fast/",
-        "https://user@auth.itunes.apple.com/fast/",
+        "http://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate",
+        "https://buy.itunes.apple.com:8443/WebObjects/MZFinance.woa/wa/authenticate",
+        "https://user@buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate",
     ], [200, 302])
     func authenticateRefusesUntrustedBagEndpoint(endpoint: String, status: Int) async throws {
         let transport = StoreTransportStub([

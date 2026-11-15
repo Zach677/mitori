@@ -30,7 +30,8 @@ class MitoriUITestCase: XCTestCase {
     func openMenu() {
         if element("menu.refresh-all").exists || element("menu.empty-state").exists { return }
         let statusItem = element("menu.status-item")
-        XCTAssertTrue(statusItem.waitForExistence(timeout: 10), "status item did not appear")
+        // Just after a VM starts, the status item can exist above the screen before the menu bar shows.
+        XCTAssertTrue(statusItem.wait(for: \.isHittable, toEqual: true, timeout: 10), "status item is not hittable")
         statusItem.click()
     }
 

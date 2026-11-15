@@ -8,6 +8,7 @@ struct MitoriModelAddAccountTests {
     @Test
     func reAddingAnAccountPassesItsHistoryAndKeepsTheStoredProbe() async throws {
         let context = try await makeExistingAccountContext()
+        defer { try? FileManager.default.removeItem(at: context.tempDirectory) }
 
         _ = try await context.addAccount(probeBundleID: " ")
 
@@ -22,6 +23,7 @@ struct MitoriModelAddAccountTests {
     @Test
     func reAddingAnAccountWithANewProbeReplacesIt() async throws {
         let context = try await makeExistingAccountContext()
+        defer { try? FileManager.default.removeItem(at: context.tempDirectory) }
 
         _ = try await context.addAccount(probeBundleID: "com.example.new-probe")
 
@@ -31,6 +33,7 @@ struct MitoriModelAddAccountTests {
     @Test
     func failedTwoFactorReAddLeavesTheAccountUnchanged() async throws {
         let context = try await makeExistingAccountContext()
+        defer { try? FileManager.default.removeItem(at: context.tempDirectory) }
         context.bridge.loginError = MitoriError.twoFactorCodeRequired
 
         await #expect(throws: MitoriError.twoFactorCodeRequired) {
@@ -44,6 +47,7 @@ struct MitoriModelAddAccountTests {
     @Test
     func failedSecretSaveLeavesTheAccountUnchanged() async throws {
         let context = try await makeExistingAccountContext()
+        defer { try? FileManager.default.removeItem(at: context.tempDirectory) }
         context.secretBackend.failsWrites = true
 
         await #expect(throws: (any Error).self) {
@@ -62,6 +66,7 @@ struct MitoriModelAddAccountTests {
         var secretBackend: WriteFailingSecretBackend
         var existing: StoredAccountMeta
         var existingSecret: StoredAccountSecret
+        var tempDirectory: URL
 
         func addAccount(probeBundleID: String) async throws -> String {
             try await model.addAccount(
@@ -117,7 +122,8 @@ struct MitoriModelAddAccountTests {
             secretStore: secretStore,
             secretBackend: secretBackend,
             existing: existing,
-            existingSecret: existingSecret
+            existingSecret: existingSecret,
+            tempDirectory: tempDirectory
         )
     }
 }

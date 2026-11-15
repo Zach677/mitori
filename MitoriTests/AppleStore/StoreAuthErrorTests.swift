@@ -70,7 +70,7 @@ struct StoreAuthErrorTests {
 
     @Test
     func authenticateThrowsRedirectExhausted() async throws {
-        let redirect = StoreTransportStub.Response.redirect(to: "/auth/v1/native/fast/")
+        let redirect = StoreTransportStub.Response.redirect(to: "/WebObjects/MZFinance.woa/wa/authenticate/")
         let transport = StoreTransportStub([.emptyBag, redirect, redirect, redirect, redirect])
 
         await #expect(throws: StoreAuthError.redirectExhausted(status: 302)) {

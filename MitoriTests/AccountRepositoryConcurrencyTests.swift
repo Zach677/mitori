@@ -10,6 +10,7 @@ struct AccountRepositoryConcurrencyTests {
     func queuedProbeEditPreservesRefreshFieldsFromLatestMetadata() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let seedStore = AccountStore(baseDirectory: tempDirectory)
         let meta = StoredAccountMeta(
             account: sampleAccount(),

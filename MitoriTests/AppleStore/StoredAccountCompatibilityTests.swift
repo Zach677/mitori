@@ -9,6 +9,7 @@ struct StoredAccountCompatibilityTests {
     func storedAccountsAndSecretDecodeWithLocalTypes() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try FixtureLoader.data(named: "stored_accounts", withExtension: "json")
             .write(to: directory.appendingPathComponent("accounts.json"))
