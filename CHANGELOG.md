@@ -2,6 +2,11 @@
 
 All notable changes to Mitori are documented in this file.
 
+## Unreleased
+
+- A probe app change that you make while a refresh fails is no longer lost.
+- Sign-in works again for an account whose stored credentials are damaged.
+
 ## 0.3.0 - 2026-11-15
 
 - Show store credit from Apple's sign-in response so adding an account no longer requires a probe app first.

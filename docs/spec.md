@@ -128,7 +128,7 @@ domain/code mappings; unknown errors stay visible.
 
 Open defects and known work are GitHub Issues: `gh issue list`. A finding
 that a change does not fix gets an issue in the same round. The old defect
-numbers that are still open: B10 is #2, B11 is #3, B12 is #4, B21 is #5.
+numbers that are still open: B10 is #2, B12 is #4.
 
 Closed before the move to Issues (fix commit): B1 `c011c00`, B2 `d32a0b0`, B3
 `2908d9d`, B4 `c481531` `d91468c`, B5 `930a763`, B6 `6b5498a`, B7 `33dfdc2`,
