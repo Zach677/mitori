@@ -68,7 +68,7 @@ The [Privacy Policy](https://zaxh.org/mitori/privacy) is also available under **
 
 ## Build from source
 
-You need Xcode 26 or later, [mise](https://mise.jdx.dev/), and `xcbeautify`. Only `mise run scan-license` needs Node.js.
+You need Xcode 26 or later, [mise](https://mise.jdx.dev/), and `xcbeautify`.
 
 ```sh
 brew install mise xcbeautify
