@@ -216,7 +216,7 @@ private extension AddAccountViewController {
         flow.password = passwordField.stringValue
         flow.verificationCode = verificationCodeField.stringValue
 
-        twoFactorSection.isHidden = !flow.requiresVerificationCode
+        twoFactorSection.isHidden = !flow.showsVerificationCode
         twoFactorMessageLabel.stringValue = flow.twoFactorMessage
         errorLabel.stringValue = flow.errorMessage ?? ""
         errorSection.isHidden = flow.errorMessage?.isEmpty ?? true
@@ -258,7 +258,7 @@ private extension AddAccountViewController {
                 guard !Task.isCancelled else { return }
                 flow.handleFailure(error)
                 reload()
-                if flow.requiresVerificationCode {
+                if flow.showsVerificationCode {
                     view.window?.makeFirstResponder(verificationCodeField)
                 }
             }

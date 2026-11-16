@@ -29,6 +29,22 @@ struct StoreAuthErrorTests {
         }
     }
 
+    // The answer to a 2FA account with the Mac App Store User-Agent, from the trace of 2026-11-15 (#2).
+    @Test(arguments: ["", "123456"])
+    func authenticateThrowsInvalidCredentials(code: String) async throws {
+        let transport = StoreTransportStub([
+            .emptyBag,
+            try .plist([
+                "failureType": "-5000",
+                "customerMessage": "Check the account information you entered and try again.",
+            ]),
+        ])
+
+        await #expect(throws: StoreAuthError.invalidCredentials) {
+            try await authenticate(over: transport, code: code)
+        }
+    }
+
     @Test
     func authenticateThrowsUnsupportedStorefront() async throws {
         let transport = StoreTransportStub([
@@ -85,7 +101,7 @@ struct StoreAuthErrorTests {
         let message = "Authentication requires verification code"
         let transport = StoreTransportStub([
             .emptyBag,
-            try .plist(["failureType": "-5000", "customerMessage": message]),
+            try .plist(["failureType": "1008", "customerMessage": message]),
         ])
 
         await #expect(throws: StoreAuthError.badLogin(message: message)) {

@@ -356,6 +356,10 @@ public enum Authenticator {
             throw StoreAuthError.invalid2FACode
         }
 
+        if let failureType = dic["failureType"] as? String, failureType == "-5000" {
+            throw StoreAuthError.invalidCredentials
+        }
+
         let failureMessage = (dic["dialog"] as? [String: Any])?["explanation"] as? String ?? (dic["customerMessage"] as? String)
         guard let accountInfoDic = dic["accountInfo"] as? [String: Any] else {
             if let failureMessage { return .failure(failureMessage) }

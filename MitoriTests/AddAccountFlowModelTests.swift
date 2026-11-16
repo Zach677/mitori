@@ -47,6 +47,21 @@ struct AddAccountFlowModelTests {
     }
 
     @Test
+    func invalidCredentialsShowAnOptionalCodeField() {
+        let flow = AddAccountFlowModel(deviceIdentifier: "ABCDEF123456")
+        flow.email = "demo@example.com"
+        flow.password = "secret"
+
+        flow.handleFailure(StoreAuthError.invalidCredentials)
+
+        #expect(flow.showsVerificationCode == true)
+        #expect(flow.requiresVerificationCode == false)
+        #expect(flow.errorMessage == MitoriError.invalidCredentials.localizedDescription)
+        // The password can be the wrong part, so a retry without a code stays possible.
+        #expect(flow.canSubmit == true)
+    }
+
+    @Test
     func keepsDeviceIdentifierAcrossTwoFactorRetry() {
         let flow = AddAccountFlowModel(deviceIdentifier: "ABCDEF123456")
         flow.email = "demo@example.com"

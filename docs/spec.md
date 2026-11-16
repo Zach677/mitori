@@ -75,7 +75,8 @@ without putting the Apple ID at risk*.
 
 - An automatic probe that gets `sessionExpired` records `sessionExpired` and
   stops. It does not reauthenticate.
-- Silent reauth that returns `codeRequired` records `requiresVerification`.
+- Silent reauth that returns `codeRequired` or `invalidCredentials` records
+  `requiresVerification`.
 - A successful user action clears the issue; automatic refresh then resumes.
   Changing or removing the probe clears probe-related issues only. Saving an
   unchanged probe keeps the issue.
@@ -95,6 +96,7 @@ The protocol layer throws a typed error:
 enum StoreAuthError: Error {
   case codeRequired
   case invalid2FACode
+  case invalidCredentials
   case badLogin(message: String)
   case sessionExpired
   case probeAppNotOwned
@@ -109,6 +111,12 @@ enum StoreAuthError: Error {
 `MitoriError.map` and the probe's `parseKnownFailure` classify by typed case,
 not by message text. Native transport and storage errors keep their
 domain/code mappings; unknown errors stay visible.
+
+`invalidCredentials` is `failureType` -5000. Apple gives it for a wrong
+password, and also for a 2FA account that signs in without a code or with a
+wrong code; in the second case Apple still sends the code to the trusted
+devices (#2, trace of 2026-11-15). The two cases have the same response, so
+Add Account then shows the code field and keeps it optional.
 
 ## 5. Architecture
 
@@ -217,4 +225,6 @@ The numbers are the original log numbers, so references in code stay valid.
   have a `Configurator` User-Agent (#17). With the new value the bag has no
   `authenticateAccount` key, so sign-in uses the default MZFinance address.
   Verified live 2026-11-15: new sign-in, manual refresh with and without a
-  probe app, re-authentication. Not verified live: the 2FA prompt.
+  probe app, re-authentication. With this value Apple does not send the
+  `Configurator` 2FA message; a 2FA account gets `invalidCredentials` (§4).
+  Verified live 2026-11-16: a sign-in with a 2FA code (#2).

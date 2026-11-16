@@ -14,6 +14,10 @@ final class AddAccountFlowModel {
     var recoveryLink: RecoveryLink?
     var isSubmitting = false
     var requiresVerificationCode = false
+    /// Apple gives the same answer for a wrong password and for a missing 2FA code (#2),
+    /// so the code field shows but stays optional.
+    var offersVerificationCode = false
+    var showsVerificationCode: Bool { requiresVerificationCode || offersVerificationCode }
     let deviceIdentifier: String
 
     private static let appleAccountRecoveryLink = RecoveryLink(
@@ -35,6 +39,9 @@ final class AddAccountFlowModel {
     var twoFactorMessage: String {
         if requiresVerificationCode {
             return "Apple requires a 2FA code. Enter it here, then log in again."
+        }
+        if offersVerificationCode {
+            return "If your devices showed a verification code, enter it here, then log in again."
         }
 
         return "If Apple asks for 2FA, this field appears after the first login attempt."
@@ -60,6 +67,9 @@ final class AddAccountFlowModel {
             recoveryLink = Self.appleAccountRecoveryLink
         case .invalidTwoFactorCode:
             requiresVerificationCode = true
+            errorMessage = mappedError.localizedDescription
+        case .invalidCredentials:
+            offersVerificationCode = true
             errorMessage = mappedError.localizedDescription
         default:
             errorMessage = mappedError.localizedDescription

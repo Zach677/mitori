@@ -5,6 +5,9 @@ import Foundation
 enum StoreAuthError: Error, Equatable, Sendable {
     case codeRequired
     case invalid2FACode
+    /// `failureType` -5000. Apple gives it for a wrong password, and also for a
+    /// 2FA account that signs in without a code or with a wrong code (#2).
+    case invalidCredentials
     case badLogin(message: String)
     case sessionExpired
     case probeAppNotOwned

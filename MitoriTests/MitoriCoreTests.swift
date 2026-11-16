@@ -232,6 +232,7 @@ struct MitoriErrorTests {
     @Test(arguments: [
         (StoreAuthError.codeRequired, MitoriError.twoFactorCodeRequired),
         (.invalid2FACode, .invalidTwoFactorCode),
+        (.invalidCredentials, .invalidCredentials),
         (.sessionExpired, .sessionExpired),
         (.probeAppNotOwned, .probeAppNotOwned),
         (.unsupportedStorefront("999999"), .unsupportedStorefront("999999")),

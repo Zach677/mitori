@@ -8,6 +8,7 @@ All notable changes to Mitori are documented in this file.
 - Sign-in works again for an account whose stored credentials are damaged.
 - Sign-in and refresh work again. Apple started to reject most sign-in requests from Mitori in November 2026.
 - An account that has no credit and no probe app shows a zero balance, not "Unavailable".
+- Add Account shows the 2FA code field when Apple does not accept a sign-in. Apple no longer says that a code is necessary.
 - A cookie that Apple sets for one host is no longer sent to its subdomains.
 
 ## 0.3.0 - 2026-11-15

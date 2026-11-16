@@ -3,6 +3,7 @@ import Foundation
 enum MitoriError: LocalizedError, Equatable, Sendable {
     case twoFactorCodeRequired
     case invalidTwoFactorCode
+    case invalidCredentials
     case sessionExpired
     case missingProbeBundleID
     case probeAppNotOwned
@@ -47,6 +48,8 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
             return .twoFactorCodeRequired
         case .invalid2FACode:
             return .invalidTwoFactorCode
+        case .invalidCredentials:
+            return .invalidCredentials
         case let .badLogin(message):
             return .unknown("Authentication failed: \(message)")
         case .sessionExpired:
@@ -68,7 +71,7 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
 
     var issueKind: RefreshIssueKind {
         switch self {
-        case .twoFactorCodeRequired, .invalidTwoFactorCode:
+        case .twoFactorCodeRequired, .invalidTwoFactorCode, .invalidCredentials:
             return .requiresVerification
         case .sessionExpired:
             return .sessionExpired
@@ -93,6 +96,8 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
             return "Authentication needs a 2FA code."
         case .invalidTwoFactorCode:
             return "The 2FA code is invalid or expired."
+        case .invalidCredentials:
+            return "Apple did not accept the sign-in. If your devices showed a verification code, enter it and sign in again. If not, check the password."
         case .sessionExpired:
             return "Session expired. Refresh this account to sign in again."
         case .missingProbeBundleID:
