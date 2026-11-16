@@ -205,12 +205,6 @@ private extension AddAccountViewController {
         field.font = .systemFont(ofSize: 13)
     }
 
-    func addFullWidth(_ view: NSView, to stack: NSStackView) {
-        stack.addArrangedSubview(view)
-        view.translatesAutoresizingMaskIntoConstraints = false
-        view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-    }
-
     func reload() {
         flow.email = emailField.stringValue
         flow.password = passwordField.stringValue

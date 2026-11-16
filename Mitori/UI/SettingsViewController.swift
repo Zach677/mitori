@@ -214,12 +214,6 @@ private extension SettingsViewController {
         return button
     }
 
-    func addFullWidth(_ view: NSView, to stack: NSStackView) {
-        stack.addArrangedSubview(view)
-        view.translatesAutoresizingMaskIntoConstraints = false
-        view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-    }
-
     func reload() {
         openAtLoginSwitch.state = SMAppService.mainApp.status == .enabled ? .on : .off
         hidePersonalInformationSwitch.state = settings.isPersonalInformationHidden ? .on : .off
