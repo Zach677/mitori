@@ -77,23 +77,11 @@ public enum Bag {
 
     /// The bag advertises MZFinance `authenticate` without a trailing slash, and
     /// that bare path 301s without a Location header. Keep the bag host and add
-    /// the slash, as ipatool does (D-20). The native `/fast` path has the same
-    /// failure mode without its trailing slash.
+    /// the slash, as ipatool does (D-20).
     static func normalizedAuthEndpoint(from urlString: String) -> URL? {
         guard var comps = URLComponents(string: urlString) else { return nil }
-        let host = comps.host?.lowercased() ?? ""
         if comps.path.hasSuffix("/MZFinance.woa/wa/authenticate") {
             comps.path += "/"
-        }
-        if host == "auth.itunes.apple.com" {
-            var path = comps.path
-            while path.hasSuffix("/") {
-                path.removeLast()
-            }
-            if !path.hasSuffix("/fast") {
-                path += "/fast"
-            }
-            comps.path = path + "/"
         }
         return comps.url
     }

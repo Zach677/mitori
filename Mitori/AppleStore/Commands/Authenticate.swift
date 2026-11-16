@@ -157,7 +157,7 @@ public enum Authenticator {
         return try StoreRedirectPolicy.validated(Bag.normalizedAuthEndpoint(from: url.absoluteString) ?? url)
     }
 
-    /// The bag's MZFinance `authenticate` URL (and the native `/fast` path) 301s
+    /// The bag's MZFinance `authenticate` URL 301s
     /// without a Location header when the trailing slash is missing. Recover by adding
     /// the slash, and trim/resolve any Location we do receive against the current request URL.
     static func resolvedRedirectURL(locationHeader: String?, currentURL: URL) -> URL? {

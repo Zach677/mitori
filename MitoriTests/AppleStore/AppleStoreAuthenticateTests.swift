@@ -143,13 +143,6 @@ struct AppleStoreAuthenticateTests {
     }
 
     @Test
-    func redirectWithoutLocationAddsNativeFastTrailingSlash() {
-        let current = URL(string: "https://auth.itunes.apple.com/auth/v1/native/fast?guid=ABCDEF123456")!
-        let url = Authenticator.resolvedRedirectURL(locationHeader: nil, currentURL: current)
-        #expect(url?.absoluteString == "https://auth.itunes.apple.com/auth/v1/native/fast/?guid=ABCDEF123456")
-    }
-
-    @Test
     func redirectWithoutLocationDoesNotLoopWhenTrailingSlashPresent() {
         let current = URL(string: "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/?guid=ABCDEF123456")!
         #expect(Authenticator.resolvedRedirectURL(locationHeader: nil, currentURL: current) == nil)

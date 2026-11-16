@@ -12,14 +12,15 @@ struct StoreRedirectPolicyTests {
         "https://p25-buy.itunes.apple.com.example.com/next",
         "https://pabc-buy.itunes.apple.com/next",
         "https://user@p25-buy.itunes.apple.com/next",
-        "https://user:pass@auth.itunes.apple.com/next",
+        "https://user:pass@buy.itunes.apple.com/next",
+        "https://auth.itunes.apple.com/next",
         "https://p25-buy.itunes.apple.com:8443/next",
     ]
 
     @Test(arguments: [
         ("/next", "https://p25-buy.itunes.apple.com/next"),
         ("https://p99-buy.itunes.apple.com/next", "https://p99-buy.itunes.apple.com/next"),
-        ("https://auth.itunes.apple.com:443/next", "https://auth.itunes.apple.com:443/next"),
+        ("https://buy.itunes.apple.com:443/next", "https://buy.itunes.apple.com:443/next"),
         ("https://P25-Buy.iTunes.Apple.com/next", "https://P25-Buy.iTunes.Apple.com/next"),
         ("https://downloaddispatch.itunes.apple.com/next", "https://downloaddispatch.itunes.apple.com/next"),
         ("https://init.itunes.apple.com/next", "https://init.itunes.apple.com/next"),

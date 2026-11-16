@@ -124,8 +124,6 @@ enum StoreTrace {
         switch host {
         case "init.itunes.apple.com":
             return "bag"
-        case "auth.itunes.apple.com":
-            return "auth.native"
         case "itunes.apple.com":
             return path.hasPrefix("/lookup") ? "lookup" : path.hasPrefix("/search") ? "search" : "itunes.other"
         default:

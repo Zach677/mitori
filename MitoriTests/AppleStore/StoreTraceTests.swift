@@ -87,7 +87,7 @@ struct StoreTraceTests {
 
     @Test
     func transportErrorLineHoldsOnlyTheCode() throws {
-        let url = try #require(URL(string: "https://auth.itunes.apple.com/auth/v1/native/fast/?guid=SENTINEL-QUERY"))
+        let url = try #require(URL(string: "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/?guid=SENTINEL-QUERY"))
         let error = URLError(.timedOut, userInfo: [NSURLErrorFailingURLErrorKey: url])
 
         let line = StoreTrace.describe(
@@ -99,12 +99,11 @@ struct StoreTraceTests {
             attempt: 1
         )
 
-        #expect(line == "op=reauth endpoint=auth.native attempt=1 method=GET cookiesSent=0 error=URLError(-1001)")
+        #expect(line == "op=reauth endpoint=auth.legacy attempt=1 method=GET cookiesSent=0 error=URLError(-1001)")
     }
 
     @Test(arguments: [
         ("https://init.itunes.apple.com/bag.xml?guid=X", "bag"),
-        ("https://auth.itunes.apple.com/auth/v1/native/fast/", "auth.native"),
         ("https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate", "auth.legacy"),
         ("https://p25-buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/volumeStoreDownloadProduct?guid=X", "probe"),
         ("https://itunes.apple.com/lookup?bundleId=X", "lookup"),
@@ -119,9 +118,9 @@ struct StoreTraceTests {
     func attemptsCountPerEndpointWithinOneOperation() {
         let operation = StoreTrace.Operation("login")
 
-        #expect(operation.nextAttempt(for: "auth.native") == 1)
+        #expect(operation.nextAttempt(for: "auth.legacy") == 1)
         #expect(operation.nextAttempt(for: "bag") == 1)
-        #expect(operation.nextAttempt(for: "auth.native") == 2)
+        #expect(operation.nextAttempt(for: "auth.legacy") == 2)
     }
 
     @Test

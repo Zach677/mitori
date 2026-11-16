@@ -5,7 +5,6 @@ enum StoreRedirectPolicy {
     private static let trustedHosts: Set<String> = [
         "buy.itunes.apple.com",
         "downloaddispatch.itunes.apple.com",
-        "auth.itunes.apple.com",
         "init.itunes.apple.com",
     ]
 
