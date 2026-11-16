@@ -26,6 +26,30 @@ struct AppleStoreCookieTests {
         #expect(headers.first?.1 == "mz_at0=session")
     }
 
+    // Foundation gives a cookie that has no Domain attribute its host with no leading dot (#4).
+    @Test
+    func hostOnlyCookieGoesOnlyToItsExactHost() throws {
+        let host = try #require(URL(string: "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/"))
+        let subdomain = try #require(URL(string: "https://sub.buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/"))
+        var cookies: [Cookie] = []
+        cookies.mergeCookies(HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": "session=host; Path=/"], for: host))
+
+        #expect(cookies.buildCookieHeader(host).first?.1 == "session=host")
+        #expect(cookies.buildCookieHeader(subdomain).isEmpty)
+    }
+
+    @Test
+    func mergeCookiesKeepsHostOnlyAndDomainCookieOfTheSameHost() throws {
+        let url = try #require(URL(string: "https://buy.itunes.apple.com/"))
+        var cookies: [Cookie] = []
+        cookies.mergeCookies([
+            "session=host; Path=/",
+            "session=domain; Domain=buy.itunes.apple.com; Path=/",
+        ].flatMap { HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": $0], for: url) })
+
+        #expect(Set(cookies.map(\.value)) == ["host", "domain"])
+    }
+
     @Test
     func mergeCookiesKeepsSameNameAcrossDomainsAndPaths() throws {
         var cookies: [Cookie] = []

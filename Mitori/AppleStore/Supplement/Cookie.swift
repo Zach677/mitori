@@ -140,9 +140,10 @@ public extension [Cookie] {
         let normalizedCookieDomain = cookieDomain.normalizedCookieDomain
         let normalizedRequestHost = requestHost.lowercased()
 
-        return false
-            || normalizedRequestHost == normalizedCookieDomain
-            || normalizedRequestHost.hasSuffix("." + normalizedCookieDomain)
+        // Foundation adds a leading dot when Set-Cookie has a Domain attribute.
+        // A domain with no dot is a host-only cookie: exact host only (RFC 6265).
+        return normalizedRequestHost == normalizedCookieDomain
+            || (cookieDomain.hasPrefix(".") && normalizedRequestHost.hasSuffix("." + normalizedCookieDomain))
     }
 
     private func matchesPath(cookiePath: String, requestPath: String) -> Bool {
@@ -164,7 +165,7 @@ private extension Cookie {
     var storageKey: String {
         [
             name,
-            domain.map { "domain:\($0.normalizedCookieDomain)" } ?? "host-only",
+            domain.map { "domain:\($0.lowercased())" } ?? "host-only",
             path,
         ].joined(separator: "\u{1f}")
     }
