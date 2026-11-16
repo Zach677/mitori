@@ -1,0 +1,16 @@
+{
+  "resultCount": 1,
+  "results": [
+    {
+      "wrapperType": "software",
+      "kind": "software",
+      "trackId": 361309726,
+      "trackName": "Pages: Create Documents",
+      "bundleId": "com.apple.Pages",
+      "artistName": "Apple",
+      "price": 0.0,
+      "formattedPrice": "Free",
+      "currency": "USD"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<Document xmlns="http://www.apple.com/itms/">
+<Protocol>
+<plist version="1.0"><dict><key>afds-enabled</key><true/><key>advancedSearch</key><string>https://search.itunes.apple.com/WebObjects/MZSearch.woa/wa/advancedSearch?cc=us</string><key>webManageAccountUrl</key><string>https://account.apple.com/account/manage/section/information</string></dict></plist></Protocol>
+</Document>

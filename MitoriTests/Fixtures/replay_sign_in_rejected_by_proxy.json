@@ -1,0 +1,31 @@
+{
+  "source": "Bag: recorded 2026-11-15, trimmed. Sign-in: the answer of the front proxy to a Configurator User-Agent (#17), recorded 2026-11-15 with no credentials.",
+  "exchanges": [
+    {
+      "endpoint": "bag",
+      "status": 200,
+      "headers": {
+        "Content-Type": "text/xml;charset=utf-8"
+      },
+      "body": "replay_bag.xml"
+    },
+    {
+      "endpoint": "auth.legacy",
+      "status": 301,
+      "headers": {
+        "Content-Type": "text/html",
+        "Server": "Apple"
+      },
+      "body": "replay_proxy_rejection.html"
+    },
+    {
+      "endpoint": "auth.legacy",
+      "status": 301,
+      "headers": {
+        "Content-Type": "text/html",
+        "Server": "Apple"
+      },
+      "body": "replay_proxy_rejection.html"
+    }
+  ]
+}

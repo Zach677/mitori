@@ -1,0 +1,23 @@
+{
+  "source": "Bag: recorded 2026-11-15, trimmed. Sign-in of a 2FA account with no code (#2): sanitized store trace of 2026-11-15: status, header names and key names are from the trace; values are placeholders.",
+  "exchanges": [
+    {
+      "endpoint": "bag",
+      "status": 200,
+      "headers": {
+        "Content-Type": "text/xml;charset=utf-8"
+      },
+      "body": "replay_bag.xml"
+    },
+    {
+      "endpoint": "auth.legacy",
+      "status": 200,
+      "headers": {
+        "Content-Type": "text/xml; charset=UTF-8",
+        "pod": "25",
+        "Set-Cookie": "itspod=25; Domain=.itunes.apple.com; Path=/"
+      },
+      "body": "replay_auth_invalid_credentials.plist"
+    }
+  ]
+}

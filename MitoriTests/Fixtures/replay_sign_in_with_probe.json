@@ -1,0 +1,42 @@
+{
+  "source": "Bag and lookup: recorded 2026-11-15, trimmed. Sign-in and probe: sanitized store trace of 2026-11-15: status, header names and key names are from the trace; values are placeholders.",
+  "exchanges": [
+    {
+      "endpoint": "bag",
+      "status": 200,
+      "headers": {
+        "Content-Type": "text/xml;charset=utf-8"
+      },
+      "body": "replay_bag.xml"
+    },
+    {
+      "endpoint": "auth.legacy",
+      "status": 200,
+      "headers": {
+        "Content-Type": "text/xml; charset=UTF-8",
+        "pod": "25",
+        "x-set-apple-store-front": "143465-2,13",
+        "Set-Cookie": "mz_at0-1234567890=placeholder-session; Domain=.apple.com; Path=/; Secure; HttpOnly, itspod=25; Domain=.itunes.apple.com; Path=/, hsaccnt=1; Path=/"
+      },
+      "body": "replay_auth_success_zero_credit.plist"
+    },
+    {
+      "endpoint": "lookup",
+      "status": 200,
+      "headers": {
+        "Content-Type": "text/javascript; charset=utf-8"
+      },
+      "body": "replay_lookup.json"
+    },
+    {
+      "endpoint": "probe",
+      "status": 200,
+      "headers": {
+        "Content-Type": "text/xml; charset=UTF-8",
+        "pod": "25",
+        "Set-Cookie": "mz_at_ssl-1234567890=placeholder-probe; Domain=.apple.com; Path=/; Secure; HttpOnly"
+      },
+      "body": "probe_success_balance.plist"
+    }
+  ]
+}
