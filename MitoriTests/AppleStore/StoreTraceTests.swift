@@ -86,6 +86,24 @@ struct StoreTraceTests {
     }
 
     @Test
+    func failureShapeHoldsOnlyTheCodeAndMessageClass() throws {
+        func body(_ root: [String: Any]) throws -> Data {
+            try PropertyListSerialization.data(fromPropertyList: root, format: .xml, options: 0)
+        }
+
+        #expect(try StoreTrace.failureShape(body([
+            "failureType": "-5000",
+            "customerMessage": "Check the account information you entered and try again.",
+        ])) == "failureType:-5000,customerMessage:text")
+        #expect(try StoreTrace.failureShape(body([
+            "failureType": "",
+            "customerMessage": "MZFinance.BadLogin.Configurator_message",
+        ])) == "failureType:empty,customerMessage:configurator-bad-login")
+        #expect(try StoreTrace.failureShape(body(["failureType": "user@example.com"])) == "failureType:text,customerMessage:absent")
+        #expect(StoreTrace.failureShape(nil) == "failureType:absent,customerMessage:absent")
+    }
+
+    @Test
     func transportErrorLineHoldsOnlyTheCode() throws {
         let url = try #require(URL(string: "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/?guid=SENTINEL-QUERY"))
         let error = URLError(.timedOut, userInfo: [NSURLErrorFailingURLErrorKey: url])

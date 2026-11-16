@@ -5,7 +5,8 @@ import os
 /// Enable: `defaults write dev.zach.mitori debug.storeTrace -bool YES`
 /// Read:   `log stream --predicate 'subsystem == "dev.zach.mitori" && category == "StoreTrace"'`
 /// A line never holds a URL, query, header value, body value, or identifier (I-8).
-/// A sign-in response adds one line with its key names and the class of each credit field.
+/// A sign-in response adds one line with its key names, the class of each credit field,
+/// and its failure code.
 enum StoreTrace {
     /// The user-level operation that owns the requests in this task.
     @TaskLocal static var operation: Operation?
@@ -55,8 +56,29 @@ enum StoreTrace {
         )
         logger.notice("\(line, privacy: .public)")
         if endpoint.hasPrefix("auth."), let keys = plistKeyNames(data) {
-            logger.notice("op=\(operation?.name ?? "-", privacy: .public) endpoint=\(endpoint, privacy: .public) keys=[\(keys, privacy: .public)] credit=[\(creditShape(data), privacy: .public)]")
+            logger.notice("op=\(operation?.name ?? "-", privacy: .public) endpoint=\(endpoint, privacy: .public) keys=[\(keys, privacy: .public)] credit=[\(creditShape(data), privacy: .public)] failure=[\(failureShape(data), privacy: .public)]")
         }
+    }
+
+    /// The `failureType` code and the class of `customerMessage`. Free text is never logged,
+    /// because a message can name the account.
+    static func failureShape(_ data: Data?) -> String {
+        let root = data.flatMap {
+            try? PropertyListSerialization.propertyList(from: $0, options: [], format: nil) as? [String: Any]
+        } ?? [:]
+        let failureType: String = switch root["failureType"].map({ "\($0)" }) {
+        case nil: "absent"
+        case ""?: "empty"
+        case let code? where code.wholeMatch(of: /-?\d+/) != nil: code
+        default: "text"
+        }
+        let customerMessage: String = switch root["customerMessage"].map({ "\($0)" }) {
+        case nil: "absent"
+        case ""?: "empty"
+        case "MZFinance.BadLogin.Configurator_message"?: "configurator-bad-login"
+        default: "text"
+        }
+        return "failureType:\(failureType),customerMessage:\(customerMessage)"
     }
 
     /// The key names of a property list response: the top level and `accountInfo`. Names only.
