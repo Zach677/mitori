@@ -16,25 +16,10 @@ final class KeychainSecretBackend: SecretKeyValueStore {
     }
 
     func data(for key: String, allowsAuthenticationUI: Bool = true) throws -> Data? {
-        if let data = try copyData(
+        try copyData(
             matching: protectedQuery(for: key),
             allowsAuthenticationUI: allowsAuthenticationUI
-        ) {
-            try delete(
-                matching: legacyQuery(for: key),
-                allowsAuthenticationUI: allowsAuthenticationUI
-            )
-            return data
-        }
-        guard let legacyData = try copyData(
-            matching: legacyQuery(for: key),
-            allowsAuthenticationUI: allowsAuthenticationUI
-        ) else {
-            return nil
-        }
-
-        try set(legacyData, for: key, allowsAuthenticationUI: allowsAuthenticationUI)
-        return legacyData
+        )
     }
 
     func set(
@@ -72,19 +57,11 @@ final class KeychainSecretBackend: SecretKeyValueStore {
                 userInfo: [NSLocalizedDescriptionKey: "Keychain write verification failed."]
             )
         }
-        try delete(
-            matching: legacyQuery(for: key),
-            allowsAuthenticationUI: allowsAuthenticationUI
-        )
     }
 
     func removeValue(for key: String, allowsAuthenticationUI: Bool = true) throws {
         try delete(
             matching: protectedQuery(for: key),
-            allowsAuthenticationUI: allowsAuthenticationUI
-        )
-        try delete(
-            matching: legacyQuery(for: key),
             allowsAuthenticationUI: allowsAuthenticationUI
         )
     }
@@ -134,18 +111,12 @@ final class KeychainSecretBackend: SecretKeyValueStore {
     }
 
     private func protectedQuery(for key: String) -> [String: Any] {
-        var query = legacyQuery(for: key)
-        query[kSecUseDataProtectionKeychain as String] = true
-        return query
-    }
-
-    private func legacyQuery(for key: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
             kSecAttrSynchronizable as String: false,
-            kSecUseDataProtectionKeychain as String: false,
+            kSecUseDataProtectionKeychain as String: true,
         ]
     }
 

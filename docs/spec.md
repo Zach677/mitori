@@ -199,8 +199,7 @@ The numbers are the original log numbers, so references in code stay valid.
   build, its compile flag, and its packaging scripts are removed (last present
   at `dcec201`). Builds sign with team `2R495YX57L` and the
   `keychain-access-groups` entitlement. Credentials use the Data Protection
-  Keychain; an item from an older build in the login Keychain moves on its
-  first read. CI runs the unit tests signed to run locally without the
+  Keychain. CI runs the unit tests signed to run locally without the
   entitlement, and the tests that need the Keychain skip there. The UI tests
   do not run in CI; they run with the same signing in a local tart VM
   (`mise run test-ui-vm`), which is not in the development profile. Releases are
