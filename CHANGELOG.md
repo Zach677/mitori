@@ -2,7 +2,7 @@
 
 All notable changes to Mitori are documented in this file.
 
-## Unreleased
+## 0.3.1 - 2026-11-16
 
 - A probe app change that you make while a refresh fails is no longer lost.
 - Sign-in works again for an account whose stored credentials are damaged.
