@@ -8,6 +8,7 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
     private let autosaveName: String?
     private let windowLevel: NSWindow.Level
     private let titleVisibility: NSWindow.TitleVisibility
+    private let isResizable: Bool
     private let onWindowClose: @MainActor () -> Void
     private var currentViewController: NSViewController?
 
@@ -17,6 +18,7 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         autosaveName: String? = nil,
         windowLevel: NSWindow.Level = .normal,
         titleVisibility: NSWindow.TitleVisibility = .hidden,
+        isResizable: Bool = false,
         onWindowClose: @escaping @MainActor () -> Void = {},
         content: @escaping @MainActor () -> NSViewController
     ) {
@@ -26,6 +28,7 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         self.autosaveName = autosaveName
         self.windowLevel = windowLevel
         self.titleVisibility = titleVisibility
+        self.isResizable = isResizable
         self.onWindowClose = onWindowClose
         super.init(window: nil)
     }
@@ -66,9 +69,13 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
             return window
         }
 
+        var styleMask: NSWindow.StyleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
+        if isResizable {
+            styleMask.insert(.resizable)
+        }
         let createdWindow = NSWindow(
             contentRect: NSRect(origin: .zero, size: defaultSize),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            styleMask: styleMask,
             backing: .buffered,
             defer: false
         )
@@ -84,10 +91,10 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         createdWindow.titlebarAppearsTransparent = true
         createdWindow.titleVisibility = titleVisibility
 
+        createdWindow.setContentSize(defaultSize)
         if let autosaveName {
             createdWindow.setFrameAutosaveName(autosaveName)
         }
-        createdWindow.setContentSize(defaultSize)
 
         window = createdWindow
         return createdWindow

@@ -27,12 +27,6 @@ actor AccountRepository {
         )
     }
 
-    func upsert(_ meta: StoredAccountMeta) async throws -> [StoredAccountMeta] {
-        await acquireLock(for: meta.id)
-        defer { releaseLock(for: meta.id) }
-        return try await accountStore.upsert(meta)
-    }
-
     func updateMeta(
         id: String,
         transform: @Sendable (StoredAccountMeta) throws -> StoredAccountMeta
@@ -95,20 +89,26 @@ actor AccountRepository {
 
         let previousMeta = try await accountStore.loadAccounts().first(where: { $0.id == accountID })
         try Task.checkCancellation()
+        var didSaveSecret = false
+        var didUpsertMeta = false
         do {
             try await secretStore.save(
                 result.secret,
                 for: accountID,
                 allowsAuthenticationUI: allowsAuthenticationUI
             )
+            didSaveSecret = true
             try Task.checkCancellation()
             let accounts = try await accountStore.upsert(result.meta)
+            didUpsertMeta = true
             try Task.checkCancellation()
             return accounts
         } catch {
             try await restoreCommit(
-                previousMeta: previousMeta,
+                previousMeta: didUpsertMeta ? previousMeta : nil,
+                restoreMeta: didUpsertMeta,
                 previousSecret: previousSecret,
+                restoreSecret: didSaveSecret,
                 for: accountID,
                 after: error,
                 allowsAuthenticationUI: allowsAuthenticationUI
@@ -160,38 +160,44 @@ actor AccountRepository {
 
     private func restoreCommit(
         previousMeta: StoredAccountMeta?,
+        restoreMeta: Bool,
         previousSecret: StoredAccountSecret?,
+        restoreSecret: Bool,
         for accountID: String,
         after originalError: Error,
         allowsAuthenticationUI: Bool
     ) async throws {
         var recoveryErrors: [String] = []
 
-        do {
-            if let previousMeta {
-                try await accountStore.upsert(previousMeta)
-            } else {
-                try await accountStore.deleteAccount(id: accountID)
+        if restoreMeta {
+            do {
+                if let previousMeta {
+                    try await accountStore.upsert(previousMeta)
+                } else {
+                    try await accountStore.deleteAccount(id: accountID)
+                }
+            } catch {
+                recoveryErrors.append(error.localizedDescription)
             }
-        } catch {
-            recoveryErrors.append(error.localizedDescription)
         }
 
-        do {
-            if let previousSecret {
-                try await secretStore.save(
-                    previousSecret,
-                    for: accountID,
-                    allowsAuthenticationUI: allowsAuthenticationUI
-                )
-            } else {
-                try await secretStore.deleteSecret(
-                    for: accountID,
-                    allowsAuthenticationUI: allowsAuthenticationUI
-                )
+        if restoreSecret {
+            do {
+                if let previousSecret {
+                    try await secretStore.save(
+                        previousSecret,
+                        for: accountID,
+                        allowsAuthenticationUI: allowsAuthenticationUI
+                    )
+                } else {
+                    try await secretStore.deleteSecret(
+                        for: accountID,
+                        allowsAuthenticationUI: allowsAuthenticationUI
+                    )
+                }
+            } catch {
+                recoveryErrors.append(error.localizedDescription)
             }
-        } catch {
-            recoveryErrors.append(error.localizedDescription)
         }
 
         guard recoveryErrors.isEmpty else {

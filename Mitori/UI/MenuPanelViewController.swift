@@ -20,13 +20,15 @@ final class MenuPanelViewController: NSViewController {
     private let onQuit: @MainActor () -> Void
 
     private let contentStack = NSStackView()
-    private let accountsStack = NSStackView()
+    private let accountsStack = FlippedStackView()
     private let accountScrollView = NSScrollView()
     private let bannerLabel = NSTextField(labelWithString: "")
     private let summaryLabel = NSTextField(labelWithString: "")
     private let refreshButton = NSButton()
     private var accountScrollHeightConstraint: NSLayoutConstraint?
     private var footerSeparator: NSView?
+    private var accountRowViews: [String: AccountRowView] = [:]
+    private var displayedAccountIDs: [String] = []
 
     init(
         model: MitoriModel,
@@ -175,7 +177,8 @@ private extension MenuPanelViewController {
         accountsStack.spacing = 0
         accountsStack.translatesAutoresizingMaskIntoConstraints = true
 
-        accountScrollView.hasVerticalScroller = false
+        accountScrollView.hasVerticalScroller = true
+        accountScrollView.autohidesScrollers = true
         accountScrollView.drawsBackground = false
         accountScrollView.borderType = .noBorder
         accountScrollView.documentView = accountsStack
@@ -251,38 +254,79 @@ private extension MenuPanelViewController {
     }
 
     func reloadAccounts() {
-        accountsStack.arrangedSubviews.forEach { view in
-            accountsStack.removeArrangedSubview(view)
-            view.removeFromSuperview()
-        }
-
         if model.accounts.isEmpty {
-            accountsStack.addArrangedSubview(makeEmptyState())
+            if !displayedAccountIDs.isEmpty || accountsStack.arrangedSubviews.isEmpty {
+                clearAccountStack()
+                accountRowViews.removeAll()
+                displayedAccountIDs = []
+                accountsStack.addArrangedSubview(makeEmptyState())
+            }
             updateAccountDocumentFrame()
             return
         }
 
-        for (index, account) in model.accounts.enumerated() {
-            accountsStack.addArrangedSubview(AccountRowView(
-                account: account,
-                presentation: AccountPresentation(
+        let currentIDs = model.accounts.map(\.id)
+        if currentIDs == displayedAccountIDs {
+            for (index, account) in model.accounts.enumerated() {
+                accountRowViews[account.id]?.update(
                     account: account,
-                    accountIndex: index,
-                    hidesPersonalInformation: settings.isPersonalInformationHidden
-                ),
-                refreshState: model.refreshState(for: account.id),
-                onOpen: { [weak self] in
-                    self?.onOpenAccount(account.id)
-                },
-                onRefresh: { [weak self] in
-                    self?.refreshAccount(account.id)
-                }
-            ))
+                    presentation: makePresentation(for: account, index: index),
+                    refreshState: model.refreshState(for: account.id)
+                )
+            }
+            updateAccountDocumentFrame()
+            return
+        }
+
+        let activeIDs = Set(currentIDs)
+        accountRowViews = accountRowViews.filter { activeIDs.contains($0.key) }
+        clearAccountStack()
+
+        for (index, account) in model.accounts.enumerated() {
+            let presentation = makePresentation(for: account, index: index)
+            let refreshState = model.refreshState(for: account.id)
+            let row: AccountRowView
+            if let existing = accountRowViews[account.id] {
+                existing.update(account: account, presentation: presentation, refreshState: refreshState)
+                row = existing
+            } else {
+                let accountID = account.id
+                let created = AccountRowView(
+                    account: account,
+                    presentation: presentation,
+                    refreshState: refreshState,
+                    onOpen: { [weak self] in
+                        self?.onOpenAccount(accountID)
+                    },
+                    onRefresh: { [weak self] in
+                        self?.refreshAccount(accountID)
+                    }
+                )
+                accountRowViews[accountID] = created
+                row = created
+            }
+            accountsStack.addArrangedSubview(row)
             if index < model.accounts.count - 1 {
                 accountsStack.addArrangedSubview(makeRowSeparator())
             }
         }
+        displayedAccountIDs = currentIDs
         updateAccountDocumentFrame()
+    }
+
+    func clearAccountStack() {
+        accountsStack.arrangedSubviews.forEach { view in
+            accountsStack.removeArrangedSubview(view)
+            view.removeFromSuperview()
+        }
+    }
+
+    func makePresentation(for account: StoredAccountMeta, index: Int) -> AccountPresentation {
+        AccountPresentation(
+            account: account,
+            accountIndex: index,
+            hidesPersonalInformation: settings.isPersonalInformationHidden
+        )
     }
 
     func makeEmptyState() -> NSView {
@@ -430,4 +474,8 @@ private extension MenuPanelViewController {
             await model.refreshAccount(id: accountID, isManualRefresh: true)
         }
     }
+}
+
+private final class FlippedStackView: NSStackView {
+    override var isFlipped: Bool { true }
 }

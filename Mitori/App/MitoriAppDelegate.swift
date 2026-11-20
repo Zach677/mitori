@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 
 @MainActor
@@ -10,17 +11,32 @@ final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
     private lazy var menuBarController = MenuBarController(
         model: model,
         settings: settings,
-        probeAppSearch: uiTestFixture?.probeAppSearch ?? ProbeAppSearchService()
+        probeAppSearch: uiTestFixture?.probeAppSearch ?? ProbeAppSearchService(),
+        onRefreshSettingsChanged: { [weak self] in
+            self?.autoRefreshScheduler.reschedule()
+        }
     )
     #else
     private let settings = RefreshSettingsStore()
     private lazy var model = MitoriModel(settings: settings)
-    private lazy var menuBarController = MenuBarController(model: model, settings: settings)
+    private lazy var menuBarController = MenuBarController(
+        model: model,
+        settings: settings,
+        onRefreshSettingsChanged: { [weak self] in
+            self?.autoRefreshScheduler.reschedule()
+        }
+    )
     #endif
-    private lazy var autoRefreshScheduler = AutoRefreshScheduler { [weak self] in
-        guard let self else { return }
-        await self.model.autoRefreshTick()
-    }
+    private var schedulerChangeCancellable: AnyCancellable?
+    private lazy var autoRefreshScheduler = AutoRefreshScheduler(
+        nextFireDate: { [weak self] in
+            self?.model.nextAutoRefreshDate()
+        },
+        onTick: { [weak self] in
+            guard let self else { return }
+            await self.model.autoRefreshTick()
+        }
+    )
 
     func applicationDidFinishLaunching(_: Notification) {
         NSApp.mainMenu = Self.makeMainMenu()
@@ -38,6 +54,14 @@ final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
         }
         #endif
         _ = menuBarController
+        schedulerChangeCancellable = model.changeEvents.sink { [weak self] change in
+            switch change {
+            case .accounts, .account:
+                self?.autoRefreshScheduler.reschedule()
+            case .banner, .refreshingAll:
+                break
+            }
+        }
         autoRefreshScheduler.start()
     }
 

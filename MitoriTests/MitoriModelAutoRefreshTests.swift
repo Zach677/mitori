@@ -33,6 +33,73 @@ struct MitoriModelAutoRefreshTests {
     }
 
     @Test
+    func screenLockDetectionTreatsAbsentKeyAsUnlocked() {
+        #expect(MitoriModel.isScreenLocked(in: ["kCGSSessionOnConsoleKey": true]) == false)
+        #expect(MitoriModel.isScreenLocked(in: ["kCGSSessionOnConsoleKey": true, "CGSSessionScreenIsLocked": false]) == false)
+        #expect(MitoriModel.isScreenLocked(in: ["kCGSSessionOnConsoleKey": true, "CGSSessionScreenIsLocked": true]) == true)
+        #expect(MitoriModel.isScreenLocked(in: ["kCGSSessionOnConsoleKey": false]) == true)
+        #expect(MitoriModel.isScreenLocked(in: nil) == true)
+    }
+
+    @Test
+    func schedulerSkipsOverlappingTicks() async {
+        let gate = RefreshGate()
+        var tickCount = 0
+        let scheduler = AutoRefreshScheduler(
+            nextFireDate: { Date.distantFuture },
+            onTick: {
+                tickCount += 1
+                await gate.suspend()
+            }
+        )
+
+        scheduler.triggerTick()
+        await gate.waitUntilStarted()
+        scheduler.triggerTick()
+        await Task.yield()
+
+        #expect(tickCount == 1)
+        gate.release()
+        scheduler.stop()
+    }
+
+    @Test
+    func nextAutoRefreshDateTracksEarliestDueAndRespectsPauseAndBackoff() async throws {
+        let clock = TestClock()
+        clock.date = Date(timeIntervalSince1970: 1_800_000_000)
+        let context = try await makeAutoRefreshContext(
+            enabled: true,
+            lastRefreshAt: clock.date.addingTimeInterval(-600),
+            now: { clock.date }
+        )
+        defer { context.cleanUp() }
+
+        // Before accounts load, scheduler asks to wake immediately once to load them.
+        #expect(context.model.nextAutoRefreshDate() == clock.date)
+
+        await context.model.menuPresented()
+        let expectedFirstDue = clock.date.addingTimeInterval(-600 + context.settings.autoRefreshInterval)
+        #expect(context.model.nextAutoRefreshDate() == expectedFirstDue)
+
+        // Disabled auto-refresh schedules nothing.
+        context.settings.isAutoRefreshEnabled = false
+        #expect(context.model.nextAutoRefreshDate() == nil)
+        context.settings.isAutoRefreshEnabled = true
+
+        // A network backoff pushes due date forward when later than interval.
+        clock.date = expectedFirstDue
+        context.bridge.refreshHandler = { _ in throw MitoriError.network("offline") }
+        await context.model.autoRefreshTick()
+        #expect(context.model.nextAutoRefreshDate() == clock.date.addingTimeInterval(60))
+
+        // Session expiry pauses auto-refresh completely (nil next fire date).
+        clock.date += 61
+        context.bridge.refreshHandler = { _ in throw MitoriError.sessionExpired }
+        await context.model.autoRefreshTick()
+        #expect(context.model.nextAutoRefreshDate() == nil)
+    }
+
+    @Test
     func autoRefreshTickSkipsRecentlyRefreshedAccounts() async throws {
         let context = try await makeAutoRefreshContext(
             enabled: true,

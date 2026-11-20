@@ -208,12 +208,17 @@ private extension AddAccountViewController {
     func reload() {
         flow.email = emailField.stringValue
         flow.password = passwordField.stringValue
-        flow.verificationCode = verificationCodeField.stringValue
+        if verificationCodeField.stringValue != flow.verificationCode, flow.verificationCode.isEmpty, !flow.showsVerificationCode {
+            verificationCodeField.stringValue = ""
+        } else {
+            flow.verificationCode = verificationCodeField.stringValue
+        }
 
         twoFactorSection.isHidden = !flow.showsVerificationCode
         twoFactorMessageLabel.stringValue = flow.twoFactorMessage
         errorLabel.stringValue = flow.errorMessage ?? ""
         errorSection.isHidden = flow.errorMessage?.isEmpty ?? true
+        recoveryButton.title = flow.recoveryLink?.title ?? "Open account.apple.com"
         recoveryButton.isHidden = flow.recoveryLink == nil
         submitButton.title = flow.requiresVerificationCode ? "Verify & Login" : "Login"
         submitButton.isEnabled = flow.canSubmit

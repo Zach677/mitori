@@ -690,6 +690,33 @@ struct MitoriModelTests {
     }
 
     @Test
+    func cancelledReauthenticateReturnsToIdleWithoutBanner() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        let accountStore = AccountStore(baseDirectory: tempDirectory)
+        let secretStore = SecretStore(backend: InMemorySecretBackend())
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+        _ = try await accountStore.upsert(meta)
+        try await secretStore.save(StoredAccountSecret(account: sampleAccount()), for: meta.id)
+        let bridge = SessionBridgeStub()
+        bridge.reauthenticateHandler = { _, _ in throw CancellationError() }
+        let model = MitoriModel(accountStore: accountStore, secretStore: secretStore, sessionBridge: bridge)
+        await model.menuPresented()
+
+        await #expect(throws: CancellationError.self) {
+            try await model.reauthenticateAccount(id: meta.id, code: "123456")
+        }
+
+        #expect(model.refreshState(for: meta.id) == .idle)
+        #expect(model.bannerMessage == nil)
+    }
+
+    @Test
     func addAccountUsesFlowDeviceIdentifier() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

@@ -90,4 +90,48 @@ struct AddAccountFlowModelTests {
         flow.finishSubmission()
         #expect(flow.canSubmit == true)
     }
+
+    @Test
+    func changingEmailResetsTwoFactorState() {
+        let flow = AddAccountFlowModel(deviceIdentifier: "ABCDEF123456")
+        flow.email = "first@example.com"
+        flow.password = "secret"
+        flow.handleFailure(StoreAuthError.codeRequired)
+        flow.verificationCode = "123456"
+
+        // Case or whitespace changes for the same email keep the 2FA state.
+        flow.email = " FIRST@example.com "
+        #expect(flow.requiresVerificationCode == true)
+        #expect(flow.verificationCode == "123456")
+
+        // Switching to a different email clears the prior account's 2FA prompt.
+        flow.email = "second@example.com"
+        #expect(flow.requiresVerificationCode == false)
+        #expect(flow.offersVerificationCode == false)
+        #expect(flow.verificationCode.isEmpty)
+        #expect(flow.errorMessage == nil)
+        #expect(flow.recoveryLink == nil)
+        #expect(flow.canSubmit == true)
+    }
+
+    @Test
+    func reauthenticateModeSharesTwoFactorAndRecoveryFlowWithoutEmailOrPassword() {
+        let flow = AddAccountFlowModel(mode: .reauthenticate, deviceIdentifier: "ABCDEF123456")
+
+        #expect(flow.canSubmit == true)
+
+        flow.handleFailure(StoreAuthError.codeRequired)
+        #expect(flow.requiresVerificationCode == true)
+        #expect(flow.recoveryLink?.url.absoluteString == "https://account.apple.com")
+        #expect(flow.canSubmit == false)
+
+        flow.verificationCode = "123456"
+        #expect(flow.canSubmit == true)
+
+        flow.resetAfterSuccess()
+        #expect(flow.requiresVerificationCode == false)
+        #expect(flow.verificationCode.isEmpty)
+        #expect(flow.recoveryLink == nil)
+        #expect(flow.errorMessage == nil)
+    }
 }

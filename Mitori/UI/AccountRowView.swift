@@ -10,12 +10,20 @@ final class AccountRowView: NSView {
         static let actionWidth: CGFloat = 24
     }
 
-    private let account: StoredAccountMeta
-    private let presentation: AccountPresentation
-    private let refreshState: RefreshState
+    private var account: StoredAccountMeta
+    private var presentation: AccountPresentation
+    private var refreshState: RefreshState
     private let onOpen: @MainActor () -> Void
     private let onRefresh: @MainActor () -> Void
-    private weak var actionButton: NSButton?
+
+    private let nameLabel = NSTextField(labelWithString: "")
+    private let emailLabel = NSTextField(labelWithString: "")
+    private let balanceLabel = NSTextField(labelWithString: "")
+    private let hintLabel = NSTextField(labelWithString: "")
+    private let actionButton = NSButton()
+    private let progressWrapper = NSView()
+    private let progressIndicator = NSProgressIndicator()
+
     private var trackingArea: NSTrackingArea?
     private var isHovered = false {
         didSet { needsDisplay = true }
@@ -39,11 +47,23 @@ final class AccountRowView: NSView {
         super.init(frame: .zero)
         focusRingType = .default
         configure()
+        applyState()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    func update(
+        account: StoredAccountMeta,
+        presentation: AccountPresentation,
+        refreshState: RefreshState
+    ) {
+        self.account = account
+        self.presentation = presentation
+        self.refreshState = refreshState
+        applyState()
     }
 
     private func configure() {
@@ -59,42 +79,82 @@ final class AccountRowView: NSView {
         )
         stack.translatesAutoresizingMaskIntoConstraints = false
 
+        configureLabel(nameLabel, size: 13, weight: .medium)
+        configureLabel(emailLabel, size: 12, color: .secondaryLabelColor)
+        configureLabel(balanceLabel, size: 15, weight: .medium, monospaced: true)
+        configureLabel(hintLabel, size: 11, color: .secondaryLabelColor)
+
         let identity = NSStackView()
         identity.orientation = .vertical
         identity.alignment = .leading
         identity.spacing = Metrics.lineSpacing
-        identity.addArrangedSubview(label(presentation.name, size: 13, weight: .medium))
-        if let email = presentation.email {
-            identity.addArrangedSubview(label(email, size: 12, color: .secondaryLabelColor))
-        }
+        identity.addArrangedSubview(nameLabel)
+        identity.addArrangedSubview(emailLabel)
 
         let trailing = NSStackView()
         trailing.orientation = .vertical
         trailing.alignment = .trailing
         trailing.spacing = Metrics.lineSpacing
         trailing.addArrangedSubview(balanceLabel)
-        if let hint {
-            trailing.addArrangedSubview(label(hint, size: 11, color: hintColor))
-        }
+        trailing.addArrangedSubview(hintLabel)
+
+        configureActionButton()
+        configureProgressIndicator()
 
         stack.addArrangedSubview(identity)
         stack.addArrangedSubview(NSView())
         stack.addArrangedSubview(trailing)
-        stack.addArrangedSubview(makeActionView())
+        stack.addArrangedSubview(actionButton)
+        stack.addArrangedSubview(progressWrapper)
 
         addSubview(stack)
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
-        setAccessibilityLabel("Open \(presentation.name)")
-        setAccessibilityValue([account.balanceDisplayText ?? "No balance", hint].compactMap { $0 }.joined(separator: ", "))
         setAccessibilityHelp("Open account details")
-        setAccessibilityIdentifier("account-row.\(account.id)")
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             stack.topAnchor.constraint(equalTo: topAnchor),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
+    }
+
+    private func applyState() {
+        nameLabel.stringValue = presentation.name
+        if let email = presentation.email {
+            emailLabel.stringValue = email
+            emailLabel.isHidden = false
+        } else {
+            emailLabel.stringValue = ""
+            emailLabel.isHidden = true
+        }
+
+        balanceLabel.stringValue = account.balanceDisplayText ?? "—"
+
+        let currentHint = hint
+        if let currentHint {
+            hintLabel.stringValue = currentHint
+            hintLabel.textColor = hintColor
+            hintLabel.isHidden = false
+        } else {
+            hintLabel.stringValue = ""
+            hintLabel.isHidden = true
+        }
+
+        let refreshing = isRefreshing
+        actionButton.isHidden = refreshing
+        actionButton.setAccessibilityIdentifier("account-row.\(account.id).refresh")
+        progressWrapper.isHidden = !refreshing
+        progressIndicator.setAccessibilityIdentifier("account-row.\(account.id).progress")
+        if refreshing {
+            progressIndicator.startAnimation(nil)
+        } else {
+            progressIndicator.stopAnimation(nil)
+        }
+
+        setAccessibilityLabel("Open \(presentation.name)")
+        setAccessibilityValue([account.balanceDisplayText ?? "No balance", currentHint].compactMap { $0 }.joined(separator: ", "))
+        setAccessibilityIdentifier("account-row.\(account.id)")
     }
 
     override var acceptsFirstResponder: Bool {
@@ -146,7 +206,7 @@ final class AccountRowView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? {
         let localPoint = convert(point, from: superview)
         guard !isHidden, alphaValue > 0, bounds.contains(localPoint) else { return nil }
-        if let actionButton {
+        if !actionButton.isHidden, actionButton.superview != nil {
             let actionPoint = actionButton.convert(localPoint, from: self)
             if actionButton.bounds.contains(actionPoint) {
                 return actionButton
@@ -208,15 +268,6 @@ final class AccountRowView: NSView {
         return true
     }
 
-    private var balanceLabel: NSTextField {
-        label(
-            account.balanceDisplayText ?? "—",
-            size: 15,
-            weight: .medium,
-            monospaced: true
-        )
-    }
-
     private var hint: String? {
         if isRefreshing { return nil }
         switch account.status {
@@ -247,73 +298,55 @@ final class AccountRowView: NSView {
         return false
     }
 
-    private func makeActionView() -> NSView {
-        if isRefreshing {
-            return makeProgressIndicator()
-        }
-        return makeActionButton(action: #selector(refresh))
-    }
-
-    private func makeActionButton(action: Selector) -> NSButton {
-        let button = NSButton()
-        button.isBordered = false
-        button.controlSize = .small
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.widthAnchor.constraint(equalToConstant: Metrics.actionWidth).isActive = true
-        button.imagePosition = .imageOnly
-        button.image = NSImage(
+    private func configureActionButton() {
+        actionButton.isBordered = false
+        actionButton.controlSize = .small
+        actionButton.translatesAutoresizingMaskIntoConstraints = false
+        actionButton.widthAnchor.constraint(equalToConstant: Metrics.actionWidth).isActive = true
+        actionButton.imagePosition = .imageOnly
+        actionButton.image = NSImage(
             systemSymbolName: "arrow.clockwise",
             accessibilityDescription: "Refresh"
         )
-        button.toolTip = "Refresh"
-        button.setAccessibilityIdentifier("account-row.\(account.id).refresh")
-        button.target = self
-        button.action = action
-        actionButton = button
-        return button
+        actionButton.toolTip = "Refresh"
+        actionButton.target = self
+        actionButton.action = #selector(refresh)
     }
 
-    private func makeProgressIndicator() -> NSView {
-        let wrapper = NSView()
-        wrapper.translatesAutoresizingMaskIntoConstraints = false
-        wrapper.widthAnchor.constraint(equalToConstant: Metrics.actionWidth).isActive = true
+    private func configureProgressIndicator() {
+        progressWrapper.translatesAutoresizingMaskIntoConstraints = false
+        progressWrapper.widthAnchor.constraint(equalToConstant: Metrics.actionWidth).isActive = true
 
-        let progress = NSProgressIndicator()
-        progress.style = .spinning
-        progress.controlSize = .small
-        progress.isIndeterminate = true
-        progress.setAccessibilityLabel("Refreshing balance")
-        progress.setAccessibilityIdentifier("account-row.\(account.id).progress")
-        progress.translatesAutoresizingMaskIntoConstraints = false
-        wrapper.addSubview(progress)
+        progressIndicator.style = .spinning
+        progressIndicator.controlSize = .small
+        progressIndicator.isIndeterminate = true
+        progressIndicator.setAccessibilityLabel("Refreshing balance")
+        progressIndicator.translatesAutoresizingMaskIntoConstraints = false
+        progressWrapper.addSubview(progressIndicator)
         NSLayoutConstraint.activate([
-            progress.centerXAnchor.constraint(equalTo: wrapper.centerXAnchor),
-            progress.centerYAnchor.constraint(equalTo: wrapper.centerYAnchor),
-            progress.widthAnchor.constraint(equalToConstant: 14),
-            progress.heightAnchor.constraint(equalToConstant: 14),
+            progressIndicator.centerXAnchor.constraint(equalTo: progressWrapper.centerXAnchor),
+            progressIndicator.centerYAnchor.constraint(equalTo: progressWrapper.centerYAnchor),
+            progressIndicator.widthAnchor.constraint(equalToConstant: 14),
+            progressIndicator.heightAnchor.constraint(equalToConstant: 14),
         ])
-        progress.startAnimation(nil)
-        return wrapper
     }
 
     private var interactionBounds: NSRect {
         bounds.insetBy(dx: 8, dy: 2)
     }
 
-    private func label(
-        _ text: String,
+    private func configureLabel(
+        _ field: NSTextField,
         size: CGFloat,
         weight: NSFont.Weight = .regular,
         color: NSColor = .labelColor,
         monospaced: Bool = false
-    ) -> NSTextField {
-        let field = NSTextField(labelWithString: text)
+    ) {
         field.font = monospaced
             ? .monospacedDigitSystemFont(ofSize: size, weight: weight)
             : .systemFont(ofSize: size, weight: weight)
         field.textColor = color
         field.lineBreakMode = .byTruncatingTail
-        return field
     }
 
     @objc

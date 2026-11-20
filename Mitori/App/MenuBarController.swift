@@ -8,6 +8,7 @@ final class MenuBarController: NSObject {
     private let model: MitoriModel
     private let settings: RefreshSettingsStore
     private let probeAppSearch: any ProbeAppSearching
+    private let onRefreshSettingsChanged: @MainActor () -> Void
     private let statusItem: NSStatusItem
     private let popover: NSPopover
     private var modelChangeCancellable: AnyCancellable?
@@ -99,7 +100,10 @@ final class MenuBarController: NSObject {
         SettingsViewController(
             settings: settings,
             onPersonalInformationVisibilityChanged: { [weak self] in
-                self?.reloadVisibleViews()
+                self?.reloadVisibleViews(for: .accounts)
+            },
+            onRefreshSettingsChanged: { [weak self] in
+                self?.onRefreshSettingsChanged()
             },
             onOpenPrivacyPolicy: {
                 NSWorkspace.shared.open(Self.privacyPolicyURL)
@@ -117,7 +121,8 @@ final class MenuBarController: NSObject {
     private lazy var documentWindowController = AppWindowController(
         title: { [unowned self] in selectedDocument.title },
         size: NSSize(width: 620, height: 520),
-        autosaveName: "dev.zach.mitori.document"
+        autosaveName: "dev.zach.mitori.document",
+        isResizable: true
     ) { [unowned self] in
         DocumentViewController(document: selectedDocument)
     }
@@ -127,19 +132,21 @@ final class MenuBarController: NSObject {
     init(
         model: MitoriModel,
         settings: RefreshSettingsStore,
-        probeAppSearch: any ProbeAppSearching = ProbeAppSearchService()
+        probeAppSearch: any ProbeAppSearching = ProbeAppSearchService(),
+        onRefreshSettingsChanged: @escaping @MainActor () -> Void = {}
     ) {
         self.model = model
         self.settings = settings
         self.probeAppSearch = probeAppSearch
+        self.onRefreshSettingsChanged = onRefreshSettingsChanged
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         popover = NSPopover()
 
         super.init()
         configureStatusItem()
         configurePopover()
-        modelChangeCancellable = model.changes.sink { [weak self] in
-            self?.reloadVisibleViews()
+        modelChangeCancellable = model.changeEvents.sink { [weak self] change in
+            self?.reloadVisibleViews(for: change)
         }
     }
 
@@ -232,11 +239,18 @@ final class MenuBarController: NSObject {
         }
     }
 
-    private func reloadVisibleViews() {
+    private func reloadVisibleViews(for change: ModelChange) {
         menuPanelController.reload()
-        if accountDetailWindowController.isVisible {
+        guard accountDetailWindowController.isVisible else { return }
+        switch change {
+        case .accounts:
             accountDetailWindowController.window?.title = accountDetailWindowTitle
             accountDetailViewController?.reload()
+        case let .account(accountID) where accountID == detailAccountID:
+            accountDetailWindowController.window?.title = accountDetailWindowTitle
+            accountDetailViewController?.reload()
+        case .account, .banner, .refreshingAll:
+            break
         }
     }
 

@@ -2,12 +2,26 @@ import Foundation
 
 @MainActor
 final class AddAccountFlowModel {
+    enum Mode: Equatable {
+        case addAccount
+        case reauthenticate
+    }
+
     struct RecoveryLink: Equatable {
         var title: String
         var url: URL
     }
 
-    var email = ""
+    let mode: Mode
+    var email = "" {
+        didSet {
+            guard mode == .addAccount else { return }
+            let normalized = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if let twoFactorEmail, normalized != twoFactorEmail {
+                resetTwoFactorState()
+            }
+        }
+    }
     var password = ""
     var verificationCode = ""
     var errorMessage: String?
@@ -19,29 +33,43 @@ final class AddAccountFlowModel {
     var offersVerificationCode = false
     var showsVerificationCode: Bool { requiresVerificationCode || offersVerificationCode }
     let deviceIdentifier: String
+    private var twoFactorEmail: String?
 
     private static let appleAccountRecoveryLink = RecoveryLink(
         title: "Open account.apple.com",
         url: URL(string: "https://account.apple.com")!
     )
 
-    init(deviceIdentifier: String = DeviceIdentifierProvider.make()) {
+    init(
+        mode: Mode = .addAccount,
+        deviceIdentifier: String = DeviceIdentifierProvider.make()
+    ) {
+        self.mode = mode
         self.deviceIdentifier = deviceIdentifier
     }
 
     var canSubmit: Bool {
-        let hasCredentials = !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !password.isEmpty
         let hasVerificationCode = !requiresVerificationCode ||
             !verificationCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        return !isSubmitting && hasCredentials && hasVerificationCode
+        switch mode {
+        case .addAccount:
+            let hasCredentials = !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !password.isEmpty
+            return !isSubmitting && hasCredentials && hasVerificationCode
+        case .reauthenticate:
+            return !isSubmitting && hasVerificationCode
+        }
     }
 
     var twoFactorMessage: String {
         if requiresVerificationCode {
-            return "Apple requires a 2FA code. Enter it here, then log in again."
+            return mode == .addAccount
+                ? "Apple requires a 2FA code. Enter it here, then log in again."
+                : "Apple requires a 2FA code. Enter it here, then re-authenticate."
         }
         if offersVerificationCode {
-            return "If your devices showed a verification code, enter it here, then log in again."
+            return mode == .addAccount
+                ? "If your devices showed a verification code, enter it here, then log in again."
+                : "If your devices showed a verification code, enter it here, then re-authenticate."
         }
 
         return "If Apple asks for 2FA, this field appears after the first login attempt."
@@ -57,22 +85,42 @@ final class AddAccountFlowModel {
         isSubmitting = false
     }
 
+    func resetAfterSuccess() {
+        resetTwoFactorState()
+        isSubmitting = false
+    }
+
     func handleFailure(_ error: Error) {
         let mappedError = MitoriError.map(error)
+        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
         switch mappedError {
         case .twoFactorCodeRequired:
+            twoFactorEmail = normalizedEmail
             requiresVerificationCode = true
-            errorMessage = "This Apple ID needs a 2FA code. Enter it below, then log in again. If no prompt appeared, open Apple Account to trigger it."
+            errorMessage = mode == .addAccount
+                ? "This Apple ID needs a 2FA code. Enter it below, then log in again. If no prompt appeared, open Apple Account to trigger it."
+                : "This Apple ID needs a 2FA code. Enter it above, then re-authenticate. If no prompt appeared, open Apple Account to trigger it."
             recoveryLink = Self.appleAccountRecoveryLink
         case .invalidTwoFactorCode:
+            twoFactorEmail = normalizedEmail
             requiresVerificationCode = true
             errorMessage = mappedError.localizedDescription
         case .invalidCredentials:
+            twoFactorEmail = normalizedEmail
             offersVerificationCode = true
             errorMessage = mappedError.localizedDescription
         default:
             errorMessage = mappedError.localizedDescription
         }
+    }
+
+    private func resetTwoFactorState() {
+        twoFactorEmail = nil
+        requiresVerificationCode = false
+        offersVerificationCode = false
+        verificationCode = ""
+        errorMessage = nil
+        recoveryLink = nil
     }
 }

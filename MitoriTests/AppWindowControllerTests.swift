@@ -22,4 +22,28 @@ struct AppWindowControllerTests {
         #expect(contentBuildCount == 1)
         controller.close()
     }
+
+    @Test
+    func styleMaskRespectsIsResizableFlag() throws {
+        let fixed = AppWindowController(
+            title: { "Fixed" },
+            size: NSSize(width: 300, height: 200),
+            isResizable: false
+        ) { NSViewController() }
+        let resizable = AppWindowController(
+            title: { "Resizable" },
+            size: NSSize(width: 300, height: 200),
+            isResizable: true
+        ) { NSViewController() }
+
+        fixed.show()
+        resizable.show()
+        defer {
+            fixed.close()
+            resizable.close()
+        }
+
+        #expect(fixed.window?.styleMask.contains(.resizable) == false)
+        #expect(resizable.window?.styleMask.contains(.resizable) == true)
+    }
 }

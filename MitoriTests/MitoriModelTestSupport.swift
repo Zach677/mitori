@@ -24,6 +24,8 @@ final class SessionBridgeStub: AppleSessionBridging {
     var reauthenticateResult: SessionRefreshResult?
     /// Takes precedence over `refreshResult` when set.
     var refreshHandler: ((StoredAccountMeta) throws -> SessionRefreshResult)?
+    /// Takes precedence over `reauthenticateResult` when set.
+    var reauthenticateHandler: ((StoredAccountMeta, String) throws -> SessionRefreshResult)?
     var loginRequests: [LoginRequest] = []
     var beforeLogin: (() async -> Void)?
     var beforeRefresh: (() async -> Void)?
@@ -68,7 +70,10 @@ final class SessionBridgeStub: AppleSessionBridging {
         secret: StoredAccountSecret,
         code: String
     ) async throws -> SessionRefreshResult {
-        try requiredResult(reauthenticateResult, fallback: .unknown("Missing reauthenticate result"))
+        if let reauthenticateHandler {
+            return try reauthenticateHandler(meta, code)
+        }
+        return try requiredResult(reauthenticateResult, fallback: .unknown("Missing reauthenticate result"))
     }
 
     func refreshBalance(

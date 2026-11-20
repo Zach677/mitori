@@ -1,7 +1,7 @@
 import AppKit
 
 @MainActor
-final class AccountDetailViewController: NSViewController {
+final class AccountDetailViewController: NSViewController, NSTextFieldDelegate {
     private enum Metrics {
         static let width: CGFloat = 500
         static let minimumHeight: CGFloat = 300
@@ -19,16 +19,37 @@ final class AccountDetailViewController: NSViewController {
     private let onProbeSaved: @MainActor (Bool) -> Void
 
     private var probeLookup: ProbeAppLookupModel
+    private let reauthFlow = AddAccountFlowModel(mode: .reauthenticate)
+    private var hasLoadedProbeField = false
     private var isSavingProbe = false
-    private var isReauthing = false
     private var isDeleting = false
     private var errorMessage: String?
+    private var displayedSearchResults: [ProbeAppCandidate] = []
+    private var selectedProbeCandidate: ProbeAppCandidate?
     private weak var copyFeedbackView: NSView?
 
     private let contentStack = NSStackView()
+    private let removedLabel = NSTextField(labelWithString: "Account removed")
+    private let balanceSection = NSStackView()
+    private let balanceLabel = NSTextField(labelWithString: "")
+    private let updatedLabel = NSTextField(labelWithString: "")
+    private let infoSection = NSStackView()
+    private let appleIDButton = CopyableValueButton(title: "", target: nil, action: nil)
+    private let appleIDValueLabel = NSTextField(labelWithString: "")
+    private let regionValueLabel = NSTextField(labelWithString: "")
+    private let podValueLabel = NSTextField(labelWithString: "")
+    private let deviceIDButton = CopyableValueButton(title: "", target: nil, action: nil)
+    private let deviceIDValueLabel = NSTextField(labelWithString: "")
+    private let reauthSection = NSStackView()
+    private let reauthGuidanceLabel = NSTextField(labelWithString: "")
+    private let reauthRecoveryButton = NSButton(title: "Open account.apple.com", target: nil, action: nil)
+    private let probeSection = NSStackView()
     private let errorLabel = NSTextField(labelWithString: "")
     private let probeBundleIDField = NSTextField()
     private let probeSearchField = NSTextField()
+    private let probeSearchButton = NSButton(title: "Search", target: nil, action: nil)
+    private let probeSearchErrorLabel = NSTextField(labelWithString: "")
+    private let probeResultsStack = NSStackView()
     private let verificationCodeField = NSTextField()
     private let saveProbeButton = NSButton(title: "Save", target: nil, action: nil)
     private let reauthButton = NSButton(title: "Re-authenticate", target: nil, action: nil)
@@ -68,39 +89,38 @@ final class AccountDetailViewController: NSViewController {
     }
 
     func reload() {
-        contentStack.arrangedSubviews.forEach { view in
-            contentStack.removeArrangedSubview(view)
-            view.removeFromSuperview()
-        }
+        guard isViewLoaded else { return }
 
         guard let account else {
-            addFullWidth(label("Account removed", size: 14, weight: .medium), to: contentStack)
+            removedLabel.isHidden = false
+            balanceSection.isHidden = true
+            infoSection.isHidden = true
+            reauthSection.isHidden = true
+            probeSection.isHidden = true
+            errorLabel.isHidden = true
+            updateWindowHeight()
             return
         }
 
-        if probeBundleIDField.stringValue.isEmpty {
+        removedLabel.isHidden = true
+        balanceSection.isHidden = false
+        infoSection.isHidden = false
+        reauthSection.isHidden = false
+        probeSection.isHidden = false
+
+        if !hasLoadedProbeField {
             probeBundleIDField.stringValue = account.probeBundleID
+            hasLoadedProbeField = true
         }
 
-        addFullWidth(makeBalanceSection(account), to: contentStack)
-        addFullWidth(makeInfoSection(account), to: contentStack)
-        addFullWidth(makeReauthSection(), to: contentStack)
-        addFullWidth(makeProbeSection(account), to: contentStack)
+        updateBalanceSection(account)
+        updateInfoSection(account)
+        updateReauthSection()
+        updateProbeSection()
 
         errorLabel.stringValue = errorMessage ?? ""
         errorLabel.isHidden = errorMessage == nil
-        if errorMessage != nil {
-            addFullWidth(errorLabel, to: contentStack)
-        }
-        contentStack.invalidateIntrinsicContentSize()
-        view.layoutSubtreeIfNeeded()
-        if let window = view.window {
-            let contentHeight = contentStack.fittingSize.height + view.safeAreaInsets.top
-            window.setContentSize(NSSize(
-                width: window.contentView?.bounds.width ?? Metrics.width,
-                height: contentHeight
-            ))
-        }
+        updateWindowHeight()
     }
 }
 
@@ -119,7 +139,21 @@ private extension AccountDetailViewController {
 
         view.addSubview(contentStack)
 
+        removedLabel.font = .systemFont(ofSize: 14, weight: .medium)
+        removedLabel.isHidden = true
+        addFullWidth(removedLabel, to: contentStack)
+
+        configureBalanceSection()
+        configureInfoSection()
+        configureReauthSection()
+        configureProbeSection()
         configureErrorLabel()
+
+        addFullWidth(balanceSection, to: contentStack)
+        addFullWidth(infoSection, to: contentStack)
+        addFullWidth(reauthSection, to: contentStack)
+        addFullWidth(probeSection, to: contentStack)
+        addFullWidth(errorLabel, to: contentStack)
 
         NSLayoutConstraint.activate([
             contentStack.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -131,61 +165,69 @@ private extension AccountDetailViewController {
         ])
     }
 
-    func makeBalanceSection(_ account: StoredAccountMeta) -> NSView {
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .width
-        stack.spacing = Metrics.balanceSpacing
-        addFullWidth(label("Balance", size: 11, weight: .medium, color: .secondaryLabelColor), to: stack)
-        let balance = label(
-            account.balanceDisplayText ?? "Unavailable",
-            size: 18,
-            weight: .medium,
-            monospaced: true
-        )
-        balance.setAccessibilityIdentifier("account-detail.balance")
-        addFullWidth(balance, to: stack)
-        if let lastRefresh = account.lastRefreshAt {
-            addFullWidth(label(
-                "Updated \(lastRefresh.formatted(date: .abbreviated, time: .shortened))",
-                size: 11,
-                color: .tertiaryLabelColor
-            ), to: stack)
-        }
-        return stack
+    func configureBalanceSection() {
+        balanceSection.orientation = .vertical
+        balanceSection.alignment = .width
+        balanceSection.spacing = Metrics.balanceSpacing
+        addFullWidth(label("Balance", size: 11, weight: .medium, color: .secondaryLabelColor), to: balanceSection)
+
+        configureLabel(balanceLabel, size: 18, weight: .medium, monospaced: true)
+        balanceLabel.setAccessibilityIdentifier("account-detail.balance")
+        addFullWidth(balanceLabel, to: balanceSection)
+
+        configureLabel(updatedLabel, size: 11, color: .tertiaryLabelColor)
+        addFullWidth(updatedLabel, to: balanceSection)
     }
 
-    func makeInfoSection(_ account: StoredAccountMeta) -> NSView {
-        let accountIndex = model.accounts.firstIndex(where: { $0.id == account.id }) ?? 0
-        let presentation = AccountPresentation(
-            account: account,
-            accountIndex: accountIndex,
-            hidesPersonalInformation: settings.isPersonalInformationHidden
+    func configureInfoSection() {
+        configureSection(infoSection, title: "Account Info")
+        addFullWidth(
+            copyableDetailRow("Apple ID", button: appleIDButton, fallbackLabel: appleIDValueLabel),
+            to: infoSection
         )
-        let stack = section(title: "Account Info")
-        let exposesPersonalInformation = !settings.isPersonalInformationHidden
-        addFullWidth(detailRow(
-            "Apple ID",
-            value: presentation.appleID,
-            copyValue: exposesPersonalInformation ? account.appleID : nil
-        ), to: stack)
-        addFullWidth(detailRow("Region", value: account.regionLabel.isEmpty ? "Unknown" : account.regionLabel), to: stack)
-        addFullWidth(detailRow("Pod", value: account.pod ?? "Unavailable"), to: stack)
-        addFullWidth(detailRow("Credentials", value: "Stored in Keychain"), to: stack)
-        addFullWidth(detailRow(
-            "Device ID",
-            value: presentation.deviceIdentifier,
-            copyValue: exposesPersonalInformation ? account.deviceIdentifier : nil
-        ), to: stack)
-        return stack
+        addFullWidth(detailRow("Region", valueLabel: regionValueLabel), to: infoSection)
+        addFullWidth(detailRow("Pod", valueLabel: podValueLabel), to: infoSection)
+        let credentialsLabel = label("Stored in Keychain", size: 12)
+        addFullWidth(detailRow("Credentials", valueLabel: credentialsLabel), to: infoSection)
+        addFullWidth(
+            copyableDetailRow("Device ID", button: deviceIDButton, fallbackLabel: deviceIDValueLabel),
+            to: infoSection
+        )
     }
 
-    func makeProbeSection(_ account: StoredAccountMeta) -> NSView {
-        let stack = section(title: "Background Refresh")
+    func configureReauthSection() {
+        configureSection(reauthSection, title: "Re-authentication")
+        configureLabel(reauthGuidanceLabel, size: 11, color: .secondaryLabelColor)
+        reauthGuidanceLabel.isHidden = true
+        addFullWidth(reauthGuidanceLabel, to: reauthSection)
+
+        verificationCodeField.placeholderString = "2FA Code (optional)"
+        verificationCodeField.font = .systemFont(ofSize: 13)
+        verificationCodeField.delegate = self
+        verificationCodeField.setAccessibilityIdentifier("account-detail.code")
+        addFullWidth(verificationCodeField, to: reauthSection)
+
+        reauthRecoveryButton.bezelStyle = .inline
+        reauthRecoveryButton.alignment = .left
+        reauthRecoveryButton.target = self
+        reauthRecoveryButton.action = #selector(openRecoveryLink)
+        reauthRecoveryButton.setAccessibilityIdentifier("account-detail.recovery")
+        reauthRecoveryButton.isHidden = true
+        reauthSection.addArrangedSubview(reauthRecoveryButton)
+
+        reauthButton.target = self
+        reauthButton.action = #selector(reauthenticate)
+        reauthButton.bezelStyle = .rounded
+        reauthButton.setAccessibilityIdentifier("account-detail.reauthenticate")
+        addFullWidth(buttonRow(trailing: reauthButton), to: reauthSection)
+    }
+
+    func configureProbeSection() {
+        configureSection(probeSection, title: "Background Refresh")
         probeBundleIDField.placeholderString = "Owned app bundle ID (optional)"
         probeBundleIDField.font = .systemFont(ofSize: 13)
         probeBundleIDField.setAccessibilityIdentifier("account-detail.probe-bundle-id")
-        addFullWidth(probeBundleIDField, to: stack)
+        addFullWidth(probeBundleIDField, to: probeSection)
 
         let searchRow = NSStackView()
         searchRow.orientation = .horizontal
@@ -198,40 +240,40 @@ private extension AccountDetailViewController {
         probeSearchField.setContentHuggingPriority(.defaultLow, for: .horizontal)
         probeSearchField.setAccessibilityIdentifier("account-detail.probe-search")
 
-        let searchButton = NSButton(title: "Search", target: self, action: #selector(searchProbeApps))
-        searchButton.bezelStyle = .rounded
-        searchButton.setAccessibilityIdentifier("account-detail.probe-search-button")
-        searchButton.setContentCompressionResistancePriority(.required, for: .horizontal)
-        searchButton.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        probeSearchButton.target = self
+        probeSearchButton.action = #selector(searchProbeApps)
+        probeSearchButton.bezelStyle = .rounded
+        probeSearchButton.setAccessibilityIdentifier("account-detail.probe-search-button")
+        probeSearchButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+        probeSearchButton.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         searchRow.addArrangedSubview(probeSearchField)
-        searchRow.addArrangedSubview(searchButton)
-        addFullWidth(searchRow, to: stack)
+        searchRow.addArrangedSubview(probeSearchButton)
+        addFullWidth(searchRow, to: probeSection)
 
-        if let searchError = probeLookup.errorMessage {
-            addFullWidth(label(searchError, size: 11, color: NSColor.systemOrange.blended(withFraction: 0.3, of: .labelColor) ?? .systemOrange), to: stack)
-        }
+        configureLabel(
+            probeSearchErrorLabel,
+            size: 11,
+            color: NSColor.systemOrange.blended(withFraction: 0.3, of: .labelColor) ?? .systemOrange
+        )
+        probeSearchErrorLabel.isHidden = true
+        addFullWidth(probeSearchErrorLabel, to: probeSection)
 
-        let resultsStack = NSStackView()
-        resultsStack.orientation = .vertical
-        resultsStack.spacing = 4
-        for result in probeLookup.results {
-            resultsStack.addArrangedSubview(resultButton(result))
-        }
-        if !probeLookup.results.isEmpty {
-            addFullWidth(resultsStack, to: stack)
-        }
+        probeResultsStack.orientation = .vertical
+        probeResultsStack.alignment = .leading
+        probeResultsStack.spacing = 4
+        probeResultsStack.isHidden = true
+        addFullWidth(probeResultsStack, to: probeSection)
 
         addFullWidth(label(
             "Optional. An app this Apple ID already owns lets Mitori refresh without signing in again.",
             size: 11,
             color: .secondaryLabelColor
-        ), to: stack)
+        ), to: probeSection)
 
         saveProbeButton.target = self
         saveProbeButton.action = #selector(saveProbeBundleID)
         saveProbeButton.bezelStyle = .rounded
         saveProbeButton.setAccessibilityIdentifier("account-detail.save-probe")
-        saveProbeButton.isEnabled = !isSavingProbe && !isReauthing && !isDeleting
         saveProbeButton.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         deleteButton.target = self
@@ -239,7 +281,6 @@ private extension AccountDetailViewController {
         deleteButton.bezelStyle = .rounded
         deleteButton.setAccessibilityIdentifier("account-detail.delete")
         deleteButton.contentTintColor = NSColor.systemRed.blended(withFraction: 0.25, of: .labelColor)
-        deleteButton.isEnabled = !isDeleting && !isSavingProbe && !isReauthing
         deleteButton.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         let actionRow = NSStackView()
@@ -252,24 +293,95 @@ private extension AccountDetailViewController {
         actionRow.addArrangedSubview(spacer)
         actionRow.addArrangedSubview(deleteButton)
         actionRow.addArrangedSubview(saveProbeButton)
-        addFullWidth(actionRow, to: stack)
-        return stack
+        addFullWidth(actionRow, to: probeSection)
     }
 
-    func makeReauthSection() -> NSView {
-        let stack = section(title: "Re-authentication")
-        verificationCodeField.placeholderString = "2FA Code (optional)"
-        verificationCodeField.font = .systemFont(ofSize: 13)
-        verificationCodeField.setAccessibilityIdentifier("account-detail.code")
-        addFullWidth(verificationCodeField, to: stack)
+    func updateBalanceSection(_ account: StoredAccountMeta) {
+        balanceLabel.stringValue = account.balanceDisplayText ?? "Unavailable"
+        if let lastRefresh = account.lastRefreshAt {
+            updatedLabel.stringValue = "Updated \(lastRefresh.formatted(date: .abbreviated, time: .shortened))"
+            updatedLabel.isHidden = false
+        } else {
+            updatedLabel.stringValue = ""
+            updatedLabel.isHidden = true
+        }
+    }
 
-        reauthButton.target = self
-        reauthButton.action = #selector(reauthenticate)
-        reauthButton.bezelStyle = .rounded
-        reauthButton.setAccessibilityIdentifier("account-detail.reauthenticate")
-        reauthButton.isEnabled = !isReauthing && !isSavingProbe && !isDeleting
-        addFullWidth(buttonRow(trailing: reauthButton), to: stack)
-        return stack
+    func updateInfoSection(_ account: StoredAccountMeta) {
+        let accountIndex = model.accounts.firstIndex(where: { $0.id == account.id }) ?? 0
+        let presentation = AccountPresentation(
+            account: account,
+            accountIndex: accountIndex,
+            hidesPersonalInformation: settings.isPersonalInformationHidden
+        )
+        let exposesPersonalInformation = !settings.isPersonalInformationHidden
+
+        updateCopyableField(
+            button: appleIDButton,
+            fallbackLabel: appleIDValueLabel,
+            displayValue: presentation.appleID,
+            copyValue: exposesPersonalInformation ? account.appleID : nil
+        )
+        regionValueLabel.stringValue = account.regionLabel.isEmpty ? "Unknown" : account.regionLabel
+        podValueLabel.stringValue = account.pod ?? "Unavailable"
+        updateCopyableField(
+            button: deviceIDButton,
+            fallbackLabel: deviceIDValueLabel,
+            displayValue: presentation.deviceIdentifier,
+            copyValue: exposesPersonalInformation ? account.deviceIdentifier : nil
+        )
+    }
+
+    func updateReauthSection() {
+        reauthFlow.verificationCode = verificationCodeField.stringValue
+        reauthGuidanceLabel.stringValue = reauthFlow.showsVerificationCode ? reauthFlow.twoFactorMessage : ""
+        reauthGuidanceLabel.isHidden = !reauthFlow.showsVerificationCode
+        reauthRecoveryButton.title = reauthFlow.recoveryLink?.title ?? "Open account.apple.com"
+        reauthRecoveryButton.isHidden = reauthFlow.recoveryLink == nil
+        reauthButton.isEnabled = reauthFlow.canSubmit && !isSavingProbe && !isDeleting
+    }
+
+    func updateProbeSection() {
+        probeSearchButton.title = probeLookup.isSearching ? "Searching..." : "Search"
+        probeSearchButton.isEnabled = !probeLookup.isSearching && !isDeleting
+
+        if let searchError = probeLookup.errorMessage {
+            probeSearchErrorLabel.stringValue = searchError
+            probeSearchErrorLabel.isHidden = false
+        } else {
+            probeSearchErrorLabel.stringValue = ""
+            probeSearchErrorLabel.isHidden = true
+        }
+
+        if probeLookup.results != displayedSearchResults {
+            displayedSearchResults = probeLookup.results
+            probeResultsStack.arrangedSubviews.forEach { view in
+                probeResultsStack.removeArrangedSubview(view)
+                view.removeFromSuperview()
+            }
+            for result in displayedSearchResults {
+                probeResultsStack.addArrangedSubview(resultButton(result))
+            }
+            probeResultsStack.isHidden = displayedSearchResults.isEmpty
+        }
+
+        saveProbeButton.isEnabled = !isSavingProbe && !reauthFlow.isSubmitting && !isDeleting
+        deleteButton.isEnabled = !isDeleting && !isSavingProbe && !reauthFlow.isSubmitting
+    }
+
+    func updateWindowHeight() {
+        contentStack.invalidateIntrinsicContentSize()
+        view.layoutSubtreeIfNeeded()
+        if let window = view.window {
+            let contentHeight = contentStack.fittingSize.height + view.safeAreaInsets.top
+            let currentHeight = window.contentView?.bounds.height ?? 0
+            if abs(contentHeight - currentHeight) > 0.5 {
+                window.setContentSize(NSSize(
+                    width: window.contentView?.bounds.width ?? Metrics.width,
+                    height: contentHeight
+                ))
+            }
+        }
     }
 
     func resultButton(_ result: ProbeAppCandidate) -> NSButton {
@@ -281,56 +393,91 @@ private extension AccountDetailViewController {
         return button
     }
 
-    func section(title: String) -> NSStackView {
-        let stack = NSStackView()
+    func configureSection(_ stack: NSStackView, title: String) {
         stack.orientation = .vertical
         stack.alignment = .width
         stack.spacing = 8
         addFullWidth(label(title, size: 11, weight: .medium, color: .secondaryLabelColor), to: stack)
-        return stack
     }
 
-    func detailRow(_ title: String, value: String, copyValue: String? = nil) -> NSView {
+    func copyableDetailRow(
+        _ title: String,
+        button: CopyableValueButton,
+        fallbackLabel: NSTextField
+    ) -> NSView {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .firstBaseline
         row.spacing = 12
 
+        let titleLabel = detailTitleLabel(title)
+        button.target = self
+        button.action = #selector(copyDetailValue(_:))
+        button.isBordered = false
+        button.focusRingType = .none
+        button.font = .systemFont(ofSize: 12)
+        button.alignment = .left
+        button.contentTintColor = .labelColor
+        button.setAccessibilityLabel(title)
+        button.setAccessibilityHelp("Click to copy \(title)")
+        button.setAccessibilityIdentifier("account-detail.copy.\(title)")
+        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        button.cell?.lineBreakMode = .byTruncatingMiddle
+
+        configureDetailValueLabel(fallbackLabel)
+
+        row.addArrangedSubview(titleLabel)
+        row.addArrangedSubview(button)
+        row.addArrangedSubview(fallbackLabel)
+        return row
+    }
+
+    func detailRow(_ title: String, valueLabel: NSTextField) -> NSView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .firstBaseline
+        row.spacing = 12
+
+        configureDetailValueLabel(valueLabel)
+        row.addArrangedSubview(detailTitleLabel(title))
+        row.addArrangedSubview(valueLabel)
+        return row
+    }
+
+    func detailTitleLabel(_ title: String) -> NSTextField {
         let titleLabel = label(title, size: 12, color: .secondaryLabelColor)
         titleLabel.alignment = .right
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.widthAnchor.constraint(equalToConstant: 100).isActive = true
+        return titleLabel
+    }
 
-        let valueLabel: NSTextField
-        if let copyValue {
-            let button = CopyableValueButton(title: value, target: self, action: #selector(copyDetailValue(_:)))
-            button.copyValue = copyValue
-            button.toolTip = "\(copyValue)\nClick to copy"
-            button.isBordered = false
-            button.focusRingType = .none
-            button.font = .systemFont(ofSize: 12)
-            button.alignment = .left
-            button.contentTintColor = .labelColor
-            button.setAccessibilityLabel(title)
-            button.setAccessibilityHelp("Click to copy \(title)")
-            button.setAccessibilityIdentifier("account-detail.copy.\(title)")
-            button.setContentHuggingPriority(.defaultLow, for: .horizontal)
-            button.cell?.lineBreakMode = .byTruncatingMiddle
-
-            row.addArrangedSubview(titleLabel)
-            row.addArrangedSubview(button)
-            return row
-        }
-
-        valueLabel = label(value, size: 12)
+    func configureDetailValueLabel(_ valueLabel: NSTextField) {
+        valueLabel.font = .systemFont(ofSize: 12)
+        valueLabel.textColor = .labelColor
         valueLabel.alignment = .left
         valueLabel.maximumNumberOfLines = 3
         valueLabel.lineBreakMode = .byTruncatingMiddle
         valueLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    }
 
-        row.addArrangedSubview(titleLabel)
-        row.addArrangedSubview(valueLabel)
-        return row
+    func updateCopyableField(
+        button: CopyableValueButton,
+        fallbackLabel: NSTextField,
+        displayValue: String,
+        copyValue: String?
+    ) {
+        if let copyValue {
+            button.title = displayValue
+            button.copyValue = copyValue
+            button.toolTip = "\(copyValue)\nClick to copy"
+            button.isHidden = false
+            fallbackLabel.isHidden = true
+        } else {
+            button.isHidden = true
+            fallbackLabel.stringValue = displayValue
+            fallbackLabel.isHidden = false
+        }
     }
 
     @objc
@@ -346,7 +493,7 @@ private extension AccountDetailViewController {
         let checkmark = NSImageView(image: NSImage(
             systemSymbolName: "checkmark",
             accessibilityDescription: nil
-        )!)
+        ) ?? NSImage())
         checkmark.contentTintColor = .labelColor
         checkmark.translatesAutoresizingMaskIntoConstraints = false
         checkmark.widthAnchor.constraint(equalToConstant: 12).isActive = true
@@ -430,6 +577,7 @@ private extension AccountDetailViewController {
         errorLabel.lineBreakMode = .byWordWrapping
         errorLabel.maximumNumberOfLines = 4
         errorLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        errorLabel.isHidden = true
     }
 
     func label(
@@ -440,20 +588,31 @@ private extension AccountDetailViewController {
         monospaced: Bool = false
     ) -> NSTextField {
         let field = NSTextField(labelWithString: text)
+        configureLabel(field, size: size, weight: weight, color: color, monospaced: monospaced)
+        return field
+    }
+
+    func configureLabel(
+        _ field: NSTextField,
+        size: CGFloat,
+        weight: NSFont.Weight = .regular,
+        color: NSColor = .labelColor,
+        monospaced: Bool = false
+    ) {
         field.font = monospaced
             ? .monospacedDigitSystemFont(ofSize: size, weight: weight)
             : .systemFont(ofSize: size, weight: weight)
         field.textColor = color
         field.lineBreakMode = .byWordWrapping
         field.maximumNumberOfLines = 4
-        return field
     }
 
     @objc
     func saveProbeBundleID() {
-        guard !isSavingProbe, !isReauthing, !isDeleting else { return }
+        guard !isSavingProbe, !reauthFlow.isSubmitting, !isDeleting else { return }
         let oldProbe = (account?.probeBundleID ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let newProbe = probeBundleIDField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let selectedAdamID = selectedProbeCandidate?.bundleID == newProbe ? selectedProbeCandidate?.id : nil
         isSavingProbe = true
         errorMessage = nil
         reload()
@@ -461,8 +620,7 @@ private extension AccountDetailViewController {
         Task { [weak self] in
             guard let self else { return }
             do {
-                // reload() refills an empty field with the stored probe, so save the value read before it.
-                try await model.saveProbeBundleID(newProbe, for: accountID)
+                try await model.saveProbeBundleID(newProbe, adamID: selectedAdamID, for: accountID)
                 onProbeSaved(oldProbe != newProbe)
             } catch {
                 isSavingProbe = false
@@ -474,21 +632,33 @@ private extension AccountDetailViewController {
 
     @objc
     func reauthenticate() {
-        guard !isReauthing, !isSavingProbe, !isDeleting else { return }
-        isReauthing = true
+        reauthFlow.verificationCode = verificationCodeField.stringValue
+        guard reauthFlow.canSubmit, !isSavingProbe, !isDeleting else { return }
+        reauthFlow.beginSubmission()
         errorMessage = nil
         reload()
 
-        Task {
+        Task { [weak self] in
+            guard let self else { return }
             do {
-                try await model.reauthenticateAccount(id: accountID, code: verificationCodeField.stringValue)
+                try await model.reauthenticateAccount(id: accountID, code: reauthFlow.verificationCode)
+                reauthFlow.resetAfterSuccess()
                 verificationCodeField.stringValue = ""
+            } catch is CancellationError {
+                reauthFlow.finishSubmission()
             } catch {
-                errorMessage = MitoriError.map(error).localizedDescription
+                reauthFlow.finishSubmission()
+                reauthFlow.handleFailure(error)
+                errorMessage = reauthFlow.errorMessage
             }
-            isReauthing = false
             reload()
         }
+    }
+
+    @objc
+    func openRecoveryLink() {
+        guard let url = reauthFlow.recoveryLink?.url else { return }
+        NSWorkspace.shared.open(url)
     }
 
     @objc
@@ -498,7 +668,8 @@ private extension AccountDetailViewController {
         errorMessage = nil
         reload()
 
-        Task {
+        Task { [weak self] in
+            guard let self else { return }
             do {
                 try await model.deleteAccount(id: accountID)
                 onClose()
@@ -514,8 +685,13 @@ private extension AccountDetailViewController {
     func searchProbeApps() {
         guard let account, !isDeleting else { return }
         probeLookup.query = probeSearchField.stringValue
-        Task {
-            await probeLookup.search(countryCode: account.countryCode)
+        Task { [weak self] in
+            guard let self else { return }
+            let searchTask = Task { @MainActor in
+                await self.probeLookup.search(countryCode: account.countryCode)
+            }
+            reload()
+            await searchTask.value
             reload()
         }
     }
@@ -523,6 +699,7 @@ private extension AccountDetailViewController {
     @objc
     func selectProbeResult(_ sender: ProbeResultButton) {
         guard let result = sender.result else { return }
+        selectedProbeCandidate = result
         probeBundleIDField.stringValue = probeLookup.select(result)
         reload()
     }
@@ -546,4 +723,10 @@ private final class ProbeResultButton: NSButton {
 @MainActor
 private final class CopyableValueButton: NSButton {
     var copyValue = ""
+}
+
+extension AccountDetailViewController {
+    func controlTextDidChange(_: Notification) {
+        updateReauthSection()
+    }
 }

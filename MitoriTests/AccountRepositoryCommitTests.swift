@@ -48,6 +48,30 @@ struct AccountRepositoryCommitTests {
         #expect(try await accountStore.loadAccounts().isEmpty)
     }
 
+    @Test
+    func commitDoesNotRewriteAccountsFileWhenSecretSaveFails() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        let writeCountLock = NSLock()
+        nonisolated(unsafe) var writeCount = 0
+        let accountStore = AccountStore(baseDirectory: tempDirectory) { data, url in
+            writeCountLock.withLock { writeCount += 1 }
+            try data.write(to: url, options: .atomic)
+        }
+        let backend = WriteErrorSecretBackend()
+        let repository = AccountRepository(
+            accountStore: accountStore,
+            secretStore: SecretStore(backend: backend)
+        )
+
+        await #expect(throws: (any Error).self) {
+            try await repository.commit(sampleResult(), respectingCancellation: true)
+        }
+
+        #expect(writeCountLock.withLock { writeCount } == 0)
+    }
+
     private func sampleResult() -> SessionRefreshResult {
         SessionRefreshResult(
             meta: StoredAccountMeta(
@@ -74,4 +98,12 @@ private final class ReadFailingSecretBackend: SecretKeyValueStore, @unchecked Se
     func removeValue(for key: String, allowsAuthenticationUI _: Bool) throws {
         storage[key] = nil
     }
+}
+
+private final class WriteErrorSecretBackend: SecretKeyValueStore, @unchecked Sendable {
+    func data(for _: String, allowsAuthenticationUI _: Bool) throws -> Data? { nil }
+    func set(_: Data, for _: String, allowsAuthenticationUI _: Bool) throws {
+        throw NSError(domain: NSOSStatusErrorDomain, code: Int(errSecNotAvailable))
+    }
+    func removeValue(for _: String, allowsAuthenticationUI _: Bool) throws {}
 }

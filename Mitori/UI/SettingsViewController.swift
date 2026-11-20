@@ -13,6 +13,7 @@ final class SettingsViewController: NSViewController {
 
     private let settings: RefreshSettingsStore
     private let onPersonalInformationVisibilityChanged: @MainActor () -> Void
+    private let onRefreshSettingsChanged: @MainActor () -> Void
     private let onOpenPrivacyPolicy: @MainActor () -> Void
     private let onOpenSourceLicenses: @MainActor () -> Void
     private let openAtLoginSwitch = NSSwitch()
@@ -24,11 +25,13 @@ final class SettingsViewController: NSViewController {
     init(
         settings: RefreshSettingsStore,
         onPersonalInformationVisibilityChanged: @escaping @MainActor () -> Void,
+        onRefreshSettingsChanged: @escaping @MainActor () -> Void = {},
         onOpenPrivacyPolicy: @escaping @MainActor () -> Void,
         onOpenSourceLicenses: @escaping @MainActor () -> Void
     ) {
         self.settings = settings
         self.onPersonalInformationVisibilityChanged = onPersonalInformationVisibilityChanged
+        self.onRefreshSettingsChanged = onRefreshSettingsChanged
         self.onOpenPrivacyPolicy = onOpenPrivacyPolicy
         self.onOpenSourceLicenses = onOpenSourceLicenses
         super.init(nibName: nil, bundle: nil)
@@ -262,6 +265,7 @@ private extension SettingsViewController {
     @objc
     func toggleAutoRefresh() {
         settings.isAutoRefreshEnabled = autoRefreshSwitch.state == .on
+        onRefreshSettingsChanged()
         reload()
     }
 
@@ -270,6 +274,7 @@ private extension SettingsViewController {
         let index = intervalPopUp.indexOfSelectedItem
         guard Self.intervalChoices.indices.contains(index) else { return }
         settings.autoRefreshInterval = Self.intervalChoices[index].interval
+        onRefreshSettingsChanged()
     }
 
     @objc
