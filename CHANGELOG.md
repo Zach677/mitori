@@ -2,6 +2,16 @@
 
 All notable changes to Mitori are documented in this file.
 
+## 0.3.2 - 2026-11-20
+
+- Automatic refresh now runs while the screen is unlocked. Previously, macOS's missing lock-screen key kept background refreshes paused.
+- Balances formatted with space or apostrophe thousands separators (such as `1 234,56 €` or `CHF 1'234.50`) now parse without losing leading digits, and non-ISO currency prefixes no longer override the storefront currency.
+- Routine probe refreshes now cache the probe app's store ID instead of looking it up on every refresh, and keep session cookies returned by probe responses.
+- Automatic refresh schedules a single timer for the next due account and wakes on system wake or screen unlock instead of polling every minute.
+- The menu bar list starts at the top when scrolling, updates account rows in place without losing hover or focus, and shows an auto-hiding scrollbar.
+- Account Details keeps keyboard focus while accounts refresh, keeps a cleared probe field empty until saved, shows 2FA guidance and the Apple Account recovery link during re-authentication, and indicates when an app search is running.
+- Changing the email address in Add Account clears a previous account's 2FA prompt.
+
 ## 0.3.1 - 2026-11-16
 
 - A probe app change that you make while a refresh fails is no longer lost.
