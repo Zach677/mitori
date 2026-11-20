@@ -38,11 +38,6 @@ function resolve_packages {
         xcbeautify --disable-colored-output --disable-logging
 }
 
-if ! command -v xcbeautify >/dev/null 2>&1; then
-    echo "[!] xcbeautify is required. Install it with: brew install xcbeautify" >&2
-    exit 69
-fi
-
 for required_file in "${REQUIRED_MANUAL_LICENSE_FILES[@]}"; do
     if [[ ! -f "$MANUAL_LICENSES_DIR/$required_file" ]]; then
         echo "[!] required manual license notice is missing: Resources/AdditionalLicenses/$required_file" >&2
@@ -50,15 +45,20 @@ for required_file in "${REQUIRED_MANUAL_LICENSE_FILES[@]}"; do
     fi
 done
 
-echo "[*] resolving packages..."
-with_retry resolve_packages
-
-if [[ -f "$PACKAGE_RESOLVED" && ! -d "$CHECKOUTS_DIR" ]]; then
-    echo "[!] Swift package checkouts are missing after dependency resolution." >&2
-    exit 1
-fi
-
 if [[ -f "$PACKAGE_RESOLVED" ]]; then
+    if ! command -v xcbeautify >/dev/null 2>&1; then
+        echo "[!] xcbeautify is required. Install it with: brew install xcbeautify" >&2
+        exit 69
+    fi
+
+    echo "[*] resolving packages..."
+    with_retry resolve_packages
+
+    if [[ ! -d "$CHECKOUTS_DIR" ]]; then
+        echo "[!] Swift package checkouts are missing after dependency resolution." >&2
+        exit 1
+    fi
+
     identity=""
     while IFS= read -r line; do
         if [[ "$line" == *'"identity" : "'* ]]; then

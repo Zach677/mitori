@@ -50,10 +50,18 @@ case "$(vm_state)" in
 esac
 
 VM_IP="$(tart ip "$VM" --wait 180)"
+ssh_ready=0
 for _ in $(seq 1 30); do
-    in_vm true 2>/dev/null && break
+    if in_vm true 2>/dev/null; then
+        ssh_ready=1
+        break
+    fi
     sleep 5
 done
+if [[ "$ssh_ready" != 1 ]]; then
+    echo "Timed out waiting for SSH on $VM ($VM_IP)." >&2
+    exit 69
+fi
 
 cd "$ROOT_DIR"
 rsync -a --delete \

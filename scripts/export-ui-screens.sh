@@ -8,6 +8,7 @@ RESULT="$(ls -td "$ROOT_DIR"/.xcodebuild/Logs/Test/*.xcresult 2>/dev/null | head
 [[ -n "$RESULT" ]] || { echo "No xcresult found" >&2; exit 1; }
 
 EXPORT_DIR="$(mktemp -d)"
+trap 'rm -rf "$EXPORT_DIR"' EXIT
 OUTPUT_DIR="$ROOT_DIR/.artifacts/ui-screens"
 xcrun xcresulttool export attachments --path "$RESULT" --output-path "$EXPORT_DIR" >/dev/null
 rm -rf "$OUTPUT_DIR"
@@ -17,7 +18,9 @@ python3 - "$EXPORT_DIR" "$OUTPUT_DIR" <<'PY'
 import json, re, shutil, sys
 export_dir, output_dir = sys.argv[1:]
 count = 0
-for test in json.load(open(f"{export_dir}/manifest.json")):
+with open(f"{export_dir}/manifest.json") as manifest_file:
+    manifest = json.load(manifest_file)
+for test in manifest:
     for attachment in test.get("attachments", []):
         match = re.match(r"screen-(.+?)_\d+_", attachment.get("suggestedHumanReadableName", ""))
         if match:
@@ -25,4 +28,3 @@ for test in json.load(open(f"{export_dir}/manifest.json")):
             count += 1
 print(f"Exported {count} screens to {output_dir}")
 PY
-rm -rf "$EXPORT_DIR"

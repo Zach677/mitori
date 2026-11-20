@@ -25,7 +25,10 @@ without putting the Apple ID at risk*.
   refresh (`accountInfo.balance` / `creditDisplay`, `source: .authentication`).
 - The **probe** (`volumeStoreDownloadProduct` against an owned app) is the only
   background source (`source: .probe`). It uses the stored session and never
-  sends a password. A missing probe is never a broken account.
+  sends a password. A missing probe is never a broken account. The resolved
+  probe `adamId` is cached in account metadata so routine refreshes skip
+  `itunes.apple.com/lookup`, falling back to one lookup if Apple reports `9610`;
+  probe responses merge any `Set-Cookie` headers into the stored session.
 - Each account exposes: a balance snapshot `(value, fetchedAt, source)`, a
   session health state, and an optional last issue. The UI shows staleness
   honestly instead of manufacturing freshness with extra logins.
@@ -130,15 +133,15 @@ Add Account then shows the code field and keeps it optional.
   contracts; tests replace them and `StoreTransport`.
 - Credentials are in the Data Protection Keychain (`SecItem`); account
   metadata is in `~/Library/Application Support/Mitori/accounts.json`.
-- Not scheduled: collapse the concurrency bookkeeping in `MitoriModel`
-  (generations, mutation sets, pending logins, repository locks) into a
-  per-account actor. Revisit only if a real bug needs it.
+- Per-account concurrency in `MitoriModel` uses a single active-operation slot
+  per account (`refresh` / `login` / `mutation`), and `AutoRefreshScheduler`
+  schedules a single timer for the earliest due account plus system wake and
+  screen-unlock notifications.
 
 ## 6. Defects and backlog
 
 Open defects and known work are GitHub Issues: `gh issue list`. A finding
-that a change does not fix gets an issue in the same round. The old defect
-numbers that are still open: B10 is #2, B12 is #4.
+that a change does not fix gets an issue in the same round.
 
 Closed before the move to Issues (fix commit): B1 `c011c00`, B2 `d32a0b0`, B3
 `2908d9d`, B4 `c481531` `d91468c`, B5 `930a763`, B6 `6b5498a`, B7 `33dfdc2`,
