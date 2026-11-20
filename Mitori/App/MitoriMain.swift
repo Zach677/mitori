@@ -1,3 +1,10 @@
+//
+//  MitoriMain.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/05/30.
+//
+
 import AppKit
 
 @main

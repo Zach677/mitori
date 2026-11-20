@@ -1,3 +1,10 @@
+//
+//  StoreTrace.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/10/14.
+//
+
 import Foundation
 import os
 

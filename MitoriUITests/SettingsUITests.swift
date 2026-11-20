@@ -1,3 +1,10 @@
+//
+//  SettingsUITests.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/10/13.
+//
+
 import XCTest
 
 final class SettingsUITests: MitoriUITestCase {

@@ -1,3 +1,10 @@
+//
+//  AccountRowViewTests.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/08/02.
+//
+
 import AppKit
 import Testing
 

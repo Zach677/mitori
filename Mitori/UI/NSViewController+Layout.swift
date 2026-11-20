@@ -1,3 +1,10 @@
+//
+//  NSViewController+Layout.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/11/16.
+//
+
 import AppKit
 
 extension NSViewController {

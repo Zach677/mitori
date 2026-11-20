@@ -1,3 +1,10 @@
+//
+//  StoreResponseParsing.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/11/20.
+//
+
 import Foundation
 
 enum StoreResponseHeaders {

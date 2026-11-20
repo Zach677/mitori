@@ -1,3 +1,10 @@
+//
+//  DocumentViewController.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/07/29.
+//
+
 import AppKit
 
 enum BundledDocument {

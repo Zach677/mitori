@@ -1,0 +1,6 @@
+--swiftversion 6.0
+--rules fileHeader
+--header \n {file}\n Mitori\n\n Created by @Zach677 on {created}.\n
+--date-format yyyy/MM/dd
+--timezone Asia/Shanghai
+--exclude .build,.app-build,.xcodebuild,.swiftpm,.artifacts,.cache,.delta,dist,node_modules,Mitori/AppleStore/Commands,Mitori/AppleStore/Configuration,Mitori/AppleStore/Models,Mitori/AppleStore/Supplement

@@ -1,3 +1,10 @@
+//
+//  MitoriUITestCase.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/10/13.
+//
+
 import XCTest
 
 /// Launches the app on an offline fixture (`MITORI_UI_FIXTURE`) and helps tests

@@ -1,3 +1,10 @@
+//
+//  StoreRedirectPolicy.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/10/13.
+//
+
 import Foundation
 
 /// The one redirect validator for every store request (I-2).

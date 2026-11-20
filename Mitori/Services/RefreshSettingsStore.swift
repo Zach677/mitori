@@ -1,3 +1,10 @@
+//
+//  RefreshSettingsStore.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/06/12.
+//
+
 import Foundation
 
 // Stateless wrapper over UserDefaults, which is itself thread-safe.

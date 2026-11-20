@@ -1,3 +1,10 @@
+//
+//  AutoRefreshScheduler.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/06/12.
+//
+
 import AppKit
 import Foundation
 

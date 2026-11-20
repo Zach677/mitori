@@ -1,3 +1,10 @@
+//
+//  AppleStoreAccountTests.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/10/09.
+//
+
 import Foundation
 import Testing
 

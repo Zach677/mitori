@@ -1,3 +1,10 @@
+//
+//  AccountPresentation.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/08/01.
+//
+
 struct AccountPresentation {
     let name: String
     let email: String?

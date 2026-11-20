@@ -1,3 +1,10 @@
+//
+//  AppWindowController.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/03/25.
+//
+
 import AppKit
 
 @MainActor

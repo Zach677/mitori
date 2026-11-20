@@ -1,3 +1,10 @@
+//
+//  AppleSessionBridgeTests.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/09/05.
+//
+
 import Foundation
 import Testing
 

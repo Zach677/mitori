@@ -1,3 +1,10 @@
+//
+//  MenuBarLifecycleTests.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/03/25.
+//
+
 import Testing
 
 @testable import Mitori

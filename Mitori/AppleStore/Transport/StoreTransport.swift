@@ -1,3 +1,10 @@
+//
+//  StoreTransport.swift
+//  Mitori
+//
+//  Created by @Zach677 on 2026/10/13.
+//
+
 import Foundation
 
 /// All Apple store traffic goes through one transport (I-1). It never follows
