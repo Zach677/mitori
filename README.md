@@ -40,10 +40,9 @@ shasum -a 256 -c Mitori-<version>.dmg.sha256
 
 ## Highlights
 
-- Check multiple Apple ID store credit balances from the menu bar.
 - Sign in with two-factor authentication and recover expired sessions.
 - Refresh manually at any time, or in the background for accounts with a probe app. Background refresh never sends your password.
-- Hide account names, email addresses, Apple IDs, and device IDs inside Mitori.
+- Hide account names, email addresses, Apple IDs, and device IDs in the UI.
 - Reveal complete account identifiers on hover and copy them with one click.
 - Open Mitori automatically when you log in.
 
@@ -53,7 +52,7 @@ You need an Apple ID email and password, and a two-factor authentication code wh
 
 After sign-in, Mitori reads store credit from Apple's login response. When you refresh an account, Mitori reuses the session, or signs in again silently when needed.
 
-You can optionally pick an app this Apple ID already owns (a probe app). Automatic refresh needs a probe app: it checks the balance with the stored session and never sends your password. Accounts without a probe app refresh only when you ask. If the session expires, automatic refresh pauses for that account until you refresh it manually. Add or change the probe app later from the account details window.
+You can pick an app this Apple ID already owns as a probe app. Automatic refresh needs a probe app: it checks the balance with the stored session and never sends your password. Accounts without a probe app refresh only when you ask. If the session expires, automatic refresh pauses for that account until you refresh it manually. Add or change the probe app later from the account details window.
 
 ## Privacy
 
