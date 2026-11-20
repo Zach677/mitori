@@ -45,6 +45,21 @@ struct StoreAuthErrorTests {
         }
     }
 
+    @Test(arguments: [
+        (-5000, StoreAuthError.invalidCredentials),
+        (5005, StoreAuthError.invalid2FACode),
+    ])
+    func authenticateHandlesNumericFailureType(failureType: Int, expected: StoreAuthError) async throws {
+        let transport = StoreTransportStub([
+            .emptyBag,
+            try .plist(["failureType": failureType]),
+        ])
+
+        await #expect(throws: expected) {
+            try await authenticate(over: transport, code: "123456")
+        }
+    }
+
     @Test
     func authenticateThrowsUnsupportedStorefront() async throws {
         let transport = StoreTransportStub([
@@ -119,6 +134,21 @@ struct StoreAuthErrorTests {
         let transport = StoreTransportStub([
             .lookup(adamID: 42, bundleID: "com.example.probe"),
             try .plist(["failureType": failureType, "customerMessage": "Ignored text"]),
+        ])
+
+        await #expect(throws: expected) {
+            try await refreshProbe(over: transport)
+        }
+    }
+
+    @Test(arguments: [
+        (2034, StoreAuthError.sessionExpired),
+        (9610, StoreAuthError.probeAppNotOwned),
+    ])
+    func probeHandlesNumericFailureType(failureType: Int, expected: StoreAuthError) async throws {
+        let transport = StoreTransportStub([
+            .lookup(adamID: 42, bundleID: "com.example.probe"),
+            try .plist(["failureType": failureType]),
         ])
 
         await #expect(throws: expected) {

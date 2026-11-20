@@ -21,7 +21,7 @@ struct StoreReplayTests {
             existing: nil
         )
 
-        #expect(replay.servedEndpoints == ["bag", "auth.legacy"])
+        #expect(replay.servedEndpoints == ["bag", "auth"])
         #expect(result.meta.storefront == "143465")
         #expect(result.meta.pod == "25")
         #expect(result.meta.balanceSnapshot?.numericValue == 0)
@@ -42,7 +42,7 @@ struct StoreReplayTests {
             existing: nil
         )
 
-        #expect(replay.servedEndpoints == ["bag", "auth.legacy", "lookup", "probe"])
+        #expect(replay.servedEndpoints == ["bag", "auth", "lookup", "probe"])
         #expect(result.meta.balanceSnapshot?.numericValue == 88)
         #expect(result.meta.lastIssue == nil)
 
@@ -68,7 +68,7 @@ struct StoreReplayTests {
             )
         }
         // One sign-in request: the password is not sent again.
-        #expect(replay.servedEndpoints == ["bag", "auth.legacy"])
+        #expect(replay.servedEndpoints == ["bag", "auth"])
     }
 
     @Test
@@ -87,7 +87,7 @@ struct StoreReplayTests {
         } throws: { error in
             MitoriError.map(error).issueKind == .network
         }
-        #expect(replay.servedEndpoints == ["bag", "auth.legacy", "auth.legacy"])
+        #expect(replay.servedEndpoints == ["bag", "auth", "auth"])
     }
 }
 

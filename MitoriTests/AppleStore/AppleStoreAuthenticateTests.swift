@@ -7,11 +7,12 @@ import Testing
 // Live login tests are not ported; T5 covers live behavior.
 struct AppleStoreAuthenticateTests {
     @Test
-    func loginRequestSignsExactPayload() throws {
+    func loginRequestSignsExactPayload() async throws {
         let endpoint = try #require(URL(string: "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate"))
-        var signedPayload: Data?
+        let signedPayloadLock = NSLock()
+        nonisolated(unsafe) var signedPayload: Data?
 
-        let request = try Authenticator.makeRequest(
+        let request = try await Authenticator.makeRequest(
             endpoint: endpoint,
             email: "test@example.com",
             password: "password",
@@ -19,12 +20,12 @@ struct AppleStoreAuthenticateTests {
             cookies: [],
             deviceIdentifier: "ABCDEF123456",
             signAction: { payload in
-                signedPayload = payload
+                signedPayloadLock.withLock { signedPayload = payload }
                 return "dGVzdC1zaWduYXR1cmU="
             }
         )
 
-        let payload = try #require(signedPayload)
+        let payload = try #require(signedPayloadLock.withLock { signedPayload })
         let propertyList = try #require(
             PropertyListSerialization.propertyList(from: payload, format: nil) as? [String: String]
         )
@@ -206,12 +207,23 @@ struct AppleStoreAuthenticateTests {
         #expect(callCount == 3)
     }
 
+    @Test
+    func bagIgnoresReversedPlistTagsWithoutCrashing() async throws {
+        let transport = StoreTransportStub([
+            StoreTransportStub.Response(status: 200, body: Data("</plist><plist>".utf8)),
+        ])
+
+        let output = try await Bag.fetchBag(deviceIdentifier: "ABCDEF123456", transport: transport)
+
+        #expect(output.authEndpoint.absoluteString == "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/")
+    }
+
     @Test(.enabled(
         if: ProcessInfo.processInfo.environment["APPLEPACKAGE_TEST_SAP"] == "1",
         "Set APPLEPACKAGE_TEST_SAP=1 to run the CommerceKit integration test"
     ))
-    func commerceKitSignerProducesSignature() throws {
-        let signature = try AppleActionSigner.sign(Data("ApplePackage SAP integration test".utf8))
+    func commerceKitSignerProducesSignature() async throws {
+        let signature = try await AppleActionSigner.sign(Data("ApplePackage SAP integration test".utf8))
 
         #expect(!signature.isEmpty)
         #expect(Data(base64Encoded: signature) != nil)

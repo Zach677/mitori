@@ -7,28 +7,29 @@
 
 import Foundation
 
-public struct Account: Codable, Hashable, Equatable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
-    public var description: String {
-        "Account(email: \(email), store: \(store), pod: \(pod ?? "nil"))"
+struct Account: Codable, Hashable, Equatable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
+    // Keep identifiers and personal data out of interpolated strings (I-8).
+    var description: String {
+        "Account(store: \(store), pod: \(pod ?? "nil"))"
     }
 
-    public var debugDescription: String {
-        "Account(email: \(email), appleId: \(appleId), store: \(store), name: \(firstName) \(lastName), dsid: \(directoryServicesIdentifier), pod: \(pod ?? "nil"))"
+    var debugDescription: String {
+        description
     }
 
-    public var email: String
-    public var password: String
+    var email: String
+    var password: String
 
-    public var appleId: String // /accountInfo/appleId
-    public var store: String
-    public var firstName: String // /accountInfo/address/firstName
-    public var lastName: String // /accountInfo/address/lastName
-    public var passwordToken: String // /passwordToken
-    public var directoryServicesIdentifier: String // /dsPersonId
-    public var cookie: [Cookie]
-    public var pod: String?
+    var appleId: String // /accountInfo/appleId
+    var store: String
+    var firstName: String // /accountInfo/address/firstName
+    var lastName: String // /accountInfo/address/lastName
+    var passwordToken: String // /passwordToken
+    var directoryServicesIdentifier: String // /dsPersonId
+    var cookie: [Cookie]
+    var pod: String?
 
-    public init(
+    init(
         email: String,
         password: String,
         appleId: String,
@@ -53,7 +54,7 @@ public struct Account: Codable, Hashable, Equatable, Sendable, CustomStringConve
     }
 }
 
-public extension Account {
+extension Account {
     init(
         email: String,
         password: String,

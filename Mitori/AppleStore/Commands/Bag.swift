@@ -7,9 +7,9 @@
 
 import Foundation
 
-public enum Bag {
-    public struct BagOutput {
-        public var authEndpoint: URL
+enum Bag {
+    struct BagOutput {
+        var authEndpoint: URL
     }
 
     private static let defaultAuthEndpoint = "https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/"
@@ -65,14 +65,14 @@ public enum Bag {
             return BagOutput(authEndpoint: URL(string: defaultAuthEndpoint)!)
         }
 
-        // The login POST carries credentials, so the advertised URL must pass the
-        // redirect policy before the legacy rewrite can turn it into a trusted one (I-2).
+        // The login POST carries credentials, so validate the advertised URL (I-2).
         if let advertisedURL = URL(string: authURLString) {
             _ = try StoreRedirectPolicy.validated(advertisedURL)
         }
+        let validatedAuthURL = try StoreRedirectPolicy.validated(authURL)
 
-        APLogger.info("bag: auth endpoint resolved to \(authURL)")
-        return BagOutput(authEndpoint: authURL)
+        APLogger.info("bag: auth endpoint resolved to \(validatedAuthURL)")
+        return BagOutput(authEndpoint: validatedAuthURL)
     }
 
     /// The bag advertises MZFinance `authenticate` without a trailing slash, and
@@ -92,7 +92,7 @@ public enum Bag {
     private static func extractPlistData(from data: Data) -> Data {
         guard let xmlString = String(data: data, encoding: .utf8),
               let startRange = xmlString.range(of: "<plist"),
-              let endRange = xmlString.range(of: "</plist>")
+              let endRange = xmlString.range(of: "</plist>", range: startRange.upperBound ..< xmlString.endIndex)
         else {
             return data
         }

@@ -30,6 +30,10 @@ final class URLSessionStoreTransport: StoreTransport {
         )
     }
 
+    deinit {
+        session.invalidateAndCancel()
+    }
+
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let data: Data
         let response: URLResponse

@@ -105,4 +105,29 @@ struct AppleStoreAccountTests {
             )
         }
     }
+
+    @Test
+    func accountDescriptionsDoNotExposePersonalData() {
+        let account = Account(
+            email: "secret-email@example.com",
+            password: "secret-password",
+            appleId: "secret-appleid@example.com",
+            store: "143441",
+            firstName: "SecretFirst",
+            lastName: "SecretLast",
+            passwordToken: "secret-token",
+            directoryServicesIdentifier: "9876543210",
+            cookie: [],
+            pod: "25"
+        )
+
+        for rendered in [account.description, account.debugDescription] {
+            for secret in [
+                "secret-email", "secret-password", "secret-appleid",
+                "SecretFirst", "SecretLast", "secret-token", "9876543210",
+            ] {
+                #expect(!rendered.contains(secret), "\(rendered) leaked \(secret)")
+            }
+        }
+    }
 }

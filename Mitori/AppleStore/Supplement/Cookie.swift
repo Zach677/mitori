@@ -9,16 +9,16 @@ import Foundation
 
 private let cookieDomainTrimCharacters = CharacterSet(charactersIn: ".")
 
-public struct Cookie: Sendable, Codable, Equatable, Hashable {
-    public var name: String
-    public var value: String
-    public var path: String
-    public var domain: String?
-    public var expiresAt: TimeInterval?
-    public var httpOnly: Bool
-    public var secure: Bool
+struct Cookie: Sendable, Codable, Equatable, Hashable {
+    var name: String
+    var value: String
+    var path: String
+    var domain: String?
+    var expiresAt: TimeInterval?
+    var httpOnly: Bool
+    var secure: Bool
 
-    public init(
+    init(
         name: String,
         value: String,
         path: String,
@@ -37,7 +37,7 @@ public struct Cookie: Sendable, Codable, Equatable, Hashable {
     }
 }
 
-public extension Cookie {
+extension Cookie {
     init(copyFrom cookie: HTTPCookie) {
         self.init(
             name: cookie.name,
@@ -51,7 +51,7 @@ public extension Cookie {
     }
 }
 
-public extension [Cookie] {
+extension [Cookie] {
     mutating func mergeCookies(_ cookies: [HTTPCookie]) {
         let cookies = cookies.map { Cookie(copyFrom: $0) }
         var dict: [String: Cookie] = [:]
@@ -130,7 +130,7 @@ public extension [Cookie] {
         }
 
         if cookie.secure {
-            guard components.scheme == "https" else { return false }
+            guard components.scheme?.lowercased() == "https" else { return false }
         }
 
         return true

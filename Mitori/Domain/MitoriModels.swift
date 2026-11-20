@@ -79,6 +79,7 @@ struct StoredAccountMeta: Codable, Equatable, Identifiable, Sendable {
     var pod: String?
     var deviceIdentifier: String
     var probeBundleID: String
+    var probeAdamID: Int64?
     var lastRefreshAt: Date?
     var balanceSnapshot: BalanceSnapshot?
     var lastIssue: RefreshIssue?
@@ -117,19 +118,9 @@ struct StoredAccountMeta: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-struct StoredCookie: Codable, Equatable, Sendable {
-    var name: String
-    var value: String
-    var path: String
-    var domain: String?
-    var expiresAt: TimeInterval?
-    var httpOnly: Bool
-    var secure: Bool
-}
-
 struct StoredAccountSecret: Codable, Equatable, Sendable {
     var password: String
-    var cookies: [StoredCookie]
+    var cookies: [Cookie]
     var passwordToken: String
     var directoryServicesIdentifier: String
 }

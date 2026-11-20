@@ -10,7 +10,7 @@
       "body": "replay_bag.xml"
     },
     {
-      "endpoint": "auth.legacy",
+      "endpoint": "auth",
       "status": 200,
       "headers": {
         "Content-Type": "text/xml; charset=UTF-8",

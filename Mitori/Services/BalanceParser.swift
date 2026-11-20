@@ -223,8 +223,17 @@ private extension BalanceParser {
         return nil
     }
 
+    static let isoCurrencyCodes: Set<String> = Set(Locale.Currency.isoCurrencies.map(\.identifier))
+
     static func numericValue(from text: String) -> Decimal? {
-        let fragments = text
+        // Collapse space, non-breaking space, and apostrophe thousands separators used by
+        // storefronts such as fr_FR, sv_SE, and de_CH before extracting numeric fragments.
+        let collapsedGrouping = text.replacingOccurrences(
+            of: #"(?<=\d)[ \u00A0\u202F'\u2019](?=\d{3}(?!\d))"#,
+            with: "",
+            options: .regularExpression
+        )
+        let fragments = collapsedGrouping
             .components(separatedBy: CharacterSet(charactersIn: "0123456789,.-").inverted)
             .filter { $0.contains(where: \.isNumber) }
 
@@ -245,7 +254,7 @@ private extension BalanceParser {
             }
         } else if let separator = candidate.first(where: { $0 == "," || $0 == "." }) {
             let groups = candidate.split(separator: separator, omittingEmptySubsequences: false)
-            // ponytail: Three-digit fractions mean grouping; use storefront rules if needed.
+            // Three-digit fractions mean grouping; use storefront rules if needed.
             let isGrouping = groups.count > 2 || (
                 groups[0].contains(where: \.isNumber)
                     && groups[1].count == 3
@@ -261,9 +270,14 @@ private extension BalanceParser {
     }
 
     static func currencyCode(from text: String) -> String? {
-        guard let range = text.range(of: #"\b[A-Z]{3}\b"#, options: .regularExpression) else {
-            return nil
+        var searchStart = text.startIndex
+        while let range = text.range(of: #"\b[A-Z]{3}\b"#, options: .regularExpression, range: searchStart ..< text.endIndex) {
+            let code = String(text[range])
+            if isoCurrencyCodes.contains(code) {
+                return code
+            }
+            searchStart = range.upperBound
         }
-        return String(text[range])
+        return nil
     }
 }

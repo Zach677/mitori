@@ -55,7 +55,7 @@ enum StoreTrace {
             attempt: operation?.nextAttempt(for: endpoint) ?? 0
         )
         logger.notice("\(line, privacy: .public)")
-        if endpoint.hasPrefix("auth."), let keys = plistKeyNames(data) {
+        if endpoint == "auth", let keys = plistKeyNames(data) {
             logger.notice("op=\(operation?.name ?? "-", privacy: .public) endpoint=\(endpoint, privacy: .public) keys=[\(keys, privacy: .public)] credit=[\(creditShape(data), privacy: .public)] failure=[\(failureShape(data), privacy: .public)]")
         }
     }
@@ -152,7 +152,7 @@ enum StoreTrace {
             break
         }
         guard host.hasSuffix(".itunes.apple.com") else { return "other" }
-        if path.contains("authenticate") { return "auth.legacy" }
+        if path.contains("authenticate") { return "auth" }
         if path.contains("volumeStoreDownloadProduct") { return "probe" }
         return "store.other"
     }

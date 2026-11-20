@@ -63,4 +63,21 @@ struct AppleStoreCookieTests {
         #expect(cookies.count == 3)
         #expect(Set(cookies.map(\.value)) == ["apple", "volume", "webobjects"])
     }
+
+    @Test
+    func secureCookieMatchesUppercaseHTTPSScheme() throws {
+        let endpoint = try #require(URL(string: "HTTPS://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate/"))
+        let cookies = [
+            Cookie(
+                name: "mz_at0",
+                value: "session",
+                path: "/",
+                domain: ".itunes.apple.com",
+                httpOnly: true,
+                secure: true
+            ),
+        ]
+
+        #expect(cookies.buildCookieHeader(endpoint).first?.1 == "mz_at0=session")
+    }
 }

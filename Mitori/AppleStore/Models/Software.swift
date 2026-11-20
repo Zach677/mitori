@@ -7,10 +7,10 @@
 
 import Foundation
 
-public struct Software: Codable, Equatable, Hashable, Identifiable {
-    public var id: Int64
-    public var bundleID: String
-    public var name: String
+struct Software: Codable, Equatable, Hashable, Identifiable {
+    var id: Int64
+    var bundleID: String
+    var name: String
 
     private enum CodingKeys: String, CodingKey {
         case id = "trackId"

@@ -35,7 +35,7 @@ protocol AppleAuthenticating: Sendable {
 
 struct LiveAppleAuthenticator: AppleAuthenticating {
     var transport: any StoreTransport = URLSessionStoreTransport.shared
-    var signAction: @Sendable (Data) throws -> String = { try AppleActionSigner.sign($0) }
+    var signAction: @Sendable (Data) async throws -> String = { try await AppleActionSigner.sign($0) }
 
     func authenticate(
         email: String,
@@ -99,7 +99,7 @@ actor AppleSessionBridge: AppleSessionBridging {
                 email: meta.email,
                 password: secret.password,
                 code: code,
-                cookies: secret.cookies.map(\.appleCookie),
+                cookies: secret.cookies,
                 deviceIdentifier: meta.deviceIdentifier,
                 probeBundleID: meta.probeBundleID,
                 existing: meta
@@ -165,10 +165,12 @@ actor AppleSessionBridge: AppleSessionBridging {
             throw MitoriError.map(error)
         }
 
+        let preservedAdamID = existing?.probeBundleID == probeBundleID ? existing?.probeAdamID : nil
         var meta = StoredAccountMeta(
             account: authenticationResult.account,
             deviceIdentifier: deviceIdentifier,
             probeBundleID: probeBundleID,
+            probeAdamID: preservedAdamID,
             balanceSnapshot: existing?.balanceSnapshot,
             lastIssue: nil,
             lastRefreshAt: existing?.lastRefreshAt,
@@ -190,7 +192,12 @@ actor AppleSessionBridge: AppleSessionBridging {
 
         do {
             let balanceResult = try await balanceService.refreshBalance(for: meta, secret: secret)
-            meta = updatedMeta(from: meta, account: balanceResult.account, snapshot: balanceResult.snapshot)
+            meta = updatedMeta(
+                from: meta,
+                account: balanceResult.account,
+                snapshot: balanceResult.snapshot,
+                probeAdamID: balanceResult.probeAdamID
+            )
             return SessionRefreshResult(meta: meta, secret: StoredAccountSecret(account: balanceResult.account))
         } catch is CancellationError {
             throw CancellationError()
@@ -216,7 +223,12 @@ actor AppleSessionBridge: AppleSessionBridging {
         secret: StoredAccountSecret
     ) async throws -> SessionRefreshResult {
         let balanceResult = try await balanceService.refreshBalance(for: meta, secret: secret)
-        let updatedMeta = updatedMeta(from: meta, account: balanceResult.account, snapshot: balanceResult.snapshot)
+        let updatedMeta = updatedMeta(
+            from: meta,
+            account: balanceResult.account,
+            snapshot: balanceResult.snapshot,
+            probeAdamID: balanceResult.probeAdamID
+        )
         return SessionRefreshResult(
             meta: updatedMeta,
             secret: StoredAccountSecret(account: balanceResult.account)
@@ -226,7 +238,8 @@ actor AppleSessionBridge: AppleSessionBridging {
     private func updatedMeta(
         from meta: StoredAccountMeta,
         account: Account,
-        snapshot: BalanceSnapshot
+        snapshot: BalanceSnapshot,
+        probeAdamID: Int64?
     ) -> StoredAccountMeta {
         var updated = meta
         updated.appleID = account.appleId
@@ -235,6 +248,9 @@ actor AppleSessionBridge: AppleSessionBridging {
         updated.storefront = account.store
         updated.countryCode = Configuration.countryCode(for: account.store)
         updated.pod = account.pod
+        if let probeAdamID {
+            updated.probeAdamID = probeAdamID
+        }
         updated.balanceSnapshot = snapshot
         updated.lastRefreshAt = snapshot.fetchedAt
         updated.lastIssue = nil
@@ -249,6 +265,7 @@ extension StoredAccountMeta {
         account: Account,
         deviceIdentifier: String,
         probeBundleID: String,
+        probeAdamID: Int64? = nil,
         balanceSnapshot: BalanceSnapshot? = nil,
         lastIssue: RefreshIssue? = nil,
         lastRefreshAt: Date? = nil,
@@ -264,6 +281,7 @@ extension StoredAccountMeta {
         pod = account.pod
         self.deviceIdentifier = deviceIdentifier
         self.probeBundleID = probeBundleID
+        self.probeAdamID = probeAdamID
         self.balanceSnapshot = balanceSnapshot
         self.lastIssue = lastIssue
         self.lastRefreshAt = lastRefreshAt
@@ -275,7 +293,7 @@ extension StoredAccountMeta {
 extension StoredAccountSecret {
     init(account: Account) {
         password = account.password
-        cookies = account.cookie.map(StoredCookie.init)
+        cookies = account.cookie
         passwordToken = account.passwordToken
         directoryServicesIdentifier = account.directoryServicesIdentifier
     }
@@ -290,32 +308,8 @@ extension StoredAccountSecret {
             lastName: meta.lastName,
             passwordToken: passwordToken,
             directoryServicesIdentifier: directoryServicesIdentifier,
-            cookie: cookies.map(\.appleCookie),
+            cookie: cookies,
             pod: meta.pod
-        )
-    }
-}
-
-private extension StoredCookie {
-    init(_ cookie: Cookie) {
-        name = cookie.name
-        value = cookie.value
-        path = cookie.path
-        domain = cookie.domain
-        expiresAt = cookie.expiresAt
-        httpOnly = cookie.httpOnly
-        secure = cookie.secure
-    }
-
-    var appleCookie: Cookie {
-        Cookie(
-            name: name,
-            value: value,
-            path: path,
-            domain: domain,
-            expiresAt: expiresAt,
-            httpOnly: httpOnly,
-            secure: secure
         )
     }
 }

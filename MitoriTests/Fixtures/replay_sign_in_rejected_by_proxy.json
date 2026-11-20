@@ -10,7 +10,7 @@
       "body": "replay_bag.xml"
     },
     {
-      "endpoint": "auth.legacy",
+      "endpoint": "auth",
       "status": 301,
       "headers": {
         "Content-Type": "text/html",
@@ -19,7 +19,7 @@
       "body": "replay_proxy_rejection.html"
     },
     {
-      "endpoint": "auth.legacy",
+      "endpoint": "auth",
       "status": 301,
       "headers": {
         "Content-Type": "text/html",

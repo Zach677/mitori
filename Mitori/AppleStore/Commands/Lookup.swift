@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum Lookup {
+enum Lookup {
     private struct LookupResponse: Codable {
         var resultCount: Int
         var results: [Software]

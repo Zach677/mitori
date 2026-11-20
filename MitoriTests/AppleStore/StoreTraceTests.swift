@@ -50,7 +50,7 @@ struct StoreTraceTests {
 
         #expect(!line.lowercased().contains("sentinel"), "\(line)")
         for field in [
-            "op=login", "endpoint=auth.legacy", "attempt=2", "method=POST", "cookiesSent=2",
+            "op=login", "endpoint=auth", "attempt=2", "method=POST", "cookiesSent=2",
             "status=302", "cookiesSet=1", "headers=[location,pod,set-cookie,x-apple-token]",
             "body=\(responseBody.count)B", "type=plist",
         ] {
@@ -117,12 +117,12 @@ struct StoreTraceTests {
             attempt: 1
         )
 
-        #expect(line == "op=reauth endpoint=auth.legacy attempt=1 method=GET cookiesSent=0 error=URLError(-1001)")
+        #expect(line == "op=reauth endpoint=auth attempt=1 method=GET cookiesSent=0 error=URLError(-1001)")
     }
 
     @Test(arguments: [
         ("https://init.itunes.apple.com/bag.xml?guid=X", "bag"),
-        ("https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate", "auth.legacy"),
+        ("https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/authenticate", "auth"),
         ("https://p25-buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/volumeStoreDownloadProduct?guid=X", "probe"),
         ("https://itunes.apple.com/lookup?bundleId=X", "lookup"),
         ("https://itunes.apple.com/search?term=X", "search"),
@@ -136,9 +136,9 @@ struct StoreTraceTests {
     func attemptsCountPerEndpointWithinOneOperation() {
         let operation = StoreTrace.Operation("login")
 
-        #expect(operation.nextAttempt(for: "auth.legacy") == 1)
+        #expect(operation.nextAttempt(for: "auth") == 1)
         #expect(operation.nextAttempt(for: "bag") == 1)
-        #expect(operation.nextAttempt(for: "auth.legacy") == 2)
+        #expect(operation.nextAttempt(for: "auth") == 2)
     }
 
     @Test

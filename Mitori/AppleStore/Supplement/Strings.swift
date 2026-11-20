@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum Strings {
+enum Strings {
     // MARK: - Authentication
 
     static let invalidAuthEndpoint = "invalid auth endpoint URL"

@@ -1,18 +1,23 @@
+import Darwin
 import Foundation
 
-#if os(macOS)
 // CommerceKitSigner comes from the app target's bridging header.
-import Darwin
-#endif
-
 enum AppleActionSigner {
-    private static let lock = NSLock()
+    private static let queue = DispatchQueue(label: "dev.zach.mitori.commercekit-signer")
 
-    static func sign(_ data: Data) throws -> String {
-#if os(macOS)
-        lock.lock()
-        defer { lock.unlock() }
+    static func sign(_ data: Data) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    continuation.resume(returning: try signSynchronously(data))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
 
+    private static func signSynchronously(_ data: Data) throws -> String {
         var output: UnsafeMutablePointer<UInt8>?
         var outputLength = 0
         var errorMessage: UnsafeMutablePointer<CChar>?
@@ -37,9 +42,6 @@ enum AppleActionSigner {
         defer { free(output) }
 
         return Data(bytes: output, count: outputLength).base64EncodedString()
-#else
-        throw AppleActionSignerError.failed("macOS is required")
-#endif
     }
 }
 

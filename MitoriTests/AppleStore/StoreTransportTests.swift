@@ -78,9 +78,68 @@ struct StoreTransportTests {
 
         #expect(result.snapshot.source == .probe)
         #expect(result.snapshot.numericValue == Decimal(string: "88.00"))
+        #expect(result.probeAdamID == 42)
         let probeRequest = try #require(transport.requests.last)
         #expect(probeRequest.url?.host == "p25-buy.itunes.apple.com")
         #expect(probeRequest.value(forHTTPHeaderField: "X-Dsid") == "1234567890")
+    }
+
+    @Test
+    func probeUsesCachedAdamIDWithoutLookup() async throws {
+        let transport = StoreTransportStub([
+            StoreTransportStub.Response(status: 200, body: try FixtureLoader.data(named: "probe_success_balance")),
+        ])
+        let service = BalanceService(probeClient: BalanceProbeClient(transport: transport))
+        var meta = probeMeta()
+        meta.probeAdamID = 42
+
+        let result = try await service.refreshBalance(for: meta, secret: StoredAccountSecret(account: sampleAccount()))
+
+        #expect(result.snapshot.numericValue == Decimal(string: "88.00"))
+        #expect(result.probeAdamID == 42)
+        #expect(transport.requests.count == 1)
+        #expect(transport.requests.first?.url?.host == "p25-buy.itunes.apple.com")
+    }
+
+    @Test
+    func probeRefreshesStaleCachedAdamIDOnceOnNotOwned() async throws {
+        let transport = StoreTransportStub([
+            try .plist(["failureType": "9610"]),
+            .lookup(adamID: 99, bundleID: "com.example.probe"),
+            StoreTransportStub.Response(status: 200, body: try FixtureLoader.data(named: "probe_success_balance")),
+        ])
+        let service = BalanceService(probeClient: BalanceProbeClient(transport: transport))
+        var meta = probeMeta()
+        meta.probeAdamID = 42
+
+        let result = try await service.refreshBalance(for: meta, secret: StoredAccountSecret(account: sampleAccount()))
+
+        #expect(result.probeAdamID == 99)
+        #expect(transport.requests.map { StoreTrace.endpointLabel(for: $0.url) } == ["probe", "lookup", "probe"])
+    }
+
+    @Test
+    func probeMergesResponseCookiesAndIgnoresUnknownStorefront() async throws {
+        let transport = StoreTransportStub([
+            StoreTransportStub.Response(
+                status: 200,
+                headers: [
+                    "Set-Cookie": "mz_at0=rotated; Domain=.itunes.apple.com; Path=/; Secure",
+                    "x-set-apple-store-front": "999999-1,29",
+                    "pod": "42",
+                ],
+                body: try FixtureLoader.data(named: "probe_success_balance")
+            ),
+        ])
+        let service = BalanceService(probeClient: BalanceProbeClient(transport: transport))
+        var meta = probeMeta()
+        meta.probeAdamID = 42
+
+        let result = try await service.refreshBalance(for: meta, secret: StoredAccountSecret(account: sampleAccount()))
+
+        #expect(result.account.store == "143441")
+        #expect(result.account.pod == "42")
+        #expect(result.account.cookie.first(where: { $0.name == "mz_at0" })?.value == "rotated")
     }
 
     @Test

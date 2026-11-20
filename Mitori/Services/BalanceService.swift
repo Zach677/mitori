@@ -20,21 +20,28 @@ actor BalanceService: BalanceRefreshing {
         let probeResult = try await probeClient.fetchProbePayload(
             account: secret.restoredAccount(meta: meta),
             probeBundleID: probeBundleID,
+            probeAdamID: meta.probeAdamID,
             deviceIdentifier: meta.deviceIdentifier
         )
         let snapshot = try BalanceParser.parse(plistData: probeResult.payload, source: .probe)
-        return BalanceResult(snapshot: snapshot, account: probeResult.account)
+        return BalanceResult(
+            snapshot: snapshot,
+            account: probeResult.account,
+            probeAdamID: probeResult.probeAdamID
+        )
     }
 }
 
 struct BalanceResult: Sendable {
     var snapshot: BalanceSnapshot
     var account: Account
+    var probeAdamID: Int64? = nil
 }
 
 struct ProbePayloadResult: Sendable {
     var payload: Data
     var account: Account
+    var probeAdamID: Int64
 }
 
 actor BalanceProbeClient {
@@ -48,17 +55,54 @@ actor BalanceProbeClient {
     func fetchProbePayload(
         account: Account,
         probeBundleID: String,
+        probeAdamID: Int64? = nil,
         deviceIdentifier: String
     ) async throws -> ProbePayloadResult {
-        var account = account
-
         guard let countryCode = Configuration.countryCode(for: account.store) else {
             throw StoreAuthError.unsupportedStorefront(account.store)
         }
 
+        if let cachedAdamID = probeAdamID {
+            do {
+                return try await performProbe(
+                    account: account,
+                    adamID: cachedAdamID,
+                    deviceIdentifier: deviceIdentifier
+                )
+            } catch StoreAuthError.probeAppNotOwned {
+                // Re-resolve the bundle ID once in case the cached Adam ID is stale.
+                let lookedUp = try await Lookup.lookup(
+                    bundleID: probeBundleID,
+                    countryCode: countryCode,
+                    transport: transport
+                )
+                guard lookedUp.id != cachedAdamID else {
+                    throw StoreAuthError.probeAppNotOwned
+                }
+                return try await performProbe(
+                    account: account,
+                    adamID: lookedUp.id,
+                    deviceIdentifier: deviceIdentifier
+                )
+            }
+        }
+
         let app = try await Lookup.lookup(bundleID: probeBundleID, countryCode: countryCode, transport: transport)
+        return try await performProbe(
+            account: account,
+            adamID: app.id,
+            deviceIdentifier: deviceIdentifier
+        )
+    }
+
+    private func performProbe(
+        account: Account,
+        adamID: Int64,
+        deviceIdentifier: String
+    ) async throws -> ProbePayloadResult {
+        var account = account
         var url = try makeProbeURL(pod: account.pod, guid: deviceIdentifier)
-        let requestBody = try makeRequestBody(deviceIdentifier: deviceIdentifier, adamID: app.id)
+        let requestBody = try makeRequestBody(deviceIdentifier: deviceIdentifier, adamID: adamID)
 
         var redirectCount = 0
         while true {
@@ -85,10 +129,13 @@ actor BalanceProbeClient {
             }
 
             guard (200 ..< 300).contains(response.statusCode) else {
-                throw MitoriError.network("Apple returned HTTP \(response.statusCode).")
+                throw StoreAuthError.transport(URLError(
+                    .badServerResponse,
+                    userInfo: [NSLocalizedDescriptionKey: "Apple returned HTTP \(response.statusCode)."]
+                ))
             }
 
-            return ProbePayloadResult(payload: data, account: account)
+            return ProbePayloadResult(payload: data, account: account, probeAdamID: adamID)
         }
     }
 
@@ -143,15 +190,16 @@ actor BalanceProbeClient {
         _ account: inout Account,
         from response: HTTPURLResponse
     ) {
-        if let pod = response.value(forHTTPHeaderField: "pod"), !pod.isEmpty {
+        account.cookie.mergeCookies(response.setCookies())
+
+        if let pod = StoreResponseHeaders.pod(from: response) {
             account.pod = pod
         }
 
-        if let storefront = response.value(forHTTPHeaderField: "x-set-apple-store-front")?
-            .split(separator: "-")
-            .first
+        if let storefront = StoreResponseHeaders.storefront(from: response),
+           Configuration.countryCode(for: storefront) != nil
         {
-            account.store = String(storefront)
+            account.store = storefront
         }
     }
 
@@ -162,7 +210,7 @@ actor BalanceProbeClient {
             return nil
         }
 
-        let failureType = dictionary["failureType"] as? String
+        let failureType = StoreResponseHeaders.failureType(in: dictionary)
         let customerMessage = dictionary["customerMessage"] as? String
 
         switch failureType {

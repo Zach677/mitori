@@ -292,6 +292,12 @@ struct BalanceParserTests {
         ("1,50 €", "1.50"),
         ("1.000 €", "1000"),
         ("1.000.000 €", "1000000"),
+        ("1 234,56 €", "1234.56"),
+        ("1\u{00A0}234,56 €", "1234.56"),
+        ("1\u{202F}234,56 €", "1234.56"),
+        ("1 000 000 kr", "1000000"),
+        ("CHF 1'234.50", "1234.50"),
+        ("CHF 1\u{2019}234.50", "1234.50"),
         ("¥0", "0"),
         ("$0.00", "0"),
         ("-12.34", "-12.34"),
@@ -564,6 +570,14 @@ struct BalanceParserTests {
 
         snapshot.numericValue = nil
         #expect(snapshot.localizedDisplayText(countryCode: "TR") == "USD 12.34")
+    }
+
+    @Test
+    func ignoresNonISOCurrencyTokensInDisplayText() throws {
+        let snapshot = try parse(["creditDisplay": "CDN$ 20.00"], source: .probe)
+
+        #expect(snapshot.numericValue == Decimal(string: "20.00"))
+        #expect(snapshot.currencyCode == nil)
     }
 }
 

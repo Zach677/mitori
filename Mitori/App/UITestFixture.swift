@@ -79,6 +79,7 @@ final class UITestFixture {
             pod: "25",
             deviceIdentifier: "000000000000",
             probeBundleID: "com.example.probe",
+            probeAdamID: nil,
             lastRefreshAt: nil,
             balanceSnapshot: nil,
             lastIssue: nil,

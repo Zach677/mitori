@@ -7,22 +7,22 @@
 
 import Foundation
 
-public enum Configuration {
+enum Configuration {
     // Apple's front proxy rejects most sign-in requests that have a Configurator User-Agent.
-    public static var userAgent: String = "MacAppStore/2.0 (Macintosh; OS X 15.2; 24C5089c) AppleWebKit/0620.1.16.11.6"
+    static let userAgent: String = "MacAppStore/2.0 (Macintosh; OS X 15.2; 24C5089c) AppleWebKit/0620.1.16.11.6"
 
-    public static let storeFrontValues: [String: String] = kCountryCodes
-    public static let timeoutRead: TimeInterval = 30
-    public static let timeoutResource: TimeInterval = 60
+    static let storeFrontValues: [String: String] = kCountryCodes
+    static let timeoutRead: TimeInterval = 30
+    static let timeoutResource: TimeInterval = 60
 
-    public static func storeAPIHost(pod: String?) -> String {
+    static func storeAPIHost(pod: String?) -> String {
         guard let pod, !pod.isEmpty else {
             return "p25-buy.itunes.apple.com"
         }
         return "p\(pod)-buy.itunes.apple.com"
     }
 
-    public static func countryCode(for storeId: String) -> String? {
+    static func countryCode(for storeId: String) -> String? {
         storeFrontValues.first(where: { $0.value == storeId })?.key
     }
 }

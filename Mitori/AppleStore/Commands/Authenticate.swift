@@ -7,17 +7,17 @@
 
 import Foundation
 
-public struct AuthenticationResult: Sendable {
-    public var account: Account
-    public var responsePlist: Data
+struct AuthenticationResult: Sendable {
+    var account: Account
+    var responsePlist: Data
 
-    public init(account: Account, responsePlist: Data) {
+    init(account: Account, responsePlist: Data) {
         self.account = account
         self.responsePlist = responsePlist
     }
 }
 
-public enum Authenticator {
+enum Authenticator {
     private enum LoginResponse {
         case success(AuthenticationResult)
         case codeRequired
@@ -44,7 +44,7 @@ public enum Authenticator {
         cookies: [Cookie] = [],
         deviceIdentifier: String,
         transport: any StoreTransport = URLSessionStoreTransport.shared,
-        signAction: (Data) throws -> String = AppleActionSigner.sign
+        signAction: @Sendable (Data) async throws -> String = { try await AppleActionSigner.sign($0) }
     ) async throws -> AuthenticationResult {
         let bagOutput = try await Bag.fetchBag(deviceIdentifier: deviceIdentifier, transport: transport)
 
@@ -64,7 +64,7 @@ public enum Authenticator {
 
         while redirectAttempt <= 3 {
             let response = try await sendAuthenticationRequest {
-                let request = try makeRequest(
+                let request = try await makeRequest(
                     endpoint: requestEndpoint,
                     data: requestData,
                     cookies: cookies,
@@ -214,15 +214,15 @@ public enum Authenticator {
         code: String,
         cookies: [Cookie],
         deviceIdentifier: String,
-        signAction: (Data) throws -> String = AppleActionSigner.sign
-    ) throws -> URLRequest {
+        signAction: @Sendable (Data) async throws -> String = { try await AppleActionSigner.sign($0) }
+    ) async throws -> URLRequest {
         let data = try makeRequestData(
             email: email,
             password: password,
             code: code,
             deviceIdentifier: deviceIdentifier
         )
-        return try makeRequest(
+        return try await makeRequest(
             endpoint: endpoint,
             data: data,
             cookies: cookies,
@@ -255,8 +255,8 @@ public enum Authenticator {
         endpoint: URL,
         data: Data,
         cookies: [Cookie],
-        signAction: (Data) throws -> String
-    ) throws -> URLRequest {
+        signAction: @Sendable (Data) async throws -> String
+    ) async throws -> URLRequest {
         var headers: [(String, String)] = [
             ("User-Agent", Configuration.userAgent),
             ("Content-Type", "application/x-apple-plist"),
@@ -264,7 +264,7 @@ public enum Authenticator {
         for item in cookies.buildCookieHeader(endpoint) {
             headers.append(item)
         }
-        let actionSignature = try signAction(data)
+        let actionSignature = try await signAction(data)
         headers.append(("X-Apple-ActionSignature", actionSignature))
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
@@ -288,14 +288,11 @@ public enum Authenticator {
     ) throws -> LoginResponse {
         cookies.mergeCookies(response.setCookies())
 
-        if let storeFrontValue = response.value(forHTTPHeaderField: "x-set-apple-store-front")?
-            .components(separatedBy: "-").first,
-            !storeFrontValue.isEmpty
-        {
+        if let storeFrontValue = StoreResponseHeaders.storefront(from: response) {
             storeFront = storeFrontValue
         }
 
-        if let podValue = response.value(forHTTPHeaderField: "pod"), !podValue.isEmpty {
+        if let podValue = StoreResponseHeaders.pod(from: response) {
             pod = podValue
             APLogger.info("auth: received pod value: \(podValue)")
         }
@@ -343,7 +340,8 @@ public enum Authenticator {
             throw StoreAuthError.malformedResponse(Strings.responseNotDictionary)
         }
 
-        if let failureType = dic["failureType"] as? String,
+        let failureType = StoreResponseHeaders.failureType(in: dic)
+        if let failureType,
            failureType.isEmpty,
            code.isEmpty,
            let customerMessage = dic["customerMessage"] as? String,
@@ -352,11 +350,11 @@ public enum Authenticator {
             return .codeRequired
         }
 
-        if let failureType = dic["failureType"] as? String, failureType == "5005" {
+        if failureType == "5005" {
             throw StoreAuthError.invalid2FACode
         }
 
-        if let failureType = dic["failureType"] as? String, failureType == "-5000" {
+        if failureType == "-5000" {
             throw StoreAuthError.invalidCredentials
         }
 
