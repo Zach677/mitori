@@ -129,7 +129,8 @@ private struct FixtureSessionBridge: AppleSessionBridging {
 
     func reauthenticate(
         meta: StoredAccountMeta,
-        secret: StoredAccountSecret,
+        secret: StoredAccountSecret?,
+        passwordOverride _: String?,
         code: String
     ) async throws -> SessionRefreshResult {
         try await Task.sleep(nanoseconds: 300_000_000)
@@ -138,7 +139,7 @@ private struct FixtureSessionBridge: AppleSessionBridging {
         updated.balanceSnapshot = UITestFixture.snapshot("$5.00", amount: "5.00", fetchedAt: Date())
         updated.lastRefreshAt = Date()
         updated.lastIssue = nil
-        return SessionRefreshResult(meta: updated, secret: secret)
+        return SessionRefreshResult(meta: updated, secret: secret ?? UITestFixture.secret)
     }
 
     func refreshBalance(

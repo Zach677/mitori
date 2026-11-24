@@ -54,6 +54,12 @@ enum RefreshIssueKind: String, Codable, Sendable {
     case balanceUnavailable
     case network
     case unknown
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = RefreshIssueKind(rawValue: rawValue) ?? .unknown
+    }
 }
 
 struct RefreshIssue: Codable, Equatable, Sendable {
@@ -87,6 +93,7 @@ struct StoredAccountMeta: Codable, Equatable, Identifiable, Sendable {
     var deviceIdentifier: String
     var probeBundleID: String
     var probeAdamID: Int64?
+    var probeAppName: String?
     var lastRefreshAt: Date?
     var balanceSnapshot: BalanceSnapshot?
     var lastIssue: RefreshIssue?
@@ -107,19 +114,41 @@ struct StoredAccountMeta: Codable, Equatable, Identifiable, Sendable {
             return value
         }.joined(separator: " • ")
     }
+    var storeDisplayName: String {
+        if let countryCode, !countryCode.isEmpty {
+            if let localized = Locale.current.localizedString(forRegionCode: countryCode), !localized.isEmpty {
+                return localized
+            }
+            return countryCode
+        }
+        return storefront.isEmpty ? "Unknown" : storefront
+    }
+    var probeDisplayName: String? {
+        let trimmedName = probeAppName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmedName.isEmpty {
+            return trimmedName
+        }
+        let trimmedBundleID = probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedBundleID.isEmpty ? nil : trimmedBundleID
+    }
     var needsProbeBundleID: Bool {
         probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+    var visibleIssue: RefreshIssue? {
+        guard let lastIssue else { return nil }
+        if lastIssue.kind == .probeConfigurationMissing, needsProbeBundleID {
+            return nil
+        }
+        return lastIssue
+    }
     var status: AccountStatus {
-        guard let lastIssue else { return .normal }
-        switch lastIssue.kind {
+        guard let visibleIssue else { return .normal }
+        switch visibleIssue.kind {
         case .requiresVerification:
             return .needsVerification
         case .sessionExpired:
             return .sessionExpired
-        case .probeConfigurationMissing:
-            return .normal
-        case .balanceUnavailable, .network, .unknown:
+        case .probeConfigurationMissing, .balanceUnavailable, .network, .unknown:
             return .attention
         }
     }

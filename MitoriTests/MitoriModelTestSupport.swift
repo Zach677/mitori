@@ -25,6 +25,13 @@ final class SessionBridgeStub: AppleSessionBridging {
         var existing: StoredAccountMeta?
     }
 
+    struct ReauthenticateRequest {
+        var meta: StoredAccountMeta
+        var secret: StoredAccountSecret?
+        var passwordOverride: String?
+        var code: String
+    }
+
     var loginResult: SessionRefreshResult?
     var loginError: Error?
     var refreshResult: SessionRefreshResult?
@@ -34,6 +41,7 @@ final class SessionBridgeStub: AppleSessionBridging {
     /// Takes precedence over `reauthenticateResult` when set.
     var reauthenticateHandler: ((StoredAccountMeta, String) throws -> SessionRefreshResult)?
     var loginRequests: [LoginRequest] = []
+    var reauthenticateRequests: [ReauthenticateRequest] = []
     var beforeLogin: (() async -> Void)?
     var beforeRefresh: (() async -> Void)?
     private(set) var refreshCallCount = 0
@@ -74,9 +82,16 @@ final class SessionBridgeStub: AppleSessionBridging {
 
     func reauthenticate(
         meta: StoredAccountMeta,
-        secret: StoredAccountSecret,
+        secret: StoredAccountSecret?,
+        passwordOverride: String?,
         code: String
     ) async throws -> SessionRefreshResult {
+        reauthenticateRequests.append(ReauthenticateRequest(
+            meta: meta,
+            secret: secret,
+            passwordOverride: passwordOverride,
+            code: code
+        ))
         if let reauthenticateHandler {
             return try reauthenticateHandler(meta, code)
         }

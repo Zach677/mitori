@@ -18,6 +18,7 @@ final class RefreshSettingsStore: @unchecked Sendable {
         static let isAutoRefreshEnabled = "autoRefresh.enabled"
         static let autoRefreshInterval = "autoRefresh.interval"
         static let isPersonalInformationHidden = "privacy.hidePersonalInformation"
+        static let hidesDockIconWhenClosed = "window.hideDockIconWhenClosed"
     }
 
     private let defaults: UserDefaults
@@ -43,5 +44,10 @@ final class RefreshSettingsStore: @unchecked Sendable {
     var isPersonalInformationHidden: Bool {
         get { defaults.bool(forKey: Keys.isPersonalInformationHidden) }
         set { defaults.set(newValue, forKey: Keys.isPersonalInformationHidden) }
+    }
+
+    var hidesDockIconWhenClosed: Bool {
+        get { (defaults.object(forKey: Keys.hidesDockIconWhenClosed) as? Bool) ?? true }
+        set { defaults.set(newValue, forKey: Keys.hidesDockIconWhenClosed) }
     }
 }

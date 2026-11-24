@@ -14,6 +14,7 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
     case sessionExpired
     case missingProbeBundleID
     case probeAppNotOwned
+    case probeAppNotFound(String)
     case balanceNotFound
     case missingSecret
     case operationInProgress
@@ -63,6 +64,8 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
             return .sessionExpired
         case .probeAppNotOwned:
             return .probeAppNotOwned
+        case let .probeAppNotFound(bundleID):
+            return .probeAppNotFound(bundleID)
         case let .unsupportedStorefront(storefront):
             return .unsupportedStorefront(storefront)
         case let .redirectExhausted(status):
@@ -82,9 +85,9 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
             return .requiresVerification
         case .sessionExpired:
             return .sessionExpired
-        case .missingProbeBundleID:
+        case .missingProbeBundleID, .probeAppNotOwned, .probeAppNotFound:
             return .probeConfigurationMissing
-        case .probeAppNotOwned, .balanceNotFound, .unsupportedStorefront:
+        case .balanceNotFound, .unsupportedStorefront:
             return .balanceUnavailable
         case .network:
             return .network
@@ -106,11 +109,13 @@ enum MitoriError: LocalizedError, Equatable, Sendable {
         case .invalidCredentials:
             return "Apple did not accept the sign-in. If your devices showed a verification code, enter it and sign in again. If not, check the password."
         case .sessionExpired:
-            return "Session expired. Refresh this account to sign in again."
+            return "Apple ended the saved session. Sign in again to resume automatic refresh."
         case .missingProbeBundleID:
             return "Add an owned app bundle ID before refreshing balance."
         case .probeAppNotOwned:
             return "The probe app must already be owned by this Apple ID."
+        case let .probeAppNotFound(bundleID):
+            return "No App Store app was found for bundle ID \"\(bundleID)\" in this account's storefront."
         case .balanceNotFound:
             return "Apple responded, but no balance field could be parsed."
         case .missingSecret:

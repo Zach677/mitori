@@ -32,10 +32,16 @@ enum Searcher {
                 userInfo: [NSLocalizedDescriptionKey: "search request failed with status \(response.statusCode)"]
             ))
         }
-        try ensure(!data.isEmpty, "response body is empty")
+        guard !data.isEmpty else {
+            throw StoreAuthError.malformedResponse("search response body is empty")
+        }
 
-        let decoder = JSONDecoder()
-        let searchResponse = try decoder.decode(SearchResponse.self, from: data)
+        let searchResponse: SearchResponse
+        do {
+            searchResponse = try JSONDecoder().decode(SearchResponse.self, from: data)
+        } catch {
+            throw StoreAuthError.malformedResponse("search response could not be decoded")
+        }
         return searchResponse.results
     }
 

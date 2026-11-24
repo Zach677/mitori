@@ -18,6 +18,7 @@ enum StoreAuthError: Error, Equatable, Sendable {
     case badLogin(message: String)
     case sessionExpired
     case probeAppNotOwned
+    case probeAppNotFound(String)
     case unsupportedStorefront(String)
     case redirectExhausted(status: Int)
     case untrustedRedirect(host: String)

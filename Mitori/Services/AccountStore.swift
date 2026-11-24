@@ -14,6 +14,10 @@ actor AccountStore {
     private let decoder: JSONDecoder
     private let writeData: @Sendable (Data, URL) throws -> Void
 
+    nonisolated var directoryURL: URL {
+        fileURL.deletingLastPathComponent()
+    }
+
     init(
         fileManager: FileManager = .default,
         baseDirectory: URL? = nil,

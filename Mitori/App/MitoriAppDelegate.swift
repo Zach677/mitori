@@ -65,7 +65,7 @@ final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
             switch change {
             case .accounts, .account:
                 self?.autoRefreshScheduler.reschedule()
-            case .banner, .refreshingAll:
+            case .banner, .refreshingAll, .loadError:
                 break
             }
         }

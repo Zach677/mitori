@@ -13,6 +13,7 @@ enum ModelChange: Equatable, Sendable {
     case accounts
     case account(String)
     case banner
+    case loadError
     case refreshingAll
 }
 
@@ -39,6 +40,13 @@ final class MitoriModel {
         didSet { changeSubject.send(.accounts) }
     }
     private(set) var refreshStates: [String: RefreshState] = [:]
+    private(set) var loadError: String? {
+        didSet { changeSubject.send(.loadError) }
+    }
+
+    var accountsDirectoryURL: URL {
+        repository.accountsDirectoryURL
+    }
 
     /// A message set from outside the model has no owner (I-10).
     var bannerMessage: String? {
@@ -78,6 +86,15 @@ final class MitoriModel {
     }
 
     func menuPresented() async {
+        await loadAccountsIfNeeded()
+    }
+
+    func loadAccountsIfNeeded() async {
+        await ensureAccountsLoaded()
+    }
+
+    func retryLoadAccounts() async {
+        hasLoadedAccounts = false
         await ensureAccountsLoaded()
     }
 
@@ -99,6 +116,17 @@ final class MitoriModel {
 
         let currentDate = now()
         return accounts.compactMap { nextAutoRefreshDate(for: $0, at: currentDate) }.min()
+    }
+
+    /// The next scheduled automatic refresh date for a single account, or `nil` when automatic
+    /// refresh is off or this account is not eligible.
+    func nextAutoRefreshDate(for accountID: String) -> Date? {
+        guard settings.isAutoRefreshEnabled,
+              let meta = account(with: accountID)
+        else {
+            return nil
+        }
+        return nextAutoRefreshDate(for: meta, at: now())
     }
 
     func account(with id: String?) -> StoredAccountMeta? {
@@ -210,22 +238,39 @@ final class MitoriModel {
         }
     }
 
-    func reauthenticateAccount(id: String, code: String) async throws {
-        guard let meta = account(with: id) else { return }
+    @discardableResult
+    func reauthenticateAccount(
+        id: String,
+        password: String? = nil,
+        code: String
+    ) async throws -> RefreshIssue? {
+        guard let meta = account(with: id) else { return nil }
         guard let token = beginRefresh(for: id) else {
             throw MitoriError.operationInProgress
         }
         defer { finishOperation(for: id, token: token) }
 
-        let issue: RefreshIssue?
+        let passwordOverride = (password?.isEmpty == false) ? password : nil
         do {
-            guard let secret = try await repository.loadSecret(for: id) else {
-                throw MitoriError.missingSecret
+            let secret: StoredAccountSecret?
+            if passwordOverride != nil {
+                // With a new password, allow recovery even if the old Keychain item is missing or unreadable.
+                secret = try? await repository.loadSecret(for: id)
+            } else {
+                guard let loaded = try await repository.loadSecret(for: id) else {
+                    throw MitoriError.missingSecret
+                }
+                secret = loaded
             }
             guard operationIsCurrent(for: id, token: token, requireAccount: true) else {
                 throw MitoriError.operationSuperseded
             }
-            let result = normalized(try await sessionBridge.reauthenticate(meta: meta, secret: secret, code: code))
+            let result = normalized(try await sessionBridge.reauthenticate(
+                meta: meta,
+                secret: secret,
+                passwordOverride: passwordOverride,
+                code: code
+            ))
             guard operationIsCurrent(for: id, token: token, requireAccount: true) else {
                 throw MitoriError.operationSuperseded
             }
@@ -234,7 +279,7 @@ final class MitoriModel {
                 throw MitoriError.operationSuperseded
             }
             accounts = updatedAccounts
-            issue = applyPostRefreshState(for: id, using: result)
+            return applyPostRefreshState(for: id, using: result)
         } catch {
             if error is CancellationError {
                 if operationIsCurrent(for: id, token: token, requireAccount: true) {
@@ -249,35 +294,42 @@ final class MitoriModel {
             }
             throw mappedError
         }
-        // applyPostRefreshState already shows the issue; throw so the caller keeps the code field.
-        if let issue {
-            throw MitoriError.unknown(issue.message)
-        }
     }
 
     func saveProbeBundleID(
         _ probeBundleID: String,
         adamID: Int64? = nil,
+        appName: String? = nil,
         for accountID: String
     ) async throws {
         guard account(with: accountID) != nil else { return }
         let token = try beginMutation(for: accountID)
         defer { finishOperation(for: accountID, token: token) }
         let trimmedProbeBundleID = probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAppName = appName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedAppName = (trimmedAppName?.isEmpty == false) ? trimmedAppName : nil
         let updatedAccounts = try await repository.updateMeta(id: accountID) { latest in
             // Saving the same probe changes nothing, so it must not resume a paused account.
-            guard latest.probeBundleID != trimmedProbeBundleID else { return latest }
+            guard latest.probeBundleID != trimmedProbeBundleID
+                || (normalizedAppName != nil && latest.probeAppName != normalizedAppName)
+            else {
+                return latest
+            }
             var updated = latest
+            let bundleChanged = latest.probeBundleID != trimmedProbeBundleID
             updated.probeBundleID = trimmedProbeBundleID
-            updated.probeAdamID = trimmedProbeBundleID.isEmpty ? nil : adamID
+            updated.probeAdamID = trimmedProbeBundleID.isEmpty ? nil : (bundleChanged ? adamID : (adamID ?? latest.probeAdamID))
+            updated.probeAppName = trimmedProbeBundleID.isEmpty ? nil : normalizedAppName
 
-            switch updated.lastIssue?.kind {
-            case .probeConfigurationMissing, .balanceUnavailable:
-                updated.lastIssue = nil
-                updated.nextEligibleRefreshAt = nil
-                updated.consecutiveFailureCount = 0
-            default:
-                break
+            if bundleChanged {
+                switch updated.lastIssue?.kind {
+                case .probeConfigurationMissing, .balanceUnavailable:
+                    updated.lastIssue = nil
+                    updated.nextEligibleRefreshAt = nil
+                    updated.consecutiveFailureCount = 0
+                default:
+                    break
+                }
             }
             return updated
         }
@@ -310,9 +362,12 @@ final class MitoriModel {
         guard !hasLoadedAccounts else { return }
         do {
             accounts = try await repository.loadAccounts()
+            loadError = nil
             hasLoadedAccounts = true
         } catch {
-            bannerMessage = MitoriError.map(error).localizedDescription
+            let message = MitoriError.map(error).localizedDescription
+            loadError = message
+            bannerMessage = message
         }
     }
 

@@ -229,6 +229,50 @@ struct StoreAuthErrorTests {
     }
 
     @Test
+    func lookupEmptyResultsThrowsProbeAppNotFound() async throws {
+        let emptyLookup = StoreTransportStub.Response(
+            status: 200,
+            body: Data(#"{"resultCount":0,"results":[]}"#.utf8)
+        )
+        let transport = StoreTransportStub([emptyLookup])
+
+        await #expect(throws: StoreAuthError.probeAppNotFound("com.example.probe")) {
+            try await refreshProbe(over: transport)
+        }
+        #expect(MitoriError.map(StoreAuthError.probeAppNotFound("com.example.probe")).issueKind == .probeConfigurationMissing)
+    }
+
+    @Test(arguments: [
+        StoreTransportStub.Response(status: 200),
+        StoreTransportStub.Response(status: 200, body: Data("not json".utf8)),
+    ])
+    func lookupMalformedResponseThrowsMalformedResponse(response: StoreTransportStub.Response) async throws {
+        let transport = StoreTransportStub([response])
+
+        await #expect {
+            try await refreshProbe(over: transport)
+        } throws: { error in
+            guard case .malformedResponse = error as? StoreAuthError else { return false }
+            return true
+        }
+    }
+
+    @Test(arguments: [
+        StoreTransportStub.Response(status: 200),
+        StoreTransportStub.Response(status: 200, body: Data("not json".utf8)),
+    ])
+    func searchMalformedResponseThrowsMalformedResponse(response: StoreTransportStub.Response) async throws {
+        let transport = StoreTransportStub([response])
+
+        await #expect {
+            try await Searcher.search(term: "probe", countryCode: "US", transport: transport)
+        } throws: { error in
+            guard case .malformedResponse = error as? StoreAuthError else { return false }
+            return true
+        }
+    }
+
+    @Test
     func searchServerFailureIsANetworkIssue() async throws {
         let transport = StoreTransportStub([.init(status: 503)])
 

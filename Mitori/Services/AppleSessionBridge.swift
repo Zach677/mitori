@@ -19,7 +19,8 @@ protocol AppleSessionBridging: Sendable {
 
     func reauthenticate(
         meta: StoredAccountMeta,
-        secret: StoredAccountSecret,
+        secret: StoredAccountSecret?,
+        passwordOverride: String?,
         code: String
     ) async throws -> SessionRefreshResult
 
@@ -28,6 +29,16 @@ protocol AppleSessionBridging: Sendable {
         secret: StoredAccountSecret,
         allowsReauthentication: Bool
     ) async throws -> SessionRefreshResult
+}
+
+extension AppleSessionBridging {
+    func reauthenticate(
+        meta: StoredAccountMeta,
+        secret: StoredAccountSecret,
+        code: String
+    ) async throws -> SessionRefreshResult {
+        try await reauthenticate(meta: meta, secret: secret, passwordOverride: nil, code: code)
+    }
 }
 
 protocol AppleAuthenticating: Sendable {
@@ -98,15 +109,28 @@ actor AppleSessionBridge: AppleSessionBridging {
 
     func reauthenticate(
         meta: StoredAccountMeta,
-        secret: StoredAccountSecret,
+        secret: StoredAccountSecret?,
+        passwordOverride: String? = nil,
         code: String = ""
     ) async throws -> SessionRefreshResult {
-        try await StoreTrace.run("reauth") {
+        // Explicit reauth with a new password starts with clean cookies while keeping deviceIdentifier (D-22).
+        let effectivePassword: String
+        let effectiveCookies: [Cookie]
+        if let passwordOverride, !passwordOverride.isEmpty {
+            effectivePassword = passwordOverride
+            effectiveCookies = []
+        } else if let secret {
+            effectivePassword = secret.password
+            effectiveCookies = secret.cookies
+        } else {
+            throw MitoriError.missingSecret
+        }
+        return try await StoreTrace.run("reauth") {
             try await authenticate(
                 email: meta.email,
-                password: secret.password,
+                password: effectivePassword,
                 code: code,
-                cookies: secret.cookies,
+                cookies: effectiveCookies,
                 deviceIdentifier: meta.deviceIdentifier,
                 probeBundleID: meta.probeBundleID,
                 existing: meta
@@ -172,12 +196,15 @@ actor AppleSessionBridge: AppleSessionBridging {
             throw MitoriError.map(error)
         }
 
-        let preservedAdamID = existing?.probeBundleID == probeBundleID ? existing?.probeAdamID : nil
+        let preservesProbeMetadata = existing?.probeBundleID == probeBundleID
+        let preservedAdamID = preservesProbeMetadata ? existing?.probeAdamID : nil
+        let preservedAppName = preservesProbeMetadata ? existing?.probeAppName : nil
         var meta = StoredAccountMeta(
             account: authenticationResult.account,
             deviceIdentifier: deviceIdentifier,
             probeBundleID: probeBundleID,
             probeAdamID: preservedAdamID,
+            probeAppName: preservedAppName,
             balanceSnapshot: existing?.balanceSnapshot,
             lastIssue: nil,
             lastRefreshAt: existing?.lastRefreshAt,
@@ -273,6 +300,7 @@ extension StoredAccountMeta {
         deviceIdentifier: String,
         probeBundleID: String,
         probeAdamID: Int64? = nil,
+        probeAppName: String? = nil,
         balanceSnapshot: BalanceSnapshot? = nil,
         lastIssue: RefreshIssue? = nil,
         lastRefreshAt: Date? = nil,
@@ -289,6 +317,7 @@ extension StoredAccountMeta {
         self.deviceIdentifier = deviceIdentifier
         self.probeBundleID = probeBundleID
         self.probeAdamID = probeAdamID
+        self.probeAppName = probeAppName
         self.balanceSnapshot = balanceSnapshot
         self.lastIssue = lastIssue
         self.lastRefreshAt = lastRefreshAt

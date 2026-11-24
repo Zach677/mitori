@@ -28,14 +28,24 @@ enum Lookup {
             ))
         }
 
-        try ensure(!data.isEmpty, "response body is empty")
+        guard !data.isEmpty else {
+            throw StoreAuthError.malformedResponse("lookup response body is empty")
+        }
 
-        let decoder = JSONDecoder()
-        let lookupResponse = try decoder.decode(LookupResponse.self, from: data)
-        try ensure(lookupResponse.resultCount > 0, "no results found for bundle ID \(bundleID)")
-        try ensure(lookupResponse.results.count == 1, "unexpected number of results: \(lookupResponse.resultCount)")
+        let lookupResponse: LookupResponse
+        do {
+            lookupResponse = try JSONDecoder().decode(LookupResponse.self, from: data)
+        } catch {
+            throw StoreAuthError.malformedResponse("lookup response could not be decoded")
+        }
+        guard lookupResponse.resultCount > 0, let first = lookupResponse.results.first else {
+            throw StoreAuthError.probeAppNotFound(bundleID)
+        }
+        guard lookupResponse.results.count == 1 else {
+            throw StoreAuthError.malformedResponse("unexpected number of lookup results: \(lookupResponse.resultCount)")
+        }
 
-        return lookupResponse.results.first!
+        return first
     }
 
     private static func makeRequest(

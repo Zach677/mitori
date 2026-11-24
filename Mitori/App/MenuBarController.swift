@@ -256,7 +256,7 @@ final class MenuBarController: NSObject {
         case let .account(accountID) where accountID == detailAccountID:
             accountDetailWindowController.window?.title = accountDetailWindowTitle
             accountDetailViewController?.reload()
-        case .account, .banner, .refreshingAll:
+        case .account, .banner, .refreshingAll, .loadError:
             break
         }
     }

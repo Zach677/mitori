@@ -18,6 +18,10 @@ actor AccountRepository {
         self.secretStore = secretStore
     }
 
+    nonisolated var accountsDirectoryURL: URL {
+        accountStore.directoryURL
+    }
+
     func loadAccounts() async throws -> [StoredAccountMeta] {
         try await accountStore.loadAccounts()
     }

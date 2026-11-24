@@ -199,6 +199,31 @@ struct AccountStatusTests {
         )
 
         #expect(account.status == .normal)
+        #expect(account.visibleIssue == nil)
+    }
+
+    @Test
+    func configuredProbeIssueIsAttentionAndVisible() {
+        let account = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe",
+            probeAppName: "Pages",
+            lastIssue: MitoriError.probeAppNotOwned.refreshIssue(
+                at: Date(timeIntervalSince1970: 1_743_166_800)
+            )
+        )
+
+        #expect(account.status == .attention)
+        #expect(account.visibleIssue?.kind == .probeConfigurationMissing)
+        #expect(account.probeDisplayName == "Pages")
+    }
+
+    @Test
+    func unknownRefreshIssueKindRawValueDecodesToUnknown() throws {
+        let data = Data("\"futureIssueKind\"".utf8)
+        let decoded = try JSONDecoder().decode(RefreshIssueKind.self, from: data)
+        #expect(decoded == .unknown)
     }
 }
 
@@ -242,6 +267,7 @@ struct MitoriErrorTests {
         (.invalidCredentials, .invalidCredentials),
         (.sessionExpired, .sessionExpired),
         (.probeAppNotOwned, .probeAppNotOwned),
+        (.probeAppNotFound("com.example.probe"), .probeAppNotFound("com.example.probe")),
         (.unsupportedStorefront("999999"), .unsupportedStorefront("999999")),
         (.badLogin(message: "Wrong password"), .unknown("Authentication failed: Wrong password")),
         (.transport(URLError(.timedOut)), .network(URLError(.timedOut).localizedDescription)),

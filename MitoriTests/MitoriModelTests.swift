@@ -150,6 +150,19 @@ struct MitoriModelTests {
 
         try await reloadedModel.saveProbeBundleID(newProbeBundleID, for: sessionMeta.id)
         #expect(reloadedModel.account(with: sessionMeta.id)?.lastIssue?.kind == .sessionExpired)
+
+        var notFoundMeta = probeMeta
+        notFoundMeta.lastIssue = MitoriError.probeAppNotFound("com.example.probe").refreshIssue()
+        _ = try await accountStore.upsert(notFoundMeta)
+        let notFoundModel = MitoriModel(
+            accountStore: accountStore,
+            secretStore: SecretStore(backend: InMemorySecretBackend()),
+            sessionBridge: SessionBridgeStub()
+        )
+        await notFoundModel.menuPresented()
+
+        try await notFoundModel.saveProbeBundleID(newProbeBundleID, for: notFoundMeta.id)
+        #expect(notFoundModel.account(with: notFoundMeta.id)?.lastIssue == nil)
     }
 
     @Test
@@ -175,7 +188,7 @@ struct MitoriModelTests {
 
         try await model.saveProbeBundleID(" com.example.probe ", for: meta.id)
 
-        #expect(model.account(with: meta.id)?.lastIssue?.kind == .balanceUnavailable)
+        #expect(model.account(with: meta.id)?.lastIssue?.kind == .probeConfigurationMissing)
     }
 
     @Test
@@ -617,7 +630,7 @@ struct MitoriModelTests {
     }
 
     @Test
-    func reauthenticateThrowsWhenReturnedIssuePersists() async throws {
+    func reauthenticateReturnsPersistedIssueAfterAuthSucceeds() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
@@ -650,10 +663,8 @@ struct MitoriModelTests {
 
         await model.menuPresented()
 
-        await #expect(throws: MitoriError.unknown(MitoriError.sessionExpired.localizedDescription)) {
-            try await model.reauthenticateAccount(id: meta.id, code: "")
-        }
-
+        let returnedIssue = try await model.reauthenticateAccount(id: meta.id, code: "")
+        #expect(returnedIssue?.kind == .sessionExpired)
         #expect(model.refreshState(for: meta.id) == .failed(.sessionExpired))
         #expect(model.bannerMessage == MitoriError.sessionExpired.localizedDescription)
     }
@@ -687,13 +698,48 @@ struct MitoriModelTests {
         )
         await model.menuPresented()
 
-        let error = await #expect(throws: (any Error).self) {
-            try await model.reauthenticateAccount(id: meta.id, code: "")
-        }
+        let returnedIssue = try await model.reauthenticateAccount(id: meta.id, code: "")
 
-        #expect(error?.localizedDescription == issue.message)
-        #expect(model.refreshState(for: meta.id) == .failed(.balanceUnavailable))
+        #expect(returnedIssue?.message == issue.message)
+        #expect(model.refreshState(for: meta.id) == .failed(.probeConfigurationMissing))
         #expect(model.bannerMessage == issue.message)
+    }
+
+    @Test
+    func reauthenticateWithNewPasswordRecoversMissingSecret() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        let accountStore = AccountStore(baseDirectory: tempDirectory)
+        let secretStore = SecretStore(backend: InMemorySecretBackend())
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+        _ = try await accountStore.upsert(meta)
+        // Intentionally leave Keychain secret missing.
+
+        var updatedAccount = sampleAccount()
+        updatedAccount.password = "new-password"
+        let bridge = SessionBridgeStub(reauthenticateResult: SessionRefreshResult(
+            meta: meta,
+            secret: StoredAccountSecret(account: updatedAccount)
+        ))
+        let model = MitoriModel(
+            accountStore: accountStore,
+            secretStore: secretStore,
+            sessionBridge: bridge
+        )
+        await model.menuPresented()
+
+        let issue = try await model.reauthenticateAccount(id: meta.id, password: "new-password", code: "123456")
+
+        #expect(issue == nil)
+        #expect(bridge.reauthenticateRequests.count == 1)
+        #expect(bridge.reauthenticateRequests.first?.passwordOverride == "new-password")
+        #expect(bridge.reauthenticateRequests.first?.secret == nil)
+        #expect(try await secretStore.loadSecret(for: meta.id)?.password == "new-password")
     }
 
     @Test

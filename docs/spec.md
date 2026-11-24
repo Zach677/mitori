@@ -74,7 +74,7 @@ without putting the Apple ID at risk*.
 | Automatic tick | without probe | Skip. Never refreshed automatically. |
 | Manual refresh | with probe | Probe; on `sessionExpired`, one silent reauth and one probe retry. A second failure is recorded (I-9). |
 | Manual refresh | without probe | One silent reauth; the auth response is the balance. |
-| Explicit reauth / 2FA | any | User-supplied code; same recovery as manual refresh. |
+| Explicit reauth / 2FA | any | User-supplied code and optional new password; same recovery as manual refresh. |
 
 - An automatic probe that gets `sessionExpired` records `sessionExpired` and
   stops. It does not reauthenticate.
@@ -86,8 +86,11 @@ without putting the Apple ID at risk*.
 - Manual refresh always makes a real request. Repeated clicks reuse the
   in-flight operation guard; there is no cache shortcut.
 - The persisted issue kind is the pause signal; there is no extra flag.
-- Manual reauth of a no-probe account sends the stored cookies. Login (add
-  account) sends none.
+- Manual reauth of a no-probe account sends the stored cookies. Explicit reauth
+  with a new password sends no cookies, keeps the stored `deviceIdentifier`,
+  allows recovery even when the Keychain secret is missing, and saves the new
+  password to the Keychain only after sign-in succeeds. Login (add account)
+  sends no cookies.
 - A server failure is a `network` issue and keeps the network backoff. A
   cancelled refresh returns to idle and records no issue.
 
@@ -103,6 +106,7 @@ enum StoreAuthError: Error {
   case badLogin(message: String)
   case sessionExpired
   case probeAppNotOwned
+  case probeAppNotFound(String)
   case unsupportedStorefront(String)
   case redirectExhausted(status: Int)
   case untrustedRedirect(host: String)
@@ -180,10 +184,20 @@ The numbers are the original log numbers, so references in code stay valid.
 - **D-17, D-18** `MitoriUITests` is the one XCTest exception to I-11. A
   DEBUG-only fixture (`MITORI_UI_FIXTURE=1`) runs the app on temporary
   accounts, in-memory secrets, and an offline session bridge. The
-  accessibility identifiers (`menu.*`, `account-row.*`, `add-account.*`,
-  `account-detail.*`, `settings.*`, `document.*`) are the contract for a UI
-  rewrite. UI tests do not toggle Open at login, open the privacy policy, or
-  write to the pasteboard.
+  accessibility identifiers (`menu.*`, `main.*`, `account-row.*`,
+  `add-account.*`, `account-detail.*`, `settings.*`, `document.*`) are the
+  contract for the UI. UI tests do not toggle Open at login, open the privacy
+  policy, or write to the pasteboard.
+- **D-27** (2026-11-24) The UI uses a native `NSSplitViewController` main window
+  paired with a native status item `NSMenu` (replacing the custom popover).
+  `Info.plist` keeps `LSUIElement = true` so login-item launch stays silent in
+  the menu bar; opening any regular window switches activation policy to
+  `.regular` (Dock icon and full macOS menu bar), and closing all regular
+  windows switches back to `.accessory` when `Hide Dock icon when window is
+  closed` is enabled (default on). `RefreshIssueKind` preserves its six
+  persisted raw values for v0.3.2 rollback safety (`probeAppNotOwned` and
+  `probeAppNotFound` map to `probeConfigurationMissing`, guarded by
+  `!needsProbeBundleID`), and `StoredAccountMeta` adds optional `probeAppName`.
 - **D-19** The ApplePackage and ipatool MIT notices live in
   `Resources/AdditionalLicenses/ApplePackage/` at the repository root, not in
   the synchronized `Mitori/Resources/` folder, where two `LICENSE` files would

@@ -235,7 +235,7 @@ struct AppleSessionBridgeTests {
         )
 
         #expect(result.meta.balanceSnapshot?.source == .authentication)
-        #expect(result.meta.lastIssue?.kind == .balanceUnavailable)
+        #expect(result.meta.lastIssue?.kind == .probeConfigurationMissing)
         #expect(await balanceService.callCount == 1)
     }
 
@@ -353,6 +353,33 @@ struct AppleSessionBridgeTests {
         )
 
         #expect(authenticator.cookies.map { $0.map(\.name) } == [["mz_at0"], []])
+    }
+
+    @Test
+    func reauthenticationWithNewPasswordClearsCookiesAndKeepsDeviceIdentifier() async throws {
+        let authenticator = AppleAuthenticatorStub(
+            result: try authenticationResult(fixture: "auth_success_balance")
+        )
+        let bridge = AppleSessionBridge(
+            authenticator: authenticator,
+            balanceService: BalanceRefreshingStub()
+        )
+        let cookie = Cookie(name: "mz_at0", value: "stale", path: "/", httpOnly: true, secure: true)
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "KEEPDEVICE01",
+            probeBundleID: ""
+        )
+
+        let result = try await bridge.reauthenticate(
+            meta: meta,
+            secret: StoredAccountSecret(account: sampleAccount(cookies: [cookie])),
+            passwordOverride: "updated-password",
+            code: "123456"
+        )
+
+        #expect(authenticator.cookies == [[]])
+        #expect(result.meta.deviceIdentifier == "KEEPDEVICE01")
     }
 
     @Test
