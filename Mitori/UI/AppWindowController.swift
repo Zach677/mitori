@@ -92,10 +92,10 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         createdWindow.tabbingMode = .disallowed
         createdWindow.minSize = defaultSize
         createdWindow.level = windowLevel
-        createdWindow.isOpaque = false
-        createdWindow.backgroundColor = .clear
+        createdWindow.isOpaque = true
+        createdWindow.backgroundColor = .windowBackgroundColor
         createdWindow.hasShadow = true
-        createdWindow.titlebarAppearsTransparent = true
+        createdWindow.titlebarAppearsTransparent = false
         createdWindow.titleVisibility = titleVisibility
 
         createdWindow.setContentSize(defaultSize)
@@ -111,14 +111,6 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         window.title = titleProvider()
         let vc = contentProvider()
         currentViewController = vc
-        if #available(macOS 26.0, *) {
-            window.backgroundColor = .clear
-            let glass = NSGlassEffectView()
-            glass.contentView = vc.view
-            window.contentView = glass
-        } else {
-            window.backgroundColor = .windowBackgroundColor
-            window.contentView = vc.view
-        }
+        window.contentViewController = vc
     }
 }

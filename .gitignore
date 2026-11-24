@@ -63,6 +63,7 @@ dist/
 ### Local agent state ###
 .artifacts/
 .codex/
+.ryugi/
 
 ### Machine-local mise settings (for example TART_HOME) ###
 mise.local.toml

@@ -11,17 +11,23 @@ import XCTest
 /// assert accessibility identifiers and values. Identifiers are the contract
 /// between the UI and these tests, so a redesign keeps them.
 class MitoriUITestCase: XCTestCase {
-    /// `"1"` seeds ready@example.com and expired@example.com; `"empty"` seeds nothing.
+    /// `"1"` seeds ready@, expired@, and code@example.com; `"empty"` seeds nothing.
     var fixture: String { "1" }
+    /// `"dark"` forces Dark Mode; `nil` keeps the system appearance.
+    var appearance: String? { nil }
     var app: XCUIApplication!
 
     let readyRow = "account-row.ready@example.com"
     let expiredRow = "account-row.expired@example.com"
+    let codeRow = "account-row.code@example.com"
+    let readyMenuItem = "menu.account.ready@example.com"
+    let expiredMenuItem = "menu.account.expired@example.com"
 
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchEnvironment["MITORI_UI_FIXTURE"] = fixture
+        app.launchEnvironment["MITORI_UI_APPEARANCE"] = appearance
         app.launch()
     }
 
@@ -34,8 +40,7 @@ class MitoriUITestCase: XCTestCase {
         app.terminate()
     }
 
-    func openMenu() {
-        if element("menu.refresh-all").exists || element("menu.empty-state").exists { return }
+    func openStatusMenu() {
         let statusItem = element("menu.status-item")
         // Just after a VM starts, the status item can exist above the screen before the menu bar shows.
         XCTAssertTrue(statusItem.wait(for: \.isHittable, toEqual: true, timeout: 10), "status item is not hittable")
@@ -76,10 +81,13 @@ class MitoriUITestCase: XCTestCase {
         field.typeText(XCUIKeyboardKey.delete.rawValue + text)
     }
 
-    /// The window or popover that contains `identifier`.
+    /// The visible menu, popover, or window that contains `identifier`.
     func container(of identifier: String) -> XCUIElement {
+        let menu = app.menus.containing(.any, identifier: identifier).firstMatch
+        if menu.exists, !menu.frame.isEmpty { return menu }
         let popover = app.popovers.containing(.any, identifier: identifier).firstMatch
-        return popover.exists ? popover : app.windows.containing(.any, identifier: identifier).firstMatch
+        if popover.exists, !popover.frame.isEmpty { return popover }
+        return app.windows.containing(.any, identifier: identifier).firstMatch
     }
 
     /// Saves a named screenshot of one screen state for the UI catalog

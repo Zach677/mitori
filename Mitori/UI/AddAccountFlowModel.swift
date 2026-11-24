@@ -69,17 +69,13 @@ final class AddAccountFlowModel {
 
     var twoFactorMessage: String {
         if requiresVerificationCode {
-            return mode == .addAccount
-                ? "Apple requires a 2FA code. Enter it here, then log in again."
-                : "Apple requires a 2FA code. Enter it here, then re-authenticate."
+            return "Apple requires a 2FA code. Enter it here, then sign in again."
         }
         if offersVerificationCode {
-            return mode == .addAccount
-                ? "If your devices showed a verification code, enter it here, then log in again."
-                : "If your devices showed a verification code, enter it here, then re-authenticate."
+            return "If your devices showed a verification code, enter it here, then sign in again."
         }
 
-        return "If Apple asks for 2FA, this field appears after the first login attempt."
+        return "If Apple asks for 2FA, this field appears after the first sign-in attempt."
     }
 
     func beginSubmission() {
@@ -105,9 +101,7 @@ final class AddAccountFlowModel {
         case .twoFactorCodeRequired:
             twoFactorEmail = normalizedEmail
             requiresVerificationCode = true
-            errorMessage = mode == .addAccount
-                ? "This Apple ID needs a 2FA code. Enter it below, then log in again. If no prompt appeared, open Apple Account to trigger it."
-                : "This Apple ID needs a 2FA code. Enter it above, then re-authenticate. If no prompt appeared, open Apple Account to trigger it."
+            errorMessage = "This Apple ID needs a 2FA code. Enter it and sign in again. If no prompt appeared, open Apple Account to trigger it."
             recoveryLink = Self.appleAccountRecoveryLink
         case .invalidTwoFactorCode:
             twoFactorEmail = normalizedEmail

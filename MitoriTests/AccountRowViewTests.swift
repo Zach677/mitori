@@ -6,208 +6,119 @@
 //
 
 import AppKit
+import Foundation
 import Testing
 
 @testable import Mitori
 
-struct AccountRowViewTests {
+@MainActor
+struct MainWindowViewTests {
     @Test
-    @MainActor
-    func hitTestingWorksWhenRowHasNonzeroOrigin() throws {
+    func sidebarPopulatesRowsAndDetailShowsAccountIssue() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        let accountStore = AccountStore(baseDirectory: tempDirectory)
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe",
+            probeAppName: "Pages",
+            lastIssue: MitoriError.sessionExpired.refreshIssue(at: Date())
+        )
+        _ = try await accountStore.upsert(meta)
+
+        let suiteName = "test.main.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = RefreshSettingsStore(defaults: defaults)
+        let model = MitoriModel(
+            accountStore: accountStore,
+            secretStore: SecretStore(backend: InMemorySecretBackend()),
+            sessionBridge: SessionBridgeStub(),
+            settings: settings
+        )
+        await model.loadAccountsIfNeeded()
+
+        let detail = AccountDetailViewController(
+            model: model,
+            settings: settings,
+            onRefreshRequested: { _ in }
+        )
+        detail.loadView()
+        detail.setAccountID(meta.id)
+
+        let issueView = try #require(findView(withIdentifier: "account-detail.issue", in: detail.view))
+        #expect(!issueView.isHiddenOrHasHiddenAncestor)
+        let probeLabel = try #require(findTextField(withIdentifier: "account-detail.probe-value", in: detail.view))
+        #expect(probeLabel.stringValue == "Pages")
+    }
+
+    @Test
+    func networkIssueWithoutAutoRefreshOffersRefreshActionAndNoRetryCountdown() {
         let account = StoredAccountMeta(
             account: sampleAccount(),
             deviceIdentifier: "ABCDEF123456",
-            probeBundleID: "com.example.probe"
+            probeBundleID: "com.example.probe",
+            lastIssue: MitoriError.network("offline").refreshIssue(at: Date())
         )
-        let row = AccountRowView(
+
+        let manualPresentation = AccountIssuePresentation(account: account, nextAutoRefreshAt: nil)
+        #expect(manualPresentation?.action == .refresh)
+        #expect(manualPresentation?.metadata.contains("try again") == false)
+
+        let scheduledPresentation = AccountIssuePresentation(
             account: account,
-            presentation: AccountPresentation(
-                account: account,
-                accountIndex: 0,
-                hidesPersonalInformation: false
-            ),
-            refreshState: .idle,
-            onOpen: {},
-            onRefresh: {}
+            nextAutoRefreshAt: Date().addingTimeInterval(600)
         )
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 140))
-        row.frame = NSRect(x: 0, y: 70, width: 360, height: 56)
-        container.addSubview(row)
-        row.layoutSubtreeIfNeeded()
-
-        let pointInContainer = NSPoint(x: row.frame.midX, y: row.frame.midY)
-        let actionButton = try #require(
-            row.subviews.first?.subviews.compactMap { $0 as? NSButton }.first
-        )
-        let actionPointInContainer = container.convert(
-            NSPoint(x: actionButton.bounds.midX, y: actionButton.bounds.midY),
-            from: actionButton
-        )
-
-        #expect(container.hitTest(pointInContainer) === row)
-        #expect(container.hitTest(actionPointInContainer) === actionButton)
+        #expect(scheduledPresentation?.action == nil)
+        #expect(scheduledPresentation?.metadata.contains("try again") == true)
     }
 
     @Test
-    @MainActor
-    func menuPanelScrollViewStartsAtFirstAccount() async throws {
-        let tempDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: tempDirectory) }
-        let accountStore = AccountStore(baseDirectory: tempDirectory)
-        for index in 0 ..< 12 {
-            var account = sampleAccount()
-            account.email = String(format: "user%02d@example.com", index)
-            account.firstName = "User"
-            account.lastName = "\(index)"
-            _ = try await accountStore.upsert(StoredAccountMeta(
-                account: account,
-                deviceIdentifier: "ABCDEF123456",
-                probeBundleID: "com.example.probe"
-            ))
-        }
-
-        let suiteName = "test.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let settings = RefreshSettingsStore(defaults: defaults)
-        let model = MitoriModel(
-            accountStore: accountStore,
-            secretStore: SecretStore(backend: InMemorySecretBackend()),
-            sessionBridge: SessionBridgeStub(),
-            settings: settings
-        )
-        await model.menuPresented()
-
-        let controller = MenuPanelViewController(
-            model: model,
-            settings: settings,
-            onAddAccount: {},
-            onOpenAccount: { _ in },
-            onOpenAbout: {},
-            onOpenSettings: {},
-            onQuit: {}
-        )
-        controller.loadView()
-        controller.view.layoutSubtreeIfNeeded()
-
-        let scrollView = try #require(findSubview(ofType: NSScrollView.self, in: controller.view))
-        let documentStack = try #require(scrollView.documentView as? NSStackView)
-        let firstRow = try #require(documentStack.arrangedSubviews.first)
-        #expect(scrollView.documentVisibleRect.intersects(firstRow.frame))
-    }
-
-    @Test
-    @MainActor
-    func clearingProbeFieldSurvivesReload() async throws {
-        let tempDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: tempDirectory) }
-        let accountStore = AccountStore(baseDirectory: tempDirectory)
-        let meta = StoredAccountMeta(
+    func unknownIssueRemainsVisibleWithRefreshAction() {
+        let account = StoredAccountMeta(
             account: sampleAccount(),
             deviceIdentifier: "ABCDEF123456",
-            probeBundleID: "com.example.probe"
+            probeBundleID: "com.example.probe",
+            lastIssue: MitoriError.unknown("Unexpected server state").refreshIssue(at: Date())
         )
-        _ = try await accountStore.upsert(meta)
 
-        let suiteName = "test.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let settings = RefreshSettingsStore(defaults: defaults)
-        let model = MitoriModel(
-            accountStore: accountStore,
-            secretStore: SecretStore(backend: InMemorySecretBackend()),
-            sessionBridge: SessionBridgeStub(),
-            settings: settings
-        )
-        await model.menuPresented()
-
-        let controller = AccountDetailViewController(
-            model: model,
-            settings: settings,
-            accountID: meta.id,
-            onClose: {},
-            onProbeSaved: { _ in }
-        )
-        controller.loadView()
-
-        let probeField = try #require(findTextField(withIdentifier: "account-detail.probe-bundle-id", in: controller.view))
-        #expect(probeField.stringValue == "com.example.probe")
-
-        probeField.stringValue = ""
-        controller.reload()
-
-        #expect(probeField.stringValue.isEmpty)
-        let probeFieldAfterReload = try #require(
-            findTextField(withIdentifier: "account-detail.probe-bundle-id", in: controller.view)
-        )
-        #expect(probeFieldAfterReload === probeField)
+        let presentation = AccountIssuePresentation(account: account, nextAutoRefreshAt: nil)
+        #expect(presentation?.sidebarHint == "Needs attention")
+        #expect(presentation?.message == "Unexpected server state")
+        #expect(presentation?.action == .refresh)
     }
 
-    @Test
-    @MainActor
-    func menuPanelReusesRowViewsAcrossReloads() async throws {
-        let tempDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: tempDirectory) }
-        let accountStore = AccountStore(baseDirectory: tempDirectory)
-        let meta = StoredAccountMeta(
-            account: sampleAccount(),
-            deviceIdentifier: "ABCDEF123456",
-            probeBundleID: "com.example.probe"
-        )
-        _ = try await accountStore.upsert(meta)
-        let suiteName = "test.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let settings = RefreshSettingsStore(defaults: defaults)
-        let model = MitoriModel(
-            accountStore: accountStore,
-            secretStore: SecretStore(backend: InMemorySecretBackend()),
-            sessionBridge: SessionBridgeStub(),
-            settings: settings
-        )
-        await model.menuPresented()
-
-        let controller = MenuPanelViewController(
-            model: model,
-            settings: settings,
-            onAddAccount: {},
-            onOpenAccount: { _ in },
-            onOpenAbout: {},
-            onOpenSettings: {},
-            onQuit: {}
-        )
-        controller.loadView()
-
-        let scrollView = try #require(findSubview(ofType: NSScrollView.self, in: controller.view))
-        let stack = try #require(scrollView.documentView as? NSStackView)
-        let initialRow = try #require(stack.arrangedSubviews.first as? AccountRowView)
-
-        controller.reload()
-
-        let reloadedRow = try #require(stack.arrangedSubviews.first as? AccountRowView)
-        #expect(reloadedRow === initialRow)
-    }
-
-    @MainActor
-    private func findSubview<T: NSView>(ofType type: T.Type, in view: NSView) -> T? {
-        if let match = view as? T { return match }
+    private func findView(withIdentifier identifier: String, in view: NSView) -> NSView? {
+        if view.accessibilityIdentifier() == identifier { return view }
         for subview in view.subviews {
-            if let match = findSubview(ofType: type, in: subview) { return match }
+            if let match = findView(withIdentifier: identifier, in: subview) { return match }
         }
         return nil
     }
 
-    @MainActor
     private func findTextField(withIdentifier identifier: String, in view: NSView) -> NSTextField? {
-        if let field = view as? NSTextField, field.accessibilityIdentifier() == identifier {
-            return field
-        }
-        for subview in view.subviews {
-            if let match = findTextField(withIdentifier: identifier, in: subview) { return match }
-        }
-        return nil
+        findView(withIdentifier: identifier, in: view) as? NSTextField
+    }
+}
+
+struct TimestampTextTests {
+    private let now = Date(timeIntervalSince1970: 1_790_000_000)
+
+    @Test
+    func freshnessIsRelativeWithinADay() {
+        #expect(now.addingTimeInterval(-20).freshnessText(relativeTo: now) == "just now")
+        #expect(now.addingTimeInterval(-240).freshnessText(relativeTo: now).contains("4"))
+        #expect(now.addingTimeInterval(-25 * 60 * 60).freshnessText(relativeTo: now)
+            == now.addingTimeInterval(-25 * 60 * 60).shortTimestamp(relativeTo: now))
+    }
+
+    @Test
+    func shortTimestampShowsYearOnlyForAnotherYear() {
+        let year = String(Calendar.current.component(.year, from: now))
+        #expect(!now.addingTimeInterval(-60 * 60).shortTimestamp(relativeTo: now).contains(year))
+        let lastYear = Calendar.current.date(byAdding: .year, value: -1, to: now)!
+        #expect(lastYear.shortTimestamp(relativeTo: now).contains(String(Calendar.current.component(.year, from: lastYear))))
     }
 }

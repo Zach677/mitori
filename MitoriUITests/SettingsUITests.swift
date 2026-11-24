@@ -13,9 +13,13 @@ final class SettingsUITests: MitoriUITestCase {
 
         // Open at login changes a real login item, so tests only check that it exists.
         for identifier in [
-            "settings.open-at-login", "settings.hide-personal-information",
-            "settings.auto-refresh", "settings.interval",
-            "settings.privacy-policy", "settings.licenses",
+            "settings.open-at-login",
+            "settings.hide-dock-icon",
+            "settings.hide-personal-information",
+            "settings.auto-refresh",
+            "settings.interval",
+            "settings.privacy-policy",
+            "settings.licenses",
         ] {
             XCTAssertTrue(require(identifier).exists)
         }
@@ -36,12 +40,12 @@ final class SettingsUITests: MitoriUITestCase {
     func testHidePersonalInformationMasksAccounts() throws {
         openSettings()
         require("settings.hide-personal-information").click()
+        app.typeKey("w", modifierFlags: .command)
 
-        openMenu()
         let ready = require(readyRow)
         XCTAssertFalse(ready.label.contains("Ready"), ready.label)
         XCTAssertFalse(app.staticTexts["ready@example.com"].exists)
-        captureScreen("menu-hidden-personal-information", containing: readyRow)
+        captureScreen("main-hidden-personal-information", containing: readyRow)
     }
 
     func testLicensesOpenDocument() throws {
@@ -54,8 +58,7 @@ final class SettingsUITests: MitoriUITestCase {
     }
 
     private func openSettings() {
-        openMenu()
-        require("menu.more").click()
+        openStatusMenu()
         require("menu.settings").click()
         XCTAssertTrue(require("settings.auto-refresh").exists)
     }

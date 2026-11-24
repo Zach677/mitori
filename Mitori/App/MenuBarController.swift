@@ -9,7 +9,7 @@ import AppKit
 import Combine
 
 @MainActor
-final class MenuBarController: NSObject {
+final class MenuBarController: NSObject, NSMenuDelegate {
     private static let privacyPolicyURL = URL(string: "https://zaxh.org/mitori/privacy")!
 
     private let model: MitoriModel
@@ -17,97 +17,48 @@ final class MenuBarController: NSObject {
     private let probeAppSearch: any ProbeAppSearching
     private let onRefreshSettingsChanged: @MainActor () -> Void
     private let statusItem: NSStatusItem
-    private let popover: NSPopover
+    private let statusMenu = NSMenu()
     private var modelChangeCancellable: AnyCancellable?
-    private lazy var menuPanelController = MenuPanelViewController(
+    private var windowCloseObserver: NSObjectProtocol?
+
+    private lazy var dockPolicyController = DockIconPolicyController(
+        hidesWhenClosed: { [weak self] in
+            self?.settings.hidesDockIconWhenClosed ?? true
+        },
+        hasVisibleWindow: { [weak self] in
+            self?.hasAnyVisibleRegularWindow ?? false
+        }
+    )
+
+    private lazy var mainWindowController = MainWindowController(
         model: model,
         settings: settings,
-        onAddAccount: { [weak self] in
-            self?.presentAddAccountWindow()
-        },
-        onOpenAccount: { [weak self] accountID in
-            self?.presentAccountDetailWindow(for: accountID)
-        },
-        onOpenAbout: { [weak self] in
-            self?.presentAboutPanel()
-        },
-        onOpenSettings: { [weak self] in
-            self?.presentSettingsWindow()
-        },
-        onQuit: {
-            NSApp.terminate(nil)
+        probeAppSearch: probeAppSearch,
+        onWindowVisibilityChanged: { [weak self] in
+            self?.dockPolicyController.update()
         }
     )
-    private lazy var popoverPresenter = StatusItemPopoverController(
-        statusItem: statusItem,
-        popover: popover,
-        beforePresent: { [weak self] in
-            self?.menuPanelController.prepareForPresentation()
-        }
-    )
-    private lazy var interactionController = MenuBarInteractionController(popover: popoverPresenter)
 
-    private var detailAccountID: String?
-    private weak var addAccountViewController: AddAccountViewController?
-    private weak var accountDetailViewController: AccountDetailViewController?
-
-    private lazy var addAccountWindowController = AppWindowController(
-        title: { "Add Account" },
-        size: NSSize(width: 430, height: 430),
-        autosaveName: "dev.zach.mitori.add-account",
-        windowLevel: .floating,
-        onWindowClose: { [weak self] in
-            self?.addAccountViewController?.cancelLogin()
-        }
-    ) { [unowned self] in
-        let controller = AddAccountViewController(
-            model: model,
-            onClose: closeAddAccountWindow,
-            onLoginSuccess: { [weak self] accountID in
-                self?.addAccountDidSucceed(accountID: accountID)
-            }
-        )
-        addAccountViewController = controller
-        return controller
-    }
-
-    private lazy var addAccountWindowPresenter = WindowPresentationCoordinator(window: addAccountWindowController)
-
-    private lazy var accountDetailWindowController = AppWindowController(
-        title: { [unowned self] in
-            accountDetailWindowTitle
-        },
-        size: NSSize(width: 500, height: 400),
-        autosaveName: "dev.zach.mitori.account-detail",
-        windowLevel: .floating
-    ) { [unowned self] in
-        let accountID = detailAccountID ?? ""
-        let controller = AccountDetailViewController(
-            model: model,
-            settings: settings,
-            accountID: accountID,
-            probeAppSearch: probeAppSearch,
-            onClose: closeAccountDetailWindow,
-            onProbeSaved: { [weak self] changed in
-                self?.probeDidSave(accountID: accountID, probeChanged: changed)
-            }
-        )
-        accountDetailViewController = controller
-        return controller
-    }
-
-    private lazy var accountDetailWindowPresenter = WindowPresentationCoordinator(window: accountDetailWindowController)
+    private lazy var mainWindowPresenter = WindowPresentationCoordinator(window: mainWindowController)
 
     private lazy var settingsWindowController = AppWindowController(
-        title: { "Mitori Settings" },
-        size: NSSize(width: 420, height: 420),
+        title: { "Settings" },
+        size: NSSize(width: 500, height: 540),
         autosaveName: "dev.zach.mitori.settings",
-        titleVisibility: .visible
+        titleVisibility: .visible,
+        onWindowClose: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.dockPolicyController.update()
+            }
+        }
     ) { [unowned self] in
-        SettingsViewController(
+        let vc = SettingsViewController(
             settings: settings,
+            onDockIconPolicyChanged: { [weak self] in
+                self?.dockPolicyController.update()
+            },
             onPersonalInformationVisibilityChanged: { [weak self] in
-                self?.reloadVisibleViews(for: .accounts)
+                self?.reloadAllViews()
             },
             onRefreshSettingsChanged: { [weak self] in
                 self?.onRefreshSettingsChanged()
@@ -119,6 +70,7 @@ final class MenuBarController: NSObject {
                 self?.presentDocument(.openSourceLicenses)
             }
         )
+        return vc
     }
 
     private lazy var settingsWindowPresenter = WindowPresentationCoordinator(window: settingsWindowController)
@@ -129,7 +81,13 @@ final class MenuBarController: NSObject {
         title: { [unowned self] in selectedDocument.title },
         size: NSSize(width: 620, height: 520),
         autosaveName: "dev.zach.mitori.document",
-        isResizable: true
+        titleVisibility: .visible,
+        isResizable: true,
+        onWindowClose: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.dockPolicyController.update()
+            }
+        }
     ) { [unowned self] in
         DocumentViewController(document: selectedDocument)
     }
@@ -147,21 +105,127 @@ final class MenuBarController: NSObject {
         self.probeAppSearch = probeAppSearch
         self.onRefreshSettingsChanged = onRefreshSettingsChanged
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        popover = NSPopover()
 
         super.init()
         configureStatusItem()
-        configurePopover()
-        modelChangeCancellable = model.changeEvents.sink { [weak self] change in
-            self?.reloadVisibleViews(for: change)
+        modelChangeCancellable = model.changeEvents.sink { [weak self] _ in
+            self?.reloadAllViews()
+        }
+        windowCloseObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.dockPolicyController.update()
+            }
+        }
+        dockPolicyController.update()
+    }
+
+    deinit {
+        if let windowCloseObserver {
+            NotificationCenter.default.removeObserver(windowCloseObserver)
         }
     }
 
-    private func configureStatusItem() {
-        guard let button = statusItem.button else {
-            return
-        }
+    // MARK: - Window & Menu Actions
 
+    func presentMainWindow() {
+        activateAsRegularApp()
+        mainWindowPresenter.present()
+        dockPolicyController.update()
+    }
+
+    func presentMainWindow(accountID: String) {
+        activateAsRegularApp()
+        mainWindowController.showAccount(id: accountID)
+        dockPolicyController.update()
+    }
+
+    @objc
+    func openMainWindow() {
+        presentMainWindow()
+    }
+
+    @objc
+    func addAccount() {
+        activateAsRegularApp()
+        mainWindowController.presentAddAccountSheet()
+        dockPolicyController.update()
+    }
+
+    @objc
+    func refreshSelectedAccount() {
+        if mainWindowController.isVisible {
+            mainWindowController.refreshSelectedAccount()
+        } else {
+            refreshAll()
+        }
+    }
+
+    @objc
+    func refreshAll() {
+        Task {
+            await model.refreshAll()
+        }
+    }
+
+    @objc
+    func openSettings() {
+        activateAsRegularApp()
+        settingsWindowPresenter.present()
+        dockPolicyController.update()
+    }
+
+    @objc
+    func openAbout() {
+        activateAsRegularApp()
+        NSApp.orderFrontStandardAboutPanel(nil)
+        dockPolicyController.update()
+    }
+
+    @objc
+    func quit() {
+        NSApp.terminate(nil)
+    }
+
+    // MARK: - NSMenuDelegate
+
+    func menuWillOpen(_ menu: NSMenu) {
+        rebuildStatusMenu(menu)
+    }
+
+    // MARK: - Private
+
+    private var hasAnyVisibleRegularWindow: Bool {
+        if mainWindowController.isVisible
+            || settingsWindowController.isVisible
+            || documentWindowController.isVisible
+        {
+            return true
+        }
+        // Include standard About panel or any other titled app window.
+        return NSApp.windows.contains { window in
+            window.isVisible
+                && !window.isSheet
+                && window.level == .normal
+                && window.className != "NSStatusBarWindow"
+        }
+    }
+
+    private func activateAsRegularApp() {
+        if NSApp.activationPolicy() != .regular {
+            NSApp.setActivationPolicy(.regular)
+        }
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func configureStatusItem() {
+        statusMenu.delegate = self
+        statusItem.menu = statusMenu
+
+        guard let button = statusItem.button else { return }
         if let image = NSImage(named: "MitoriStatusIcon") {
             image.isTemplate = true
             image.size = NSSize(width: 18, height: 18)
@@ -170,151 +234,49 @@ final class MenuBarController: NSObject {
         } else {
             button.title = "Mitori"
         }
-
         button.toolTip = "Mitori"
         button.setAccessibilityIdentifier("menu.status-item")
-        button.target = self
-        button.action = #selector(handleStatusItemClick(_:))
-        button.sendAction(on: [.leftMouseUp])
     }
 
-    private func configurePopover() {
-        popover.behavior = .transient
-        popover.animates = false
-        popover.contentSize = NSSize(width: 360, height: 420)
-        popover.contentViewController = menuPanelController
-    }
-
-    private func presentAddAccountWindow() {
-        popover.performClose(nil)
-        addAccountWindowPresenter.present()
-    }
-
-    private func closeAddAccountWindow() {
-        addAccountWindowController.close()
-        menuPanelController.reload()
-    }
-
-    private func addAccountDidSucceed(accountID _: String) {
-        addAccountWindowController.close()
-        presentPopover()
-    }
-
-    private func presentSettingsWindow() {
-        popover.performClose(nil)
-        settingsWindowPresenter.present()
-    }
-
-    private func presentAboutPanel() {
-        popover.performClose(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.orderFrontStandardAboutPanel(nil)
+    private func rebuildStatusMenu(_ menu: NSMenu) {
+        let actions = StatusMenuBuilder.Actions(
+            target: self,
+            openAccount: #selector(handleStatusMenuAccount(_:)),
+            addAccount: #selector(addAccount),
+            refreshAll: #selector(refreshAll),
+            openMainWindow: #selector(openMainWindow),
+            openSettings: #selector(openSettings),
+            quit: #selector(quit)
+        )
+        StatusMenuBuilder.populate(
+            menu,
+            accounts: model.accounts,
+            loadError: model.loadError,
+            isRefreshingAll: model.isRefreshingAll,
+            hidesPersonalInformation: settings.isPersonalInformationHidden,
+            refreshStateFor: { [model] in model.refreshState(for: $0) },
+            nextAutoRefreshFor: { [model] in model.nextAutoRefreshDate(for: $0) },
+            actions: actions
+        )
     }
 
     private func presentDocument(_ document: BundledDocument) {
         selectedDocument = document
+        activateAsRegularApp()
         documentWindowPresenter.present()
+        dockPolicyController.update()
     }
 
-    private func presentAccountDetailWindow(for accountID: String) {
-        let switchesAccount = accountID != detailAccountID
-        detailAccountID = accountID
-        popover.performClose(nil)
-        // The window content is built for one account, so a different account needs a rebuild.
-        if switchesAccount {
-            accountDetailWindowController.show()
-        } else {
-            accountDetailWindowPresenter.present()
+    private func reloadAllViews() {
+        if mainWindowController.isVisible {
+            mainWindowController.reload()
         }
-    }
-
-    private func presentPopover() {
-        popoverPresenter.present()
-    }
-
-    private func closeAccountDetailWindow() {
-        accountDetailWindowController.close()
-        presentPopover()
-    }
-
-    private func probeDidSave(accountID: String, probeChanged: Bool) {
-        accountDetailWindowController.close()
-        presentPopover()
-        guard probeChanged else { return }
-        Task {
-            await model.refreshAccount(id: accountID, isManualRefresh: true)
-        }
-    }
-
-    private func reloadVisibleViews(for change: ModelChange) {
-        menuPanelController.reload()
-        guard accountDetailWindowController.isVisible else { return }
-        switch change {
-        case .accounts:
-            accountDetailWindowController.window?.title = accountDetailWindowTitle
-            accountDetailViewController?.reload()
-        case let .account(accountID) where accountID == detailAccountID:
-            accountDetailWindowController.window?.title = accountDetailWindowTitle
-            accountDetailViewController?.reload()
-        case .account, .banner, .refreshingAll, .loadError:
-            break
-        }
-    }
-
-    private var accountDetailWindowTitle: String {
-        guard let account = model.account(with: detailAccountID),
-              let accountIndex = model.accounts.firstIndex(where: { $0.id == account.id })
-        else {
-            return "Account Details"
-        }
-        return AccountPresentation(
-            account: account,
-            accountIndex: accountIndex,
-            hidesPersonalInformation: settings.isPersonalInformationHidden
-        ).windowTitle
+        rebuildStatusMenu(statusMenu)
     }
 
     @objc
-    private func handleStatusItemClick(_: Any?) {
-        interactionController.handleClick(clickCount: NSApp.currentEvent?.clickCount ?? 1)
-    }
-}
-
-@MainActor
-private final class StatusItemPopoverController: MenuBarPopoverManaging {
-    private let statusItem: NSStatusItem
-    private let popover: NSPopover
-    private let beforePresent: @MainActor () -> Void
-
-    init(
-        statusItem: NSStatusItem,
-        popover: NSPopover,
-        beforePresent: @escaping @MainActor () -> Void
-    ) {
-        self.statusItem = statusItem
-        self.popover = popover
-        self.beforePresent = beforePresent
-    }
-
-    var isPresented: Bool {
-        popover.isShown
-    }
-
-    func present() {
-        guard let button = statusItem.button else {
-            return
-        }
-
-        beforePresent()
-        if let preferredContentSize = popover.contentViewController?.preferredContentSize,
-           preferredContentSize != .zero {
-            popover.contentSize = preferredContentSize
-        }
-        NSApp.activate(ignoringOtherApps: true)
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-    }
-
-    func dismiss() {
-        popover.performClose(nil)
+    private func handleStatusMenuAccount(_ sender: NSMenuItem) {
+        guard let accountID = sender.representedObject as? String else { return }
+        presentMainWindow(accountID: accountID)
     }
 }

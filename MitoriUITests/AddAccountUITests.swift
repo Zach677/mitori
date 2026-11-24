@@ -9,10 +9,10 @@ import XCTest
 
 final class AddAccountUITests: MitoriUITestCase {
     func testTwoFactorFlowAddsAccount() throws {
-        openMenu()
-        require("menu.add-account").click()
+        _ = require(readyRow, timeout: 10)
+        require("main.add-account").click()
         let submit = require("add-account.submit")
-        XCTAssertFalse(submit.isEnabled, "Login must wait for email and password")
+        XCTAssertFalse(submit.isEnabled, "Sign In must wait for email and password")
         captureScreen("add-account", containing: "add-account.email")
 
         type("new@example.com", into: "add-account.email")
@@ -35,12 +35,12 @@ final class AddAccountUITests: MitoriUITestCase {
 
         let newRow = require("account-row.new@example.com", timeout: 10)
         XCTAssertTrue(value(of: newRow).contains("7.50"), value(of: newRow))
-        XCTAssertFalse(element("add-account.email").exists, "Add Account window must close")
+        XCTAssertFalse(element("add-account.email").exists, "Add Account sheet must close")
     }
 
-    func testCancelClosesWindow() throws {
-        openMenu()
-        require("menu.add-account").click()
+    func testCancelClosesSheet() throws {
+        _ = require(readyRow, timeout: 10)
+        require("main.add-account").click()
 
         require("add-account.cancel").click()
 

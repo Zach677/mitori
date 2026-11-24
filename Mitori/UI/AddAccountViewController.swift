@@ -17,12 +17,13 @@ final class AddAccountViewController: NSViewController, NSTextFieldDelegate {
     private let emailField = NSTextField()
     private let passwordField = NSSecureTextField()
     private let verificationCodeField = NSTextField()
-    private let twoFactorMessageLabel = NSTextField(labelWithString: "")
-    private let errorLabel = NSTextField(labelWithString: "")
+    private var codeRow: NSGridRow?
+    private let twoFactorMessageLabel = NSTextField(wrappingLabelWithString: "")
+    private let errorLabel = NSTextField(wrappingLabelWithString: "")
     private let recoveryButton = NSButton(title: "Open account.apple.com", target: nil, action: nil)
-    private let submitButton = NSButton(title: "Login", target: nil, action: nil)
-    private let twoFactorSection = NSStackView()
-    private let errorSection = NSStackView()
+    private let spinner = NSProgressIndicator()
+    private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
+    private let submitButton = NSButton(title: "Sign In", target: nil, action: nil)
     private var loginTask: Task<Void, Never>?
 
     init(
@@ -53,9 +54,18 @@ final class AddAccountViewController: NSViewController, NSTextFieldDelegate {
         view.window?.makeFirstResponder(emailField)
     }
 
+    override func viewWillDisappear() {
+        super.viewWillDisappear()
+        cancelLogin()
+    }
+
     func cancelLogin() {
         loginTask?.cancel()
         loginTask = nil
+    }
+
+    func controlTextDidChange(_: Notification) {
+        reload()
     }
 }
 
@@ -63,145 +73,111 @@ private extension AddAccountViewController {
     func configureLayout() {
         let root = NSStackView()
         root.orientation = .vertical
-        root.alignment = .width
-        root.spacing = 16
+        root.alignment = .leading
+        root.spacing = 14
         root.translatesAutoresizingMaskIntoConstraints = false
 
-        addFullWidth(makeHeader(), to: root)
-        addFullWidth(makeCredentialsSection(), to: root)
-        addFullWidth(makeTwoFactorSection(), to: root)
-        addFullWidth(makeErrorSection(), to: root)
-        root.addArrangedSubview(NSView())
-        addFullWidth(makeActionRow(), to: root)
-
-        view.addSubview(root)
-        NSLayoutConstraint.activate([
-            root.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
-            root.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
-            root.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 24),
-            root.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
-            view.widthAnchor.constraint(equalToConstant: 430),
-        ])
-    }
-
-    func makeHeader() -> NSView {
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 4
-
         let title = NSTextField(labelWithString: "Add Apple Account")
-        title.font = .systemFont(ofSize: 15, weight: .semibold)
-        title.alignment = .left
+        title.font = .systemFont(ofSize: 13, weight: .bold)
 
-        let subtitle = NSTextField(wrappingLabelWithString: "Sign in with your Apple ID. If Apple asks for two-factor authentication, enter the code and submit again.")
-        subtitle.font = .systemFont(ofSize: 12)
-        subtitle.alignment = .left
+        let subtitle = NSTextField(wrappingLabelWithString: "Sign in with your Apple ID. If Apple asks for two-factor authentication, enter the code and sign in again.")
+        subtitle.font = .systemFont(ofSize: 11)
         subtitle.textColor = .secondaryLabelColor
         subtitle.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        stack.addArrangedSubview(title)
-        stack.addArrangedSubview(subtitle)
-        return stack
-    }
+        let header = NSStackView(views: [title, subtitle])
+        header.orientation = .vertical
+        header.alignment = .leading
+        header.spacing = 4
+        addFullWidth(header, to: root)
 
-    func makeCredentialsSection() -> NSView {
-        let stack = section(title: "Apple ID")
-        configureField(emailField, placeholder: "Email")
-        configureField(passwordField, placeholder: "Password")
+        configureField(emailField, placeholder: "name@example.com")
         emailField.target = self
         emailField.action = #selector(focusPassword)
+        emailField.setAccessibilityIdentifier("add-account.email")
+
+        configureField(passwordField, placeholder: "Password")
         passwordField.target = self
         passwordField.action = #selector(submit)
-        emailField.setAccessibilityIdentifier("add-account.email")
         passwordField.setAccessibilityIdentifier("add-account.password")
-        addFullWidth(emailField, to: stack)
-        addFullWidth(passwordField, to: stack)
-        return stack
-    }
 
-    func makeTwoFactorSection() -> NSView {
-        twoFactorSection.orientation = .vertical
-        twoFactorSection.alignment = .width
-        twoFactorSection.spacing = 8
-
-        addFullWidth(fieldLabel("Two-Factor Authentication"), to: twoFactorSection)
-
-        twoFactorMessageLabel.font = .systemFont(ofSize: 12)
-        twoFactorMessageLabel.textColor = .secondaryLabelColor
-        twoFactorMessageLabel.lineBreakMode = .byWordWrapping
-        twoFactorMessageLabel.maximumNumberOfLines = 3
-        twoFactorMessageLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        addFullWidth(twoFactorMessageLabel, to: twoFactorSection)
-
-        configureField(verificationCodeField, placeholder: "Verification Code")
+        configureField(verificationCodeField, placeholder: "6-digit code")
+        verificationCodeField.font = .monospacedDigitSystemFont(ofSize: 13, weight: .regular)
         verificationCodeField.target = self
         verificationCodeField.action = #selector(submit)
         verificationCodeField.setAccessibilityIdentifier("add-account.code")
-        addFullWidth(verificationCodeField, to: twoFactorSection)
-        return twoFactorSection
-    }
 
-    func makeErrorSection() -> NSView {
-        errorSection.orientation = .vertical
-        errorSection.alignment = .width
-        errorSection.spacing = 6
+        let grid = NSGridView(views: [
+            [formLabel("Apple ID"), emailField],
+            [formLabel("Password"), passwordField],
+            [formLabel("Code"), verificationCodeField],
+        ])
+        grid.rowSpacing = 10
+        grid.columnSpacing = 10
+        grid.column(at: 0).xPlacement = .trailing
+        grid.column(at: 1).xPlacement = .fill
+        grid.rowAlignment = .firstBaseline
+        codeRow = grid.row(at: 2)
+        addFullWidth(grid, to: root)
 
-        errorLabel.font = .systemFont(ofSize: 12)
-        errorLabel.textColor = NSColor.systemRed.blended(withFraction: 0.25, of: .labelColor)
-        errorLabel.lineBreakMode = .byWordWrapping
-        errorLabel.maximumNumberOfLines = 4
+        twoFactorMessageLabel.font = .systemFont(ofSize: 11)
+        twoFactorMessageLabel.textColor = .secondaryLabelColor
+        twoFactorMessageLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        addFullWidth(twoFactorMessageLabel, to: root)
+
+        errorLabel.font = .systemFont(ofSize: 11.5)
+        errorLabel.textColor = NSColor.systemRed.blended(withFraction: 0.25, of: .labelColor) ?? .systemRed
         errorLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        errorLabel.setAccessibilityIdentifier("add-account.error")
+        addFullWidth(errorLabel, to: root)
 
         recoveryButton.bezelStyle = .inline
         recoveryButton.alignment = .left
         recoveryButton.target = self
         recoveryButton.action = #selector(openRecoveryLink)
-        errorLabel.setAccessibilityIdentifier("add-account.error")
         recoveryButton.setAccessibilityIdentifier("add-account.recovery")
+        root.addArrangedSubview(recoveryButton)
 
-        addFullWidth(errorLabel, to: errorSection)
-        errorSection.addArrangedSubview(recoveryButton)
-        return errorSection
-    }
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.isIndeterminate = true
+        spinner.isDisplayedWhenStopped = false
 
-    func makeActionRow() -> NSView {
-        let stack = NSStackView()
-        stack.orientation = .horizontal
-        stack.alignment = .centerY
-        stack.spacing = 8
-        stack.translatesAutoresizingMaskIntoConstraints = false
-
-        let cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancel))
         cancelButton.bezelStyle = .rounded
+        cancelButton.keyEquivalent = "\u{1b}"
+        cancelButton.target = self
+        cancelButton.action = #selector(cancel)
         cancelButton.setAccessibilityIdentifier("add-account.cancel")
 
-        submitButton.target = self
-        submitButton.action = #selector(submit)
         submitButton.bezelStyle = .rounded
         submitButton.keyEquivalent = "\r"
+        submitButton.target = self
+        submitButton.action = #selector(submit)
         submitButton.setAccessibilityIdentifier("add-account.submit")
 
-        stack.addArrangedSubview(NSView())
-        stack.addArrangedSubview(cancelButton)
-        stack.addArrangedSubview(submitButton)
-        stack.heightAnchor.constraint(greaterThanOrEqualToConstant: 32).isActive = true
-        return stack
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let actions = NSStackView(views: [spinner, spacer, cancelButton, submitButton])
+        actions.orientation = .horizontal
+        actions.alignment = .centerY
+        actions.spacing = 8
+        addFullWidth(actions, to: root)
+
+        view.addSubview(root)
+        NSLayoutConstraint.activate([
+            root.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            root.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            root.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
+            root.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
+            view.widthAnchor.constraint(equalToConstant: 420),
+        ])
     }
 
-    func section(title: String) -> NSStackView {
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .width
-        stack.spacing = 8
-        addFullWidth(fieldLabel(title), to: stack)
-        return stack
-    }
-
-    func fieldLabel(_ title: String) -> NSTextField {
-        let label = NSTextField(labelWithString: title)
-        label.font = .systemFont(ofSize: 11, weight: .medium)
+    func formLabel(_ title: String) -> NSTextField {
+        let label = NSTextField(labelWithString: "\(title):")
+        label.font = .systemFont(ofSize: 12)
         label.textColor = .secondaryLabelColor
+        label.alignment = .right
         return label
     }
 
@@ -215,20 +191,33 @@ private extension AddAccountViewController {
     func reload() {
         flow.email = emailField.stringValue
         flow.password = passwordField.stringValue
-        if verificationCodeField.stringValue != flow.verificationCode, flow.verificationCode.isEmpty, !flow.showsVerificationCode {
+        if verificationCodeField.stringValue != flow.verificationCode,
+           flow.verificationCode.isEmpty,
+           !flow.showsVerificationCode
+        {
             verificationCodeField.stringValue = ""
         } else {
             flow.verificationCode = verificationCodeField.stringValue
         }
 
-        twoFactorSection.isHidden = !flow.showsVerificationCode
-        twoFactorMessageLabel.stringValue = flow.twoFactorMessage
-        errorLabel.stringValue = flow.errorMessage ?? ""
-        errorSection.isHidden = flow.errorMessage?.isEmpty ?? true
+        codeRow?.isHidden = !flow.showsVerificationCode
+        twoFactorMessageLabel.stringValue = flow.showsVerificationCode ? flow.twoFactorMessage : ""
+        twoFactorMessageLabel.isHidden = !flow.showsVerificationCode
+
+        let errorText = flow.errorMessage ?? ""
+        errorLabel.stringValue = errorText
+        errorLabel.isHidden = errorText.isEmpty
+
         recoveryButton.title = flow.recoveryLink?.title ?? "Open account.apple.com"
         recoveryButton.isHidden = flow.recoveryLink == nil
-        submitButton.title = flow.requiresVerificationCode ? "Verify & Login" : "Login"
+
+        submitButton.title = "Sign In"
         submitButton.isEnabled = flow.canSubmit
+        if flow.isSubmitting {
+            spinner.startAnimation(nil)
+        } else {
+            spinner.stopAnimation(nil)
+        }
     }
 
     @objc
@@ -281,11 +270,5 @@ private extension AddAccountViewController {
     func cancel() {
         cancelLogin()
         onClose()
-    }
-}
-
-extension AddAccountViewController {
-    func controlTextDidChange(_: Notification) {
-        reload()
     }
 }

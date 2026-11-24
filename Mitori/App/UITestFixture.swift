@@ -6,15 +6,17 @@
 //
 
 #if DEBUG
-import Foundation
+import AppKit
 
-/// Offline launch fixture for UI tests. `MITORI_UI_FIXTURE=1` seeds two
-/// accounts; `MITORI_UI_FIXTURE=empty` starts with none. It never reads or
+/// Offline launch fixture for UI tests. `MITORI_UI_FIXTURE=1` seeds three
+/// accounts (ready, expired, code needed); `MITORI_UI_FIXTURE=empty` starts
+/// with none. `MITORI_UI_APPEARANCE=dark` forces Dark Mode. It never reads or
 /// writes the real account file, Keychain, refresh settings, or network.
 @MainActor
 final class UITestFixture {
     nonisolated static let readyEmail = "ready@example.com"
     nonisolated static let expiredEmail = "expired@example.com"
+    nonisolated static let codeEmail = "code@example.com"
     /// The only 2FA code the fixture accepts.
     nonisolated static let validCode = "123456"
 
@@ -53,16 +55,28 @@ final class UITestFixture {
     }
 
     func seed() async throws {
+        if ProcessInfo.processInfo.environment["MITORI_UI_APPEARANCE"] == "dark" {
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
         guard seedsAccounts else { return }
         let fetchedAt = Date(timeIntervalSinceNow: -3600)
         var ready = Self.meta(email: Self.readyEmail, firstName: "Ready")
+        ready.probeAppName = "Fixture Pages"
         ready.balanceSnapshot = Self.snapshot("$12.34", amount: "12.34", fetchedAt: fetchedAt)
         ready.lastRefreshAt = fetchedAt
         var expired = Self.meta(email: Self.expiredEmail, firstName: "Expired")
         expired.balanceSnapshot = Self.snapshot("$5.00", amount: "5.00", fetchedAt: fetchedAt)
         expired.lastRefreshAt = fetchedAt
+        var code = Self.meta(email: Self.codeEmail, firstName: "Code")
+        code.balanceSnapshot = Self.snapshot("$1.00", amount: "1.00", fetchedAt: fetchedAt)
+        code.lastRefreshAt = fetchedAt
+        code.lastIssue = RefreshIssue(
+            kind: .requiresVerification,
+            message: "Apple asked for a verification code. Enter the code your devices showed and sign in again.",
+            updatedAt: fetchedAt
+        )
 
-        for meta in [ready, expired] {
+        for meta in [ready, expired, code] {
             try await accountStore.upsert(meta)
             try await secretStore.save(Self.secret, for: meta.id)
         }
@@ -108,7 +122,8 @@ final class UITestFixture {
 }
 
 /// Deterministic bridge. Login and reauthentication accept only `validCode`;
-/// the ready account refreshes to $42.00 and the expired one always fails.
+/// the ready account refreshes to $42.00 and the others always fail.
+/// A refresh takes 2 s so tests can capture the refreshing state.
 private struct FixtureSessionBridge: AppleSessionBridging {
     func login(
         email: String,
@@ -130,7 +145,7 @@ private struct FixtureSessionBridge: AppleSessionBridging {
     func reauthenticate(
         meta: StoredAccountMeta,
         secret: StoredAccountSecret?,
-        passwordOverride _: String?,
+        passwordOverride: String?,
         code: String
     ) async throws -> SessionRefreshResult {
         try await Task.sleep(nanoseconds: 300_000_000)
@@ -139,7 +154,12 @@ private struct FixtureSessionBridge: AppleSessionBridging {
         updated.balanceSnapshot = UITestFixture.snapshot("$5.00", amount: "5.00", fetchedAt: Date())
         updated.lastRefreshAt = Date()
         updated.lastIssue = nil
-        return SessionRefreshResult(meta: updated, secret: secret ?? UITestFixture.secret)
+        var nextSecret = secret ?? UITestFixture.secret
+        if let passwordOverride, !passwordOverride.isEmpty {
+            nextSecret.password = passwordOverride
+            nextSecret.cookies = []
+        }
+        return SessionRefreshResult(meta: updated, secret: nextSecret)
     }
 
     func refreshBalance(
@@ -147,7 +167,7 @@ private struct FixtureSessionBridge: AppleSessionBridging {
         secret: StoredAccountSecret,
         allowsReauthentication _: Bool
     ) async throws -> SessionRefreshResult {
-        try await Task.sleep(nanoseconds: 300_000_000)
+        try await Task.sleep(nanoseconds: 2_000_000_000)
         guard meta.email == UITestFixture.readyEmail else {
             throw MitoriError.sessionExpired
         }

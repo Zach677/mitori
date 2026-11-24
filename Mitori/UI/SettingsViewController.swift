@@ -19,24 +19,29 @@ final class SettingsViewController: NSViewController {
     ]
 
     private let settings: RefreshSettingsStore
+    private let onDockIconPolicyChanged: @MainActor () -> Void
     private let onPersonalInformationVisibilityChanged: @MainActor () -> Void
     private let onRefreshSettingsChanged: @MainActor () -> Void
     private let onOpenPrivacyPolicy: @MainActor () -> Void
     private let onOpenSourceLicenses: @MainActor () -> Void
+
     private let openAtLoginSwitch = NSSwitch()
+    private let hideDockIconSwitch = NSSwitch()
     private let hidePersonalInformationSwitch = NSSwitch()
     private let autoRefreshSwitch = NSSwitch()
     private let intervalPopUp = NSPopUpButton()
-    private weak var intervalSettingView: NSView?
+    private weak var intervalRowView: NSView?
 
     init(
         settings: RefreshSettingsStore,
+        onDockIconPolicyChanged: @escaping @MainActor () -> Void = {},
         onPersonalInformationVisibilityChanged: @escaping @MainActor () -> Void,
         onRefreshSettingsChanged: @escaping @MainActor () -> Void = {},
         onOpenPrivacyPolicy: @escaping @MainActor () -> Void,
         onOpenSourceLicenses: @escaping @MainActor () -> Void
     ) {
         self.settings = settings
+        self.onDockIconPolicyChanged = onDockIconPolicyChanged
         self.onPersonalInformationVisibilityChanged = onPersonalInformationVisibilityChanged
         self.onRefreshSettingsChanged = onRefreshSettingsChanged
         self.onOpenPrivacyPolicy = onOpenPrivacyPolicy
@@ -55,6 +60,23 @@ final class SettingsViewController: NSViewController {
         configureLayout()
         reload()
     }
+
+    func reload() {
+        guard isViewLoaded else { return }
+        openAtLoginSwitch.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        hideDockIconSwitch.state = settings.hidesDockIconWhenClosed ? .on : .off
+        hidePersonalInformationSwitch.state = settings.isPersonalInformationHidden ? .on : .off
+
+        let isAutoRefreshEnabled = settings.isAutoRefreshEnabled
+        autoRefreshSwitch.state = isAutoRefreshEnabled ? .on : .off
+        intervalPopUp.isEnabled = isAutoRefreshEnabled
+        intervalRowView?.alphaValue = isAutoRefreshEnabled ? 1 : 0.55
+
+        let current = settings.autoRefreshInterval
+        let index = Self.intervalChoices.firstIndex { $0.interval >= current }
+            ?? Self.intervalChoices.indices.last!
+        intervalPopUp.selectItem(at: index)
+    }
 }
 
 private extension SettingsViewController {
@@ -65,177 +87,140 @@ private extension SettingsViewController {
         root.spacing = 18
         root.translatesAutoresizingMaskIntoConstraints = false
 
-        addFullWidth(makeGeneralSection(), to: root)
-        addFullWidth(makeRefreshSection(), to: root)
-        addFullWidth(makeAboutSection(), to: root)
+        addFullWidth(makeGeneralGroup(), to: root)
+        addFullWidth(makeRefreshGroup(), to: root)
+        addFullWidth(makeAboutGroup(), to: root)
 
         view.addSubview(root)
         NSLayoutConstraint.activate([
             root.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             root.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
-            root.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 24),
+            root.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 18),
             root.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -24),
-            view.widthAnchor.constraint(equalToConstant: 420),
-            view.heightAnchor.constraint(greaterThanOrEqualToConstant: 420),
+            view.widthAnchor.constraint(equalToConstant: 500),
         ])
     }
 
-    func makeGeneralSection() -> NSView {
-        let stack = section(title: "General")
+    func makeGeneralGroup() -> GroupedFormView {
+        let group = GroupedFormView(
+            title: "General",
+            footnote: "With the Dock icon hidden, Mitori stays in the menu bar only after you close its windows. Hidden personal information shows accounts as “Account 1”, “Account 2”."
+        )
 
         openAtLoginSwitch.target = self
         openAtLoginSwitch.action = #selector(toggleOpenAtLogin)
         openAtLoginSwitch.controlSize = .small
         openAtLoginSwitch.setAccessibilityIdentifier("settings.open-at-login")
-        addFullWidth(settingBlock(title: "Open at login", control: openAtLoginSwitch), to: stack)
+        group.addRow(settingRow(title: "Open at login", control: openAtLoginSwitch))
+
+        hideDockIconSwitch.target = self
+        hideDockIconSwitch.action = #selector(toggleHideDockIcon)
+        hideDockIconSwitch.controlSize = .small
+        hideDockIconSwitch.setAccessibilityIdentifier("settings.hide-dock-icon")
+        group.addRow(settingRow(title: "Hide Dock icon when window is closed", control: hideDockIconSwitch))
 
         hidePersonalInformationSwitch.target = self
         hidePersonalInformationSwitch.action = #selector(togglePersonalInformationVisibility)
         hidePersonalInformationSwitch.controlSize = .small
         hidePersonalInformationSwitch.setAccessibilityIdentifier("settings.hide-personal-information")
-        addFullWidth(settingBlock(
-            title: "Hide personal information",
-            help: "Hides account names, email addresses, Apple IDs, and device IDs in Mitori.",
-            control: hidePersonalInformationSwitch
-        ), to: stack)
-        return stack
+        group.addRow(settingRow(title: "Hide personal information", control: hidePersonalInformationSwitch))
+        return group
     }
 
-    func makeRefreshSection() -> NSView {
-        let stack = section(title: "Refresh")
+    func makeRefreshGroup() -> GroupedFormView {
+        let group = GroupedFormView(
+            title: "Refresh",
+            footnote: "Only accounts with a background refresh app refresh automatically. Mitori never sends a password in the background."
+        )
 
         autoRefreshSwitch.target = self
         autoRefreshSwitch.action = #selector(toggleAutoRefresh)
         autoRefreshSwitch.controlSize = .small
         autoRefreshSwitch.setAccessibilityIdentifier("settings.auto-refresh")
-        addFullWidth(settingBlock(
-            title: "Refresh balances automatically",
-            help: "Needs a probe app and never sends your password. Accounts without a probe app refresh when you ask.",
-            control: autoRefreshSwitch
-        ), to: stack)
+        group.addRow(settingRow(title: "Refresh balances automatically", control: autoRefreshSwitch))
 
         intervalPopUp.addItems(withTitles: Self.intervalChoices.map(\.title))
         intervalPopUp.target = self
         intervalPopUp.action = #selector(selectInterval)
         intervalPopUp.setAccessibilityIdentifier("settings.interval")
-        intervalPopUp.widthAnchor.constraint(equalToConstant: 142).isActive = true
-        let intervalSetting = settingBlock(
-            title: "Refresh every",
-            help: "Minimum 15 minutes. Mitori automatically backs off after failed refreshes.",
-            control: intervalPopUp
-        )
-        intervalSettingView = intervalSetting
-        addFullWidth(intervalSetting, to: stack)
-        return stack
+        intervalPopUp.widthAnchor.constraint(equalToConstant: 136).isActive = true
+
+        let intervalRow = settingRow(title: "Refresh every", control: intervalPopUp)
+        intervalRowView = intervalRow
+        group.addRow(intervalRow)
+        return group
     }
 
-    func makeAboutSection() -> NSView {
-        let stack = section(title: "Privacy & Legal")
-        stack.spacing = 6
-        addFullWidth(documentRow(
+    func makeAboutGroup() -> GroupedFormView {
+        let group = GroupedFormView(title: "About")
+        group.addRow(documentRow(
             title: "Privacy Policy",
-            symbolName: "arrow.up.right.square",
             accessibilityHelp: "Open the Mitori privacy policy in your browser.",
             identifier: "settings.privacy-policy",
             action: #selector(openPrivacyPolicy)
-        ), to: stack)
-        addFullWidth(documentRow(
+        ))
+        group.addRow(documentRow(
             title: "Open Source Licenses",
-            symbolName: "doc.text",
             accessibilityHelp: "View third-party license terms bundled with Mitori.",
             identifier: "settings.licenses",
             action: #selector(openSourceLicenses)
-        ), to: stack)
-        return stack
-    }
+        ))
 
-    func section(title: String) -> NSStackView {
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .width
-        stack.spacing = 10
-        addFullWidth(sectionLabel(title), to: stack)
-        return stack
-    }
-
-    func sectionLabel(_ title: String) -> NSTextField {
-        let label = NSTextField(labelWithString: title)
-        label.font = .systemFont(ofSize: 12, weight: .medium)
-        label.textColor = .secondaryLabelColor
-        return label
-    }
-
-    func settingBlock(title: String, help: String? = nil, control: NSView) -> NSView {
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .width
-        stack.spacing = 4
-        addFullWidth(settingRow(title: title, control: control), to: stack)
-
-        if let help {
-            let label = NSTextField(wrappingLabelWithString: help)
-            label.font = .systemFont(ofSize: 12)
-            label.textColor = .secondaryLabelColor
-            label.maximumNumberOfLines = 2
-            label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-            addFullWidth(label, to: stack)
-        }
-        return stack
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+        let versionLabel = NSTextField(labelWithString: version)
+        versionLabel.font = .systemFont(ofSize: 13)
+        versionLabel.textColor = .secondaryLabelColor
+        versionLabel.isSelectable = true
+        versionLabel.setAccessibilityIdentifier("settings.version")
+        group.addRow(settingRow(title: "Version", control: versionLabel))
+        return group
     }
 
     func settingRow(title: String, control: NSView) -> NSView {
-        let row = NSStackView()
+        let titleLabel = NSTextField(labelWithString: title)
+        titleLabel.font = .systemFont(ofSize: 13)
+        titleLabel.textColor = .labelColor
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        control.setAccessibilityLabel(title)
+
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let row = NSStackView(views: [titleLabel, spacer, control])
         row.orientation = .horizontal
         row.alignment = .centerY
         row.spacing = 12
-
-        let label = NSTextField(labelWithString: title)
-        label.font = .systemFont(ofSize: 13)
-        // Switches and pop-ups have no title of their own; VoiceOver reads the row title.
-        control.setAccessibilityLabel(title)
-
-        row.addArrangedSubview(label)
-        row.addArrangedSubview(NSView())
-        row.addArrangedSubview(control)
-        row.heightAnchor.constraint(greaterThanOrEqualToConstant: 30).isActive = true
         return row
     }
 
     func documentRow(
         title: String,
-        symbolName: String,
         accessibilityHelp: String,
         identifier: String,
         action: Selector
     ) -> NSView {
         let button = NSButton(title: title, target: self, action: action)
-        button.bezelStyle = .inline
         button.isBordered = false
         button.alignment = .left
         button.font = .systemFont(ofSize: 13)
-        button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
-        button.imagePosition = .imageLeading
-        button.imageHugsTitle = true
         button.contentTintColor = .labelColor
         button.focusRingType = .default
         button.setAccessibilityHelp(accessibilityHelp)
         button.setAccessibilityIdentifier(identifier)
-        button.heightAnchor.constraint(equalToConstant: 28).isActive = true
-        return button
-    }
 
-    func reload() {
-        openAtLoginSwitch.state = SMAppService.mainApp.status == .enabled ? .on : .off
-        hidePersonalInformationSwitch.state = settings.isPersonalInformationHidden ? .on : .off
-        autoRefreshSwitch.state = settings.isAutoRefreshEnabled ? .on : .off
-        let isAutoRefreshEnabled = settings.isAutoRefreshEnabled
-        intervalPopUp.isEnabled = isAutoRefreshEnabled
-        intervalSettingView?.alphaValue = isAutoRefreshEnabled ? 1 : 0.65
+        let chevron = NSImageView(image: NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil) ?? NSImage())
+        chevron.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+        chevron.contentTintColor = .tertiaryLabelColor
+        chevron.setContentHuggingPriority(.required, for: .horizontal)
 
-        let current = settings.autoRefreshInterval
-        let index = Self.intervalChoices.firstIndex { $0.interval >= current }
-            ?? Self.intervalChoices.indices.last!
-        intervalPopUp.selectItem(at: index)
+        // The button stretches so the whole row is the click target.
+        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let row = NSStackView(views: [button, chevron])
+        row.distribution = .fill
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 12
+        return row
     }
 
     @objc
@@ -259,6 +244,13 @@ private extension SettingsViewController {
                 offersSystemSettings: service.status == .requiresApproval
             )
         }
+        reload()
+    }
+
+    @objc
+    func toggleHideDockIcon() {
+        settings.hidesDockIconWhenClosed = hideDockIconSwitch.state == .on
+        onDockIconPolicyChanged()
         reload()
     }
 

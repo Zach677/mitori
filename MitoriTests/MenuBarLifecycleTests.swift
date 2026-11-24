@@ -5,40 +5,152 @@
 //  Created by @Zach677 on 2026/03/25.
 //
 
+import AppKit
+import Foundation
 import Testing
 
 @testable import Mitori
 
 @MainActor
-struct MenuBarInteractionControllerTests {
+struct DockIconPolicyControllerTests {
     @Test
-    func primaryClickPresentsPopoverWhenHidden() {
-        let popover = PopoverSpy(isPresented: false)
-        let controller = MenuBarInteractionController(popover: popover)
+    func hidesInAccessoryModeWhenNoWindowIsVisibleAndPreferenceIsOn() {
+        var applied: [NSApplication.ActivationPolicy] = []
+        var visible = true
+        let controller = DockIconPolicyController(
+            hidesWhenClosed: { true },
+            hasVisibleWindow: { visible },
+            applyPolicy: { applied.append($0) }
+        )
 
-        controller.handleClick(clickCount: 1)
+        controller.update()
+        #expect(controller.currentPolicy == .regular)
+        #expect(applied == [.regular])
 
-        #expect(popover.events == ["present"])
+        visible = false
+        controller.update()
+        #expect(controller.currentPolicy == .accessory)
+        #expect(applied == [.regular, .accessory])
     }
 
     @Test
-    func primaryClickDismissesPopoverWhenVisible() {
-        let popover = PopoverSpy(isPresented: true)
-        let controller = MenuBarInteractionController(popover: popover)
+    func staysRegularWhenHidePreferenceIsOff() {
+        var applied: [NSApplication.ActivationPolicy] = []
+        let controller = DockIconPolicyController(
+            hidesWhenClosed: { false },
+            hasVisibleWindow: { false },
+            applyPolicy: { applied.append($0) }
+        )
 
-        controller.handleClick(clickCount: 1)
-
-        #expect(popover.events == ["dismiss"])
+        controller.update()
+        #expect(controller.currentPolicy == .regular)
+        #expect(applied == [.regular])
     }
 
     @Test
-    func repeatedClickLeavesPopoverStateUnchanged() {
-        let popover = PopoverSpy(isPresented: false)
-        let controller = MenuBarInteractionController(popover: popover)
+    func hideDockIconSettingDefaultsToTrue() throws {
+        let suiteName = "test.dock.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = RefreshSettingsStore(defaults: defaults)
 
-        controller.handleClick(clickCount: 2)
+        #expect(settings.hidesDockIconWhenClosed == true)
+        settings.hidesDockIconWhenClosed = false
+        #expect(settings.hidesDockIconWhenClosed == false)
+    }
+}
 
-        #expect(popover.events.isEmpty)
+@MainActor
+struct StatusMenuBuilderTests {
+    @Test
+    func emptyStateShowsNoAccountsAndAddAccount() {
+        let menu = NSMenu()
+        StatusMenuBuilder.populate(
+            menu,
+            accounts: [],
+            loadError: nil,
+            isRefreshingAll: false,
+            hidesPersonalInformation: false,
+            refreshStateFor: { _ in .idle },
+            nextAutoRefreshFor: { _ in nil },
+            actions: makeActions()
+        )
+
+        let ids = menu.items.compactMap { $0.identifier?.rawValue }
+        #expect(ids.contains("menu.empty-state"))
+        #expect(ids.contains("menu.add-account"))
+        #expect(!ids.contains("menu.refresh-all"))
+        #expect(ids.contains("menu.settings"))
+        #expect(ids.contains("menu.quit"))
+    }
+
+    @Test
+    func loadErrorStateShowsLoadErrorInsteadOfEmptyState() {
+        let menu = NSMenu()
+        StatusMenuBuilder.populate(
+            menu,
+            accounts: [],
+            loadError: "corrupt json",
+            isRefreshingAll: false,
+            hidesPersonalInformation: false,
+            refreshStateFor: { _ in .idle },
+            nextAutoRefreshFor: { _ in nil },
+            actions: makeActions()
+        )
+
+        let ids = menu.items.compactMap { $0.identifier?.rawValue }
+        #expect(ids.contains("menu.load-error"))
+        #expect(!ids.contains("menu.empty-state"))
+    }
+
+    @Test
+    func populatedMenuIncludesAccountItemsAndRefreshAll() {
+        var meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+        meta.balanceSnapshot = BalanceSnapshot(
+            displayText: "$12.34",
+            numericValue: Decimal(string: "12.34"),
+            currencyCode: "USD",
+            fetchedAt: Date(),
+            source: .probe,
+            rawFieldPath: "creditDisplay"
+        )
+        let menu = NSMenu()
+        StatusMenuBuilder.populate(
+            menu,
+            accounts: [meta],
+            loadError: nil,
+            isRefreshingAll: false,
+            hidesPersonalInformation: false,
+            refreshStateFor: { _ in .idle },
+            nextAutoRefreshFor: { _ in nil },
+            actions: makeActions()
+        )
+
+        let accountItem = menu.items.first { $0.identifier?.rawValue == "menu.account.\(meta.id)" }
+        #expect(accountItem != nil)
+        #expect(accountItem?.badge?.stringValue == "$12.34")
+        let ids = menu.items.compactMap { $0.identifier?.rawValue }
+        #expect(ids.contains("menu.refresh-all"))
+        #expect(ids.contains("menu.add-account"))
+        #expect(!ids.contains("menu.hide-personal-info"))
+        #expect(!ids.contains("menu.about"))
+    }
+
+    private func makeActions() -> StatusMenuBuilder.Actions {
+        let sel = #selector(NSObject.description)
+        return StatusMenuBuilder.Actions(
+            target: nil,
+            openAccount: sel,
+            addAccount: sel,
+            refreshAll: sel,
+            openMainWindow: sel,
+            openSettings: sel,
+            quit: sel
+        )
     }
 }
 
@@ -64,26 +176,6 @@ struct WindowPresentationCoordinatorTests {
 
         #expect(window.showCount == 0)
         #expect(window.focusCount == 1)
-    }
-}
-
-@MainActor
-private final class PopoverSpy: MenuBarPopoverManaging {
-    var isPresented: Bool
-    private(set) var events: [String] = []
-
-    init(isPresented: Bool) {
-        self.isPresented = isPresented
-    }
-
-    func present() {
-        events.append("present")
-        isPresented = true
-    }
-
-    func dismiss() {
-        events.append("dismiss")
-        isPresented = false
     }
 }
 
