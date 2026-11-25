@@ -28,12 +28,13 @@ Speak like a 16-year-old genius girl: smart, calm, slightly sharp, concise, and 
 
 ## Commands
 
+- Preferred check command: `mise run check` (SwiftFormat file headers + static spec-invariant guardrails; enable the local hook once with `git config core.hooksPath .githooks`)
 - Preferred run command: `mise run run-macos`
 - Preferred build command: `mise run build-macos`
 - Preferred test command: `mise run test-macos`
 - UI test command: `mise run test-ui-macos`. It needs an unlocked screen and Automation Mode without authentication (`sudo automationmodetool enable-automationmode-without-authentication`, run once by Zach). Do not move the mouse while it runs. It exports named screenshots of each screen state to `.artifacts/ui-screens/`.
 - UI tests away from the host screen: `mise run test-ui-vm`. It starts the tart VM `mitori-ui`, copies the working tree into it, runs `CI=1 mise run test-ui-macos` there, and copies the screenshots back. It needs `tart` and a VM made from a `cirruslabs/macos-*-xcode` image; set `TART_HOME` in the untracked `mise.local.toml` when the VM is not in `~/.tart`. Prefer it over `test-ui-macos` when the VM exists.
-- UI tests find controls by accessibility identifier (`menu.*`, `account-row.*`, `add-account.*`, `account-detail.*`, `settings.*`, `document.*`). A UI rewrite keeps these identifiers and the accessibility values the tests read, or updates the tests in the same change.
+- UI tests find controls by the accessibility identifier prefixes defined in `docs/spec.md` (D-18). Keep that spec as the single source of truth; a UI rewrite preserves those identifiers and accessibility values or updates `docs/spec.md` and the UI tests together.
 - Build and test commands should stay routed through `mise`; they wrap `xcodebuild` against `Mitori.xcodeproj` with the shared `Mitori` scheme.
 - There is one build variant. It signs with the developer team set in the project. When `CI` is set, `scripts/test-macos.sh` signs to run locally without entitlements, and the tests that need the Keychain skip.
 - Release command: `mise run release`. It archives, signs with Developer ID, notarizes, and writes a stapled DMG to `dist/`; `PUBLISH=1 mise run release` also creates the GitHub release. Run it only when Zach asks: each run uploads the app to Apple's notary service.

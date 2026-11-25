@@ -7,15 +7,24 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TEAM_ID="2R495YX57L"
-NOTARY_PROFILE="mitori-notary"
+TEAM_ID="${TEAM_ID:-2R495YX57L}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-mitori-notary}"
 PUBLISH="${PUBLISH:-0}"
+SKIP_PREFLIGHT="${SKIP_PREFLIGHT:-0}"
 ARCHIVE_PATH="$ROOT_DIR/.xcodebuild/Mitori.xcarchive"
 EXPORT_DIR="$ROOT_DIR/.app-build/release"
 APP_PATH="$EXPORT_DIR/Mitori.app"
 DIST_DIR="$ROOT_DIR/dist"
 
 fail() { echo "$1" >&2; exit 1; }
+
+format_xcodebuild() {
+    if command -v xcbeautify >/dev/null 2>&1; then
+        xcbeautify --disable-colored-output --disable-logging
+    else
+        cat
+    fi
+}
 
 # notarytool can exit 0 for a rejected upload. The staple step that follows fails when there is no ticket.
 notarize() { xcrun notarytool submit "$1" --keychain-profile "$NOTARY_PROFILE" --wait; }
@@ -30,11 +39,19 @@ assess() {
 
 cd "$ROOT_DIR"
 
-command -v xcbeautify >/dev/null 2>&1 || { echo "xcbeautify is required" >&2; exit 69; }
 if [[ "$PUBLISH" == 1 ]]; then
     command -v gh >/dev/null 2>&1 || { echo "gh is required" >&2; exit 69; }
     [[ -z "$(git status --porcelain)" ]] \
         || fail "The working tree is not clean. Commit or remove the changes before a release."
+fi
+
+if [[ "$SKIP_PREFLIGHT" != 1 ]]; then
+    command -v mise >/dev/null 2>&1 || { echo "mise is required for release preflight (or set SKIP_PREFLIGHT=1)" >&2; exit 69; }
+    mise run check
+    mise run test-macos
+    mise run scan-license
+    git diff --exit-code -- Mitori/Resources/OpenSourceLicenses.md \
+        || fail "OpenSourceLicenses.md is out of date. Commit the updated file before releasing."
 fi
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/mitori-release.XXXXXX")"
@@ -48,7 +65,7 @@ xcodebuild \
     -derivedDataPath .xcodebuild \
     -archivePath "$ARCHIVE_PATH" \
     "OTHER_CFLAGS=\$(inherited) -fmacro-prefix-map=$ROOT_DIR=." \
-    archive | xcbeautify --disable-colored-output --disable-logging
+    archive | format_xcodebuild
 
 cat > "$WORK_DIR/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

@@ -13,7 +13,7 @@ Report a security problem privately. See [SECURITY.md](SECURITY.md).
 ## Change the code
 
 - [README.md](README.md#build-from-source) lists the tools that you need.
-- `CI=1 mise run test-macos` runs the unit tests without a developer team. Run it before you open a pull request.
+- Run `git config core.hooksPath .githooks` once to enable the Swift file-header pre-commit hook (requires `swiftformat`), and run `mise run check` together with `CI=1 mise run test-macos` before you open a pull request.
 - To build and run the app, set your own `DEVELOPMENT_TEAM` in `Mitori.xcodeproj`. Do not commit that change.
 - Read [docs/spec.md](docs/spec.md) before a change to sign-in, refresh, storage, or the Apple Store protocol. A change must keep its invariants.
 - Add a test for a bug fix or a behavior change. Tests and fixtures must not contain real account data.

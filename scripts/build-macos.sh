@@ -37,12 +37,11 @@ OUTPUT_CONFIGURATION="$(printf '%s' "$CONFIGURATION" | tr '[:upper:]' '[:lower:]
 
 cd "$ROOT_DIR"
 
-if ! command -v xcbeautify >/dev/null 2>&1; then
-    echo "xcbeautify is required. Install it with: brew install xcbeautify" >&2
-    exit 69
+if command -v xcbeautify >/dev/null 2>&1; then
+    xcodebuild "${XCODEBUILD_ARGUMENTS[@]}" build | xcbeautify --disable-colored-output --disable-logging
+else
+    xcodebuild "${XCODEBUILD_ARGUMENTS[@]}" build
 fi
-
-xcodebuild "${XCODEBUILD_ARGUMENTS[@]}" build | xcbeautify --disable-colored-output --disable-logging
 
 BUILT_APP="$ROOT_DIR/$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION/$PRODUCT_NAME.app"
 APP_ROOT="$ROOT_DIR/.app-build/$OUTPUT_CONFIGURATION/$PRODUCT_NAME.app"

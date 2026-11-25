@@ -31,11 +31,18 @@ function with_retry {
 }
 
 function resolve_packages {
-    xcodebuild -resolvePackageDependencies \
-        -project "$ROOT_DIR/Mitori.xcodeproj" \
-        -scheme Mitori \
-        -derivedDataPath "$ROOT_DIR/.xcodebuild" 2>&1 | \
-        xcbeautify --disable-colored-output --disable-logging
+    if command -v xcbeautify >/dev/null 2>&1; then
+        xcodebuild -resolvePackageDependencies \
+            -project "$ROOT_DIR/Mitori.xcodeproj" \
+            -scheme Mitori \
+            -derivedDataPath "$ROOT_DIR/.xcodebuild" 2>&1 | \
+            xcbeautify --disable-colored-output --disable-logging
+    else
+        xcodebuild -resolvePackageDependencies \
+            -project "$ROOT_DIR/Mitori.xcodeproj" \
+            -scheme Mitori \
+            -derivedDataPath "$ROOT_DIR/.xcodebuild"
+    fi
 }
 
 for required_file in "${REQUIRED_MANUAL_LICENSE_FILES[@]}"; do
@@ -46,11 +53,6 @@ for required_file in "${REQUIRED_MANUAL_LICENSE_FILES[@]}"; do
 done
 
 if [[ -f "$PACKAGE_RESOLVED" ]]; then
-    if ! command -v xcbeautify >/dev/null 2>&1; then
-        echo "[!] xcbeautify is required. Install it with: brew install xcbeautify" >&2
-        exit 69
-    fi
-
     echo "[*] resolving packages..."
     with_retry resolve_packages
 

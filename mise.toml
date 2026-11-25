@@ -49,6 +49,13 @@ run = "bash scripts/release-macos.sh"
 description = "Regenerate bundled open-source license notices"
 run = "zsh scripts/scan.license.sh"
 
+[tasks.check]
+description = "Run static formatting and spec-invariant checks"
+run = [
+    "swiftformat --config .swiftformat --cache ignore --lint .",
+    "bash scripts/check-invariants.sh",
+]
+
 [tasks.clean]
 description = "Remove local build output and stale SwiftPM artifacts"
 run = "rm -rf .build .app-build .xcodebuild .swiftpm"

@@ -16,12 +16,17 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
 
       - name: Install mise
         uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
 
-      - name: Install build tools
-        run: brew install xcbeautify
+      - name: Install lint tools
+        run: brew install swiftformat
+
+      - name: Run static checks
+        run: mise run check
 
       - name: Run unit tests
         run: mise run test-macos

@@ -37,9 +37,8 @@ fi
 
 cd "$ROOT_DIR"
 
-if ! command -v xcbeautify >/dev/null 2>&1; then
-    echo "xcbeautify is required. Install it with: brew install xcbeautify" >&2
-    exit 69
+if command -v xcbeautify >/dev/null 2>&1; then
+    xcodebuild "${XCODEBUILD_ARGUMENTS[@]}" test | xcbeautify --disable-colored-output --disable-logging
+else
+    xcodebuild "${XCODEBUILD_ARGUMENTS[@]}" test
 fi
-
-xcodebuild "${XCODEBUILD_ARGUMENTS[@]}" test | xcbeautify --disable-colored-output --disable-logging

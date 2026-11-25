@@ -52,7 +52,7 @@ You need an Apple ID email and password, and a two-factor authentication code wh
 
 After sign-in, Mitori reads store credit from Apple's login response. When you refresh an account, Mitori reuses the session, or signs in again silently when needed.
 
-You can pick an app this Apple ID already owns as a probe app. Automatic refresh needs a probe app: it checks the balance with the stored session and never sends your password. Accounts without a probe app refresh only when you ask. If the session expires, automatic refresh pauses for that account until you refresh it manually. Add or change the probe app later from the account details window.
+You can pick an app this Apple ID already owns as a probe app. Automatic refresh needs a probe app: it checks the balance with the stored session and never sends your password. Accounts without a probe app refresh only when you ask. If the session expires, automatic refresh pauses for that account until you refresh it manually. Add or change the probe app later from the main window.
 
 ## Privacy
 
@@ -63,14 +63,14 @@ Mitori has no backend. Account traffic goes directly to Apple, and your data sta
 - Apple receives a device identifier with each sign-in and balance request. For a new account, it is the hardware address of this Mac's primary network interface.
 - Automatic refresh pauses while the screen is locked.
 
-The [Privacy Policy](https://zaxh.org/mitori/privacy) is also available under **Settings > Privacy & Legal**.
+The [Privacy Policy](https://zaxh.org/mitori/privacy) is also available under **Settings > About**.
 
 ## Build from source
 
-You need Xcode 26 or later, [mise](https://mise.jdx.dev/), and `xcbeautify`.
+You need Xcode 26 or later and [mise](https://mise.jdx.dev/). `xcbeautify` and `swiftformat` are optional for prettier build logs and header lint checks.
 
 ```sh
-brew install mise xcbeautify
+brew install mise
 
 mise run build-macos
 mise run run-macos
