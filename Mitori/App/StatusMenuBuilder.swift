@@ -95,11 +95,13 @@ enum StatusMenuBuilder {
         settingsItem.keyEquivalentModifierMask = .command
         settingsItem.target = actions.target
         settingsItem.identifier = NSUserInterfaceItemIdentifier("menu.settings")
+        #if compiler(>=6.4)
         if #available(macOS 27.0, *) {
             // macOS 27 hides our image but still shows the automatic gear; hide both so the column stays aligned.
             openItem.preferredImageVisibility = .hidden
             settingsItem.preferredImageVisibility = .hidden
         }
+        #endif
         menu.addItem(settingsItem)
 
         menu.addItem(.separator())
