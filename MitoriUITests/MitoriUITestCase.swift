@@ -10,6 +10,7 @@ import XCTest
 /// Launches the app on an offline fixture (`MITORI_UI_FIXTURE`) and helps tests
 /// assert accessibility identifiers and values. Identifiers are the contract
 /// between the UI and these tests, so a redesign keeps them.
+@MainActor
 class MitoriUITestCase: XCTestCase {
     /// `"1"` seeds ready@, expired@, and code@example.com; `"empty"` seeds nothing.
     var fixture: String { "1" }
@@ -23,7 +24,7 @@ class MitoriUITestCase: XCTestCase {
     let readyMenuItem = "menu.account.ready@example.com"
     let expiredMenuItem = "menu.account.expired@example.com"
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchEnvironment["MITORI_UI_FIXTURE"] = fixture
@@ -31,7 +32,7 @@ class MitoriUITestCase: XCTestCase {
         app.launch()
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         // The accessibility tree is the evidence an agent reads when a query misses.
         let tree = XCTAttachment(string: app.debugDescription)
         tree.name = "ax-tree-\(name)"
@@ -43,7 +44,7 @@ class MitoriUITestCase: XCTestCase {
     func openStatusMenu() {
         let statusItem = element("menu.status-item")
         // Just after a VM starts, the status item can exist above the screen before the menu bar shows.
-        XCTAssertTrue(statusItem.wait(for: \.isHittable, toEqual: true, timeout: 10), "status item is not hittable")
+        XCTAssertTrue(waitUntil(timeout: 10) { statusItem.exists && statusItem.isHittable }, "status item is not hittable")
         statusItem.click()
     }
 
@@ -81,12 +82,10 @@ class MitoriUITestCase: XCTestCase {
         field.typeText(XCUIKeyboardKey.delete.rawValue + text)
     }
 
-    /// The visible menu, popover, or window that contains `identifier`.
+    /// The visible menu or window that contains `identifier`.
     func container(of identifier: String) -> XCUIElement {
         let menu = app.menus.containing(.any, identifier: identifier).firstMatch
         if menu.exists, !menu.frame.isEmpty { return menu }
-        let popover = app.popovers.containing(.any, identifier: identifier).firstMatch
-        if popover.exists, !popover.frame.isEmpty { return popover }
         return app.windows.containing(.any, identifier: identifier).firstMatch
     }
 

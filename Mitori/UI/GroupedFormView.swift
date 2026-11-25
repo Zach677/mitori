@@ -2,7 +2,7 @@
 //  GroupedFormView.swift
 //  Mitori
 //
-//  Created by @Zach677 on 2026/11/24.
+//  Created by @Zach677 on 2026/11/25.
 //
 
 import AppKit
@@ -116,13 +116,6 @@ final class GroupedFormView: NSView {
         let separatorIndex = index > 0 ? index - 1 : index + 1
         if rowsStack.arrangedSubviews.indices.contains(separatorIndex) {
             rowsStack.arrangedSubviews[separatorIndex].isHidden = hidden
-        }
-    }
-
-    func clearRows() {
-        rowsStack.arrangedSubviews.forEach { view in
-            rowsStack.removeArrangedSubview(view)
-            view.removeFromSuperview()
         }
     }
 

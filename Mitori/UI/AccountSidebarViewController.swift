@@ -2,7 +2,7 @@
 //  AccountSidebarViewController.swift
 //  Mitori
 //
-//  Created by @Zach677 on 2026/11/24.
+//  Created by @Zach677 on 2026/11/25.
 //
 
 import AppKit
@@ -74,6 +74,12 @@ final class AccountSidebarViewController: NSViewController, NSTableViewDataSourc
         tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         tableView.scrollRowToVisible(row)
         isSuppressingSelectionCallback = false
+    }
+
+    func reloadRow(for accountID: String) {
+        accounts = model.accounts
+        guard isViewLoaded, let row = accounts.firstIndex(where: { $0.id == accountID }) else { return }
+        tableView.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: 0))
     }
 
     // MARK: - NSTableViewDataSource

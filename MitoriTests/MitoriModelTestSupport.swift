@@ -149,15 +149,16 @@ final class RefreshGate {
     }
 }
 
-final class FailingDeleteSecretBackend: SecretKeyValueStore {
+final class FailingDeleteSecretBackend: SecretKeyValueStore, @unchecked Sendable {
+    private let lock = NSLock()
     private var storage: [String: Data] = [:]
 
     func data(for key: String, allowsAuthenticationUI _: Bool) throws -> Data? {
-        storage[key]
+        lock.withLock { storage[key] }
     }
 
     func set(_ data: Data, for key: String, allowsAuthenticationUI _: Bool) throws {
-        storage[key] = data
+        lock.withLock { storage[key] = data }
     }
 
     func removeValue(for _: String, allowsAuthenticationUI _: Bool) throws {

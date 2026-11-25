@@ -56,7 +56,7 @@ struct AccountRepositoryConcurrencyTests {
             secretStore: secretStore,
             sessionBridge: bridge
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         let refresh = Task {
             await model.refreshAccount(id: meta.id, isManualRefresh: true)
@@ -67,7 +67,7 @@ struct AccountRepositoryConcurrencyTests {
         defer { writeGate.release() }
 
         let (mutationStarted, mutationStartedContinuation) = AsyncStream<Void>.makeStream()
-        let mutationStartedCancellable = model.changes.sink {
+        let mutationStartedCancellable = model.changeEvents.sink { _ in
             guard model.refreshState(for: meta.id) != .refreshing else { return }
             mutationStartedContinuation.yield()
             mutationStartedContinuation.finish()
@@ -118,7 +118,7 @@ struct AccountRepositoryConcurrencyTests {
             secretStore: secretStore,
             sessionBridge: bridge
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         await model.refreshAccount(id: meta.id, isManualRefresh: true)
 

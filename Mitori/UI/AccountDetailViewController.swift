@@ -612,50 +612,41 @@ private extension AccountDetailViewController {
             hidesPersonalInformation: settings.isPersonalInformationHidden
         )
 
-        var sheetWindow: NSWindow?
-        let sheetVC = SignInAgainSheetController(
-            model: model,
-            accountID: account.id,
-            accountLabel: presentation.name,
-            requiresCodeInitially: requiresCode
-        ) { [weak self] in
-            if let sheetWindow {
-                hostWindow.endSheet(sheetWindow)
+        hostWindow.presentSheet { dismiss in
+            SignInAgainSheetController(
+                model: model,
+                accountID: account.id,
+                accountLabel: presentation.name,
+                requiresCodeInitially: requiresCode
+            ) { [weak self] in
+                dismiss()
+                self?.reload()
             }
-            self?.reload()
         }
-        let window = NSWindow(contentViewController: sheetVC)
-        window.styleMask = [.titled]
-        sheetWindow = window
-        hostWindow.beginSheet(window)
     }
 
     @objc
     func openChooseProbeSheet() {
         guard let account, let hostWindow = view.window else { return }
         let accountID = account.id
-        var sheetWindow: NSWindow?
-        let sheetVC = ChooseProbeAppSheetController(
-            model: model,
-            accountID: accountID,
-            countryCode: account.countryCode,
-            currentBundleID: account.probeBundleID,
-            currentAppName: account.probeAppName,
-            probeAppSearch: probeAppSearch
-        ) { [weak self] probeChanged in
-            if let sheetWindow {
-                hostWindow.endSheet(sheetWindow)
-            }
-            guard let self else { return }
-            reload()
-            if probeChanged, let updated = model.account(with: accountID), !updated.needsProbeBundleID {
-                onRefreshRequested(accountID)
+
+        hostWindow.presentSheet { dismiss in
+            ChooseProbeAppSheetController(
+                model: model,
+                accountID: accountID,
+                countryCode: account.countryCode,
+                currentBundleID: account.probeBundleID,
+                currentAppName: account.probeAppName,
+                probeAppSearch: probeAppSearch
+            ) { [weak self] probeChanged in
+                dismiss()
+                guard let self else { return }
+                reload()
+                if probeChanged, let updated = model.account(with: accountID), !updated.needsProbeBundleID {
+                    onRefreshRequested(accountID)
+                }
             }
         }
-        let window = NSWindow(contentViewController: sheetVC)
-        window.styleMask = [.titled]
-        sheetWindow = window
-        hostWindow.beginSheet(window)
     }
 
     @objc

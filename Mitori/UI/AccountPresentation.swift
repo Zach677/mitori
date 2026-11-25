@@ -9,7 +9,6 @@ import Foundation
 
 struct AccountPresentation {
     let name: String
-    let email: String?
     let windowTitle: String
     let appleID: String
     let deviceIdentifier: String
@@ -21,7 +20,6 @@ struct AccountPresentation {
     ) {
         guard hidesPersonalInformation else {
             name = account.displayName
-            email = account.email
             windowTitle = account.displayName
             appleID = account.appleID
             deviceIdentifier = account.deviceIdentifier
@@ -29,7 +27,6 @@ struct AccountPresentation {
         }
 
         name = "Account \(accountIndex + 1)"
-        email = nil
         windowTitle = "Account Details"
         appleID = "Hidden"
         deviceIdentifier = "Hidden"

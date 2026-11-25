@@ -2,7 +2,7 @@
 //  ChooseProbeAppSheetController.swift
 //  Mitori
 //
-//  Created by @Zach677 on 2026/11/24.
+//  Created by @Zach677 on 2026/11/25.
 //
 
 import AppKit
@@ -21,6 +21,7 @@ final class ChooseProbeAppSheetController: NSViewController, NSSearchFieldDelega
     private var displayedResults: [ProbeAppCandidate] = []
     private var isSaving = false
     private var saveErrorMessage: String?
+    private var searchRunID = 0
     private var searchTask: Task<Void, Never>?
     private var saveTask: Task<Void, Never>?
 
@@ -77,7 +78,9 @@ final class ChooseProbeAppSheetController: NSViewController, NSSearchFieldDelega
     override func viewWillDisappear() {
         super.viewWillDisappear()
         searchTask?.cancel()
+        searchTask = nil
         saveTask?.cancel()
+        saveTask = nil
     }
 }
 
@@ -209,7 +212,7 @@ private extension ChooseProbeAppSheetController {
     }
 
     func reload() {
-        if probeLookup.isSearching || isSaving {
+        if probeLookup.isSearching || searchTask != nil || isSaving {
             spinner.startAnimation(nil)
         } else {
             spinner.stopAnimation(nil)
@@ -242,15 +245,27 @@ private extension ChooseProbeAppSheetController {
         guard !isSaving else { return }
         probeLookup.query = searchField.stringValue
         searchTask?.cancel()
+        searchRunID += 1
+        let runID = searchRunID
+
+        let trimmed = probeLookup.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            searchTask = nil
+            probeLookup.results = []
+            probeLookup.errorMessage = nil
+            reload()
+            return
+        }
+
         searchTask = Task { [weak self] in
             guard let self else { return }
-            let runTask = Task { @MainActor in
-                await self.probeLookup.search(countryCode: self.countryCode)
+            await probeLookup.search(countryCode: countryCode)
+            if searchRunID == runID {
+                searchTask = nil
             }
             reload()
-            await runTask.value
-            reload()
         }
+        reload()
     }
 
     @objc
@@ -303,7 +318,9 @@ private extension ChooseProbeAppSheetController {
     @objc
     func cancel() {
         searchTask?.cancel()
+        searchTask = nil
         saveTask?.cancel()
+        saveTask = nil
         onDismiss(false)
     }
 }

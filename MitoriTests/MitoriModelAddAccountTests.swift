@@ -65,6 +65,7 @@ struct MitoriModelAddAccountTests {
         #expect(try await context.secretStore.loadSecret(for: context.existing.id) == context.existingSecret)
     }
 
+    @MainActor
     private struct ExistingAccountContext {
         var model: MitoriModel
         var bridge: SessionBridgeStub
@@ -135,22 +136,30 @@ struct MitoriModelAddAccountTests {
     }
 }
 
-private final class WriteFailingSecretBackend: SecretKeyValueStore {
+private final class WriteFailingSecretBackend: SecretKeyValueStore, @unchecked Sendable {
+    private let lock = NSLock()
     private var storage: [String: Data] = [:]
-    var failsWrites = false
+    private var _failsWrites = false
+
+    var failsWrites: Bool {
+        get { lock.withLock { _failsWrites } }
+        set { lock.withLock { _failsWrites = newValue } }
+    }
 
     func data(for key: String, allowsAuthenticationUI _: Bool) throws -> Data? {
-        storage[key]
+        lock.withLock { storage[key] }
     }
 
     func set(_ data: Data, for key: String, allowsAuthenticationUI _: Bool) throws {
-        if failsWrites {
-            throw NSError(domain: NSOSStatusErrorDomain, code: Int(errSecNotAvailable))
+        try lock.withLock {
+            if _failsWrites {
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(errSecNotAvailable))
+            }
+            storage[key] = data
         }
-        storage[key] = data
     }
 
     func removeValue(for key: String, allowsAuthenticationUI _: Bool) throws {
-        storage[key] = nil
+        lock.withLock { storage[key] = nil }
     }
 }

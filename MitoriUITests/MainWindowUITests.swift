@@ -1,5 +1,5 @@
 //
-//  MenuPanelUITests.swift
+//  MainWindowUITests.swift
 //  Mitori
 //
 //  Created by @Zach677 on 2026/10/13.
@@ -7,7 +7,7 @@
 
 import XCTest
 
-final class MenuPanelUITests: MitoriUITestCase {
+final class MainWindowUITests: MitoriUITestCase {
     func testMainWindowListsFixtureAccountsWithBalance() throws {
         let ready = require(readyRow, timeout: 10)
         XCTAssertTrue(value(of: ready).contains("12.34"), value(of: ready))

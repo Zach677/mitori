@@ -9,7 +9,7 @@ import Foundation
 import LocalAuthentication
 import Security
 
-protocol SecretKeyValueStore {
+protocol SecretKeyValueStore: Sendable {
     func data(for key: String, allowsAuthenticationUI: Bool) throws -> Data?
     func set(_ data: Data, for key: String, allowsAuthenticationUI: Bool) throws
     func removeValue(for key: String, allowsAuthenticationUI: Bool) throws
@@ -142,19 +142,20 @@ func isKeychainInteractionNotAllowed(_ error: Error) -> Bool {
     return error.domain == NSOSStatusErrorDomain && error.code == Int(errSecInteractionNotAllowed)
 }
 
-final class InMemorySecretBackend: SecretKeyValueStore {
+final class InMemorySecretBackend: SecretKeyValueStore, @unchecked Sendable {
+    private let lock = NSLock()
     private var storage: [String: Data] = [:]
 
     func data(for key: String, allowsAuthenticationUI _: Bool = true) throws -> Data? {
-        storage[key]
+        lock.withLock { storage[key] }
     }
 
     func set(_ data: Data, for key: String, allowsAuthenticationUI _: Bool = true) throws {
-        storage[key] = data
+        lock.withLock { storage[key] = data }
     }
 
     func removeValue(for key: String, allowsAuthenticationUI _: Bool = true) throws {
-        storage[key] = nil
+        lock.withLock { storage[key] = nil }
     }
 }
 

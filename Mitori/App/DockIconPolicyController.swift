@@ -2,7 +2,7 @@
 //  DockIconPolicyController.swift
 //  Mitori
 //
-//  Created by @Zach677 on 2026/11/24.
+//  Created by @Zach677 on 2026/11/25.
 //
 
 import AppKit
@@ -26,6 +26,12 @@ final class DockIconPolicyController {
         self.hidesWhenClosed = hidesWhenClosed
         self.hasVisibleWindow = hasVisibleWindow
         self.applyPolicy = applyPolicy
+    }
+
+    func ensureRegular() {
+        guard currentPolicy != .regular else { return }
+        currentPolicy = .regular
+        applyPolicy(.regular)
     }
 
     func update() {

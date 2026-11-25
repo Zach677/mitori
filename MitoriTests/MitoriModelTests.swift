@@ -13,7 +13,7 @@ import Testing
 @MainActor
 struct MitoriModelTests {
     @Test
-    func menuPresentedRetriesAfterFailedLoad() async throws {
+    func loadAccountsRetriesAfterFailedLoad() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
@@ -26,9 +26,9 @@ struct MitoriModelTests {
             sessionBridge: SessionBridgeStub()
         )
 
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
         #expect(model.accounts.isEmpty)
-        #expect(model.bannerMessage != nil)
+        #expect(model.loadError != nil)
 
         try FileManager.default.removeItem(at: fileURL)
         let meta = StoredAccountMeta(
@@ -38,8 +38,93 @@ struct MitoriModelTests {
         )
         _ = try await AccountStore(baseDirectory: tempDirectory).upsert(meta)
 
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
         #expect(model.accounts.map(\.id) == [meta.id])
+        #expect(model.loadError == nil)
+    }
+
+    @Test
+    func concurrentLoadAccountsIfNeededSharesOneLoad() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        let accountStore = AccountStore(baseDirectory: tempDirectory)
+        let meta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+        _ = try await accountStore.upsert(meta)
+        let model = MitoriModel(
+            accountStore: accountStore,
+            secretStore: SecretStore(backend: InMemorySecretBackend()),
+            sessionBridge: SessionBridgeStub()
+        )
+
+        var accountsEventCount = 0
+        let cancellable = model.changeEvents.sink { change in
+            if case .accounts = change {
+                accountsEventCount += 1
+            }
+        }
+        defer { cancellable.cancel() }
+
+        async let first: Void = model.loadAccountsIfNeeded()
+        async let second: Void = model.loadAccountsIfNeeded()
+        _ = await (first, second)
+
+        #expect(model.accounts.map(\.id) == [meta.id])
+        #expect(accountsEventCount == 1)
+    }
+
+    @Test
+    func accountSuccessDoesNotClearAnotherAccountsIssue() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        let accountStore = AccountStore(baseDirectory: tempDirectory)
+        let secretStore = SecretStore(backend: InMemorySecretBackend())
+
+        var secondAccount = sampleAccount()
+        secondAccount.email = "other@example.com"
+        let firstMeta = StoredAccountMeta(
+            account: sampleAccount(),
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+        let secondMeta = StoredAccountMeta(
+            account: secondAccount,
+            deviceIdentifier: "ABCDEF123456",
+            probeBundleID: "com.example.probe"
+        )
+        for (meta, account) in [(firstMeta, sampleAccount()), (secondMeta, secondAccount)] {
+            _ = try await accountStore.upsert(meta)
+            try await secretStore.save(StoredAccountSecret(account: account), for: meta.id)
+        }
+
+        let bridge = SessionBridgeStub()
+        bridge.refreshHandler = { meta in
+            if meta.id == secondMeta.id {
+                throw MitoriError.network("offline")
+            }
+            var updated = meta
+            updated.lastIssue = nil
+            updated.lastRefreshAt = Date()
+            return SessionRefreshResult(meta: updated, secret: StoredAccountSecret(account: sampleAccount()))
+        }
+        let model = MitoriModel(
+            accountStore: accountStore,
+            secretStore: secretStore,
+            sessionBridge: bridge
+        )
+        await model.loadAccountsIfNeeded()
+
+        await model.refreshAccount(id: secondMeta.id, isManualRefresh: true)
+        #expect(model.account(with: secondMeta.id)?.visibleIssue?.kind == .network)
+
+        await model.refreshAccount(id: firstMeta.id, isManualRefresh: true)
+        #expect(model.account(with: firstMeta.id)?.visibleIssue == nil)
+        #expect(model.account(with: secondMeta.id)?.visibleIssue?.kind == .network)
     }
 
     @Test
@@ -71,9 +156,9 @@ struct MitoriModelTests {
             sessionBridge: bridge
         )
 
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
         await model.refreshAccount(id: meta.id, isManualRefresh: true)
-        #expect(model.bannerMessage == MitoriError.missingProbeBundleID.localizedDescription)
+        #expect(model.account(with: meta.id)?.lastIssue?.kind == .probeConfigurationMissing)
 
         try await model.saveProbeBundleID(" com.example.probe ", for: meta.id)
 
@@ -82,7 +167,6 @@ struct MitoriModelTests {
         #expect(updated.lastIssue == nil)
         #expect(updated.nextEligibleRefreshAt == nil)
         #expect(updated.consecutiveFailureCount == 0)
-        #expect(model.bannerMessage == nil)
     }
 
     @Test
@@ -105,13 +189,12 @@ struct MitoriModelTests {
             sessionBridge: SessionBridgeStub()
         )
 
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
         try await model.saveProbeBundleID(" ", for: meta.id)
 
         let updated = try #require(model.account(with: meta.id))
         #expect(updated.probeBundleID.isEmpty)
         #expect(updated.lastIssue == nil)
-        #expect(model.bannerMessage == nil)
     }
 
     @Test(arguments: ["com.example.new-probe", ""])
@@ -133,7 +216,7 @@ struct MitoriModelTests {
             secretStore: SecretStore(backend: InMemorySecretBackend()),
             sessionBridge: SessionBridgeStub()
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         try await model.saveProbeBundleID(newProbeBundleID, for: probeMeta.id)
         #expect(model.account(with: probeMeta.id)?.lastIssue == nil)
@@ -146,7 +229,7 @@ struct MitoriModelTests {
             secretStore: SecretStore(backend: InMemorySecretBackend()),
             sessionBridge: SessionBridgeStub()
         )
-        await reloadedModel.menuPresented()
+        await reloadedModel.loadAccountsIfNeeded()
 
         try await reloadedModel.saveProbeBundleID(newProbeBundleID, for: sessionMeta.id)
         #expect(reloadedModel.account(with: sessionMeta.id)?.lastIssue?.kind == .sessionExpired)
@@ -159,7 +242,7 @@ struct MitoriModelTests {
             secretStore: SecretStore(backend: InMemorySecretBackend()),
             sessionBridge: SessionBridgeStub()
         )
-        await notFoundModel.menuPresented()
+        await notFoundModel.loadAccountsIfNeeded()
 
         try await notFoundModel.saveProbeBundleID(newProbeBundleID, for: notFoundMeta.id)
         #expect(notFoundModel.account(with: notFoundMeta.id)?.lastIssue == nil)
@@ -184,7 +267,7 @@ struct MitoriModelTests {
             secretStore: SecretStore(backend: InMemorySecretBackend()),
             sessionBridge: SessionBridgeStub()
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         try await model.saveProbeBundleID(" com.example.probe ", for: meta.id)
 
@@ -211,11 +294,10 @@ struct MitoriModelTests {
             sessionBridge: sessionBridge
         )
 
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         #expect(model.account(with: meta.id) != nil)
         #expect(model.refreshState(for: meta.id) == .idle)
-        #expect(model.bannerMessage == nil)
         #expect(sessionBridge.refreshCallCount == 0)
         #expect(sessionBridge.loginRequests.isEmpty)
     }
@@ -252,11 +334,11 @@ struct MitoriModelTests {
             sessionBridge: SessionBridgeStub(refreshResult: result)
         )
 
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
         await model.refreshAccount(id: meta.id, isManualRefresh: true)
 
         #expect(model.refreshState(for: meta.id) == .failed(.sessionExpired))
-        #expect(model.bannerMessage == MitoriError.sessionExpired.localizedDescription)
+        #expect(model.account(with: meta.id)?.visibleIssue?.kind == .sessionExpired)
     }
 
     @Test(arguments: [true, false])
@@ -277,14 +359,13 @@ struct MitoriModelTests {
         bridge.refreshHandler = { _ in throw CancellationError() }
         let model = MitoriModel(accountStore: accountStore, secretStore: secretStore, sessionBridge: bridge)
 
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
         await model.refreshAccount(id: meta.id, isManualRefresh: isManualRefresh)
 
         #expect(bridge.refreshCallCount == 1)
         #expect(model.refreshState(for: meta.id) == .idle)
         #expect(model.account(with: meta.id)?.lastIssue == nil)
         #expect(model.account(with: meta.id)?.nextEligibleRefreshAt == nil)
-        #expect(model.bannerMessage == nil)
     }
 
     @Test
@@ -341,7 +422,7 @@ struct MitoriModelTests {
             secretStore: secretStore,
             sessionBridge: bridge
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         let refresh = Task {
             await model.refreshAccount(id: meta.id, isManualRefresh: true)
@@ -390,7 +471,7 @@ struct MitoriModelTests {
             secretStore: secretStore,
             sessionBridge: bridge
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         let refresh = Task {
             await model.refreshAccount(id: meta.id, isManualRefresh: true)
@@ -435,7 +516,7 @@ struct MitoriModelTests {
             secretStore: secretStore,
             sessionBridge: SessionBridgeStub()
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         await #expect(throws: MitoriError.self) {
             try await model.deleteAccount(id: meta.id)
@@ -465,7 +546,7 @@ struct MitoriModelTests {
             secretStore: secretStore,
             sessionBridge: SessionBridgeStub()
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         try await model.deleteAccount(id: meta.id)
 
@@ -495,7 +576,7 @@ struct MitoriModelTests {
             secretStore: secretStore,
             sessionBridge: SessionBridgeStub()
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         await #expect(throws: MitoriError.self) {
             try await model.deleteAccount(id: meta.id)
@@ -535,7 +616,7 @@ struct MitoriModelTests {
             sessionBridge: bridge,
             now: { fixedDate }
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         await model.refreshAccount(id: meta.id, isManualRefresh: true)
 
@@ -544,7 +625,7 @@ struct MitoriModelTests {
         #expect(failed.consecutiveFailureCount == 1)
         #expect(failed.nextEligibleRefreshAt == fixedDate.addingTimeInterval(60))
         #expect(failed.lastIssue?.kind == .unknown)
-        #expect(model.bannerMessage?.hasPrefix("Storage error:") == true)
+        #expect(failed.lastIssue?.message.hasPrefix("Storage error:") == true)
     }
 
     @Test
@@ -592,7 +673,7 @@ struct MitoriModelTests {
             secretStore: secretStore,
             sessionBridge: bridge
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         let firstMutation = Task {
             try await model.saveProbeBundleID("com.example.first", for: meta.id)
@@ -661,12 +742,12 @@ struct MitoriModelTests {
             sessionBridge: SessionBridgeStub(reauthenticateResult: result)
         )
 
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         let returnedIssue = try await model.reauthenticateAccount(id: meta.id, code: "")
         #expect(returnedIssue?.kind == .sessionExpired)
         #expect(model.refreshState(for: meta.id) == .failed(.sessionExpired))
-        #expect(model.bannerMessage == MitoriError.sessionExpired.localizedDescription)
+        #expect(model.account(with: meta.id)?.visibleIssue?.kind == .sessionExpired)
     }
 
     @Test
@@ -696,13 +777,13 @@ struct MitoriModelTests {
                 secret: secret
             ))
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         let returnedIssue = try await model.reauthenticateAccount(id: meta.id, code: "")
 
         #expect(returnedIssue?.message == issue.message)
         #expect(model.refreshState(for: meta.id) == .failed(.probeConfigurationMissing))
-        #expect(model.bannerMessage == issue.message)
+        #expect(model.account(with: meta.id)?.visibleIssue?.message == issue.message)
     }
 
     @Test
@@ -731,7 +812,7 @@ struct MitoriModelTests {
             secretStore: secretStore,
             sessionBridge: bridge
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         let issue = try await model.reauthenticateAccount(id: meta.id, password: "new-password", code: "123456")
 
@@ -743,7 +824,7 @@ struct MitoriModelTests {
     }
 
     @Test
-    func cancelledReauthenticateReturnsToIdleWithoutBanner() async throws {
+    func cancelledReauthenticateReturnsToIdle() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
@@ -759,14 +840,13 @@ struct MitoriModelTests {
         let bridge = SessionBridgeStub()
         bridge.reauthenticateHandler = { _, _ in throw CancellationError() }
         let model = MitoriModel(accountStore: accountStore, secretStore: secretStore, sessionBridge: bridge)
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         await #expect(throws: CancellationError.self) {
             try await model.reauthenticateAccount(id: meta.id, code: "123456")
         }
 
         #expect(model.refreshState(for: meta.id) == .idle)
-        #expect(model.bannerMessage == nil)
     }
 
     @Test
@@ -922,7 +1002,7 @@ struct MitoriModelTests {
             secretStore: secretStore,
             sessionBridge: bridge
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         let login = Task {
             try await model.addAccount(
@@ -975,7 +1055,7 @@ struct MitoriModelTests {
             secretStore: secretStore,
             sessionBridge: bridge
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         let login = Task {
             try await model.addAccount(
@@ -1035,7 +1115,7 @@ struct MitoriModelTests {
             secretStore: secretStore,
             sessionBridge: bridge
         )
-        await model.menuPresented()
+        await model.loadAccountsIfNeeded()
 
         return SuspendedRefreshContext(
             model: model,

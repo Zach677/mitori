@@ -18,8 +18,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let onRefreshSettingsChanged: @MainActor () -> Void
     private let statusItem: NSStatusItem
     private let statusMenu = NSMenu()
+    private var isStatusMenuOpen = false
     private var modelChangeCancellable: AnyCancellable?
-    private var windowCloseObserver: NSObjectProtocol?
+    private var windowCloseCancellable: AnyCancellable?
+
+    private static var usesFrameAutosave: Bool {
+        ProcessInfo.processInfo.environment["MITORI_UI_FIXTURE"] == nil
+    }
 
     private lazy var dockPolicyController = DockIconPolicyController(
         hidesWhenClosed: { [weak self] in
@@ -33,10 +38,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private lazy var mainWindowController = MainWindowController(
         model: model,
         settings: settings,
-        probeAppSearch: probeAppSearch,
-        onWindowVisibilityChanged: { [weak self] in
-            self?.dockPolicyController.update()
-        }
+        probeAppSearch: probeAppSearch
     )
 
     private lazy var mainWindowPresenter = WindowPresentationCoordinator(window: mainWindowController)
@@ -44,13 +46,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private lazy var settingsWindowController = AppWindowController(
         title: { "Settings" },
         size: NSSize(width: 500, height: 540),
-        autosaveName: "dev.zach.mitori.settings",
-        titleVisibility: .visible,
-        onWindowClose: { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.dockPolicyController.update()
-            }
-        }
+        autosaveName: Self.usesFrameAutosave ? "dev.zach.mitori.settings" : nil,
+        titleVisibility: .visible
     ) { [unowned self] in
         let vc = SettingsViewController(
             settings: settings,
@@ -80,14 +77,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private lazy var documentWindowController = AppWindowController(
         title: { [unowned self] in selectedDocument.title },
         size: NSSize(width: 620, height: 520),
-        autosaveName: "dev.zach.mitori.document",
+        autosaveName: Self.usesFrameAutosave ? "dev.zach.mitori.document" : nil,
         titleVisibility: .visible,
-        isResizable: true,
-        onWindowClose: { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.dockPolicyController.update()
-            }
-        }
+        isResizable: true
     ) { [unowned self] in
         DocumentViewController(document: selectedDocument)
     }
@@ -108,25 +100,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         super.init()
         configureStatusItem()
-        modelChangeCancellable = model.changeEvents.sink { [weak self] _ in
-            self?.reloadAllViews()
+        modelChangeCancellable = model.changeEvents.sink { [weak self] change in
+            self?.handleModelChange(change)
         }
-        windowCloseObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.willCloseNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.dockPolicyController.update()
+        windowCloseCancellable = NotificationCenter.default
+            .publisher(for: NSWindow.willCloseNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.dockPolicyController.update()
+                }
             }
-        }
         dockPolicyController.update()
-    }
-
-    deinit {
-        if let windowCloseObserver {
-            NotificationCenter.default.removeObserver(windowCloseObserver)
-        }
     }
 
     // MARK: - Window & Menu Actions
@@ -193,7 +178,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     // MARK: - NSMenuDelegate
 
     func menuWillOpen(_ menu: NSMenu) {
+        isStatusMenuOpen = true
         rebuildStatusMenu(menu)
+    }
+
+    func menuDidClose(_: NSMenu) {
+        isStatusMenuOpen = false
     }
 
     // MARK: - Private
@@ -215,9 +205,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func activateAsRegularApp() {
-        if NSApp.activationPolicy() != .regular {
-            NSApp.setActivationPolicy(.regular)
-        }
+        dockPolicyController.ensureRegular()
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -267,11 +255,22 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         dockPolicyController.update()
     }
 
+    private func handleModelChange(_ change: ModelChange) {
+        if mainWindowController.isVisible {
+            mainWindowController.apply(change)
+        }
+        if isStatusMenuOpen {
+            rebuildStatusMenu(statusMenu)
+        }
+    }
+
     private func reloadAllViews() {
         if mainWindowController.isVisible {
             mainWindowController.reload()
         }
-        rebuildStatusMenu(statusMenu)
+        if isStatusMenuOpen {
+            rebuildStatusMenu(statusMenu)
+        }
     }
 
     @objc

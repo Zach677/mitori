@@ -2,13 +2,13 @@
 //  MainWindowController.swift
 //  Mitori
 //
-//  Created by @Zach677 on 2026/11/24.
+//  Created by @Zach677 on 2026/11/25.
 //
 
 import AppKit
 
 @MainActor
-final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate, WindowVisibilityManaging {
+final class MainWindowController: NSWindowController, NSToolbarDelegate, WindowVisibilityManaging {
     private enum ToolbarID {
         static let toolbar = NSToolbar.Identifier("dev.zach.mitori.main.toolbar")
         static let addAccount = NSToolbarItem.Identifier("main.add-account")
@@ -19,7 +19,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     private let model: MitoriModel
     private let settings: RefreshSettingsStore
     private let probeAppSearch: any ProbeAppSearching
-    private let onWindowVisibilityChanged: @MainActor () -> Void
 
     private lazy var sidebarController = AccountSidebarViewController(
         model: model,
@@ -67,7 +66,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     )
 
     private var selectedAccountID: String?
-    private weak var addAccountSheetWindow: NSWindow?
     private lazy var refreshToolbarButton = makeToolbarButton(
         symbolName: "arrow.clockwise",
         title: "Refresh",
@@ -80,13 +78,11 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     init(
         model: MitoriModel,
         settings: RefreshSettingsStore,
-        probeAppSearch: any ProbeAppSearching = ProbeAppSearchService(),
-        onWindowVisibilityChanged: @escaping @MainActor () -> Void = {}
+        probeAppSearch: any ProbeAppSearching = ProbeAppSearchService()
     ) {
         self.model = model
         self.settings = settings
         self.probeAppSearch = probeAppSearch
-        self.onWindowVisibilityChanged = onWindowVisibilityChanged
         super.init(window: nil)
     }
 
@@ -104,7 +100,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         reload()
         showWindow(nil)
         window.makeKeyAndOrderFront(nil)
-        onWindowVisibilityChanged()
     }
 
     func focus() {
@@ -114,7 +109,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         }
         reload()
         window.makeKeyAndOrderFront(nil)
-        onWindowVisibilityChanged()
     }
 
     func showAccount(id: String) {
@@ -135,37 +129,40 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         } else {
             focus()
         }
-        guard addAccountSheetWindow == nil, let hostWindow = window else { return }
+        guard let hostWindow = window else { return }
 
-        var sheetWindow: NSWindow?
-        let controller = AddAccountViewController(
-            model: model,
-            onClose: { [weak self] in
-                if let sheetWindow {
-                    hostWindow.endSheet(sheetWindow)
+        hostWindow.presentSheet { dismiss in
+            AddAccountViewController(
+                model: model,
+                onClose: dismiss,
+                onLoginSuccess: { [weak self] accountID in
+                    dismiss()
+                    guard let self else { return }
+                    selectedAccountID = accountID
+                    reload()
                 }
-                self?.addAccountSheetWindow = nil
-            },
-            onLoginSuccess: { [weak self] accountID in
-                if let sheetWindow {
-                    hostWindow.endSheet(sheetWindow)
-                }
-                guard let self else { return }
-                addAccountSheetWindow = nil
-                selectedAccountID = accountID
-                reload()
-            }
-        )
-        let window = NSWindow(contentViewController: controller)
-        window.styleMask = [.titled]
-        sheetWindow = window
-        addAccountSheetWindow = window
-        hostWindow.beginSheet(window)
+            )
+        }
     }
 
     func refreshSelectedAccount() {
         guard let selectedAccountID else { return }
         refreshAccount(id: selectedAccountID)
+    }
+
+    func apply(_ change: ModelChange) {
+        switch change {
+        case .accounts, .loadError:
+            reload()
+        case let .account(accountID):
+            sidebarController.reloadRow(for: accountID)
+            if accountID == selectedAccountID {
+                detailController.reload()
+                updateWindowChrome()
+            }
+        case .refreshingAll:
+            break
+        }
     }
 
     func reload() {
@@ -188,12 +185,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         // Add Account and Refresh act on the account list; the empty and error states carry their own buttons.
         window?.toolbar?.isVisible = !accounts.isEmpty
         updateWindowChrome()
-    }
-
-    func windowWillClose(_: Notification) {
-        Task { @MainActor [weak self] in
-            self?.onWindowVisibilityChanged()
-        }
     }
 
     // MARK: - NSToolbarDelegate
@@ -263,7 +254,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         created.toolbarStyle = .unified
         created.titleVisibility = .visible
         created.title = "Mitori"
-        created.delegate = self
         created.contentViewController = rootViewController
         // Assigning the content view controller shrinks the window to its fitting (minimum) size.
         created.setContentSize(NSSize(width: 780, height: 540))

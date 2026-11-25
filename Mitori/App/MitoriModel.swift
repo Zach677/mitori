@@ -12,7 +12,6 @@ import Foundation
 enum ModelChange: Equatable, Sendable {
     case accounts
     case account(String)
-    case banner
     case loadError
     case refreshingAll
 }
@@ -48,27 +47,17 @@ final class MitoriModel {
         repository.accountsDirectoryURL
     }
 
-    /// A message set from outside the model has no owner (I-10).
-    var bannerMessage: String? {
-        didSet {
-            bannerAccountID = nil
-            changeSubject.send(.banner)
-        }
-    }
     private(set) var isRefreshingAll = false {
         didSet { changeSubject.send(.refreshingAll) }
     }
     var changeEvents: AnyPublisher<ModelChange, Never> {
         changeSubject.eraseToAnyPublisher()
     }
-    var changes: AnyPublisher<Void, Never> {
-        changeSubject.map { _ in () }.eraseToAnyPublisher()
-    }
 
     private let changeSubject = PassthroughSubject<ModelChange, Never>()
     private var hasLoadedAccounts = false
+    private var inFlightLoadTask: Task<Void, Never>?
     private var activeOperations: [String: ActiveOperation] = [:]
-    private var bannerAccountID: String?
 
     init(
         accountStore: AccountStore = AccountStore(),
@@ -83,10 +72,6 @@ final class MitoriModel {
         self.settings = settings
         self.now = now
         self.screenIsLocked = screenIsLocked
-    }
-
-    func menuPresented() async {
-        await loadAccountsIfNeeded()
     }
 
     func loadAccountsIfNeeded() async {
@@ -174,11 +159,6 @@ final class MitoriModel {
         }
         // The write already succeeded on disk and Keychain, so keep memory in sync even if cancelled next.
         accounts = updatedAccounts
-        if let issue = result.meta.lastIssue {
-            showBanner(issue.message, ownedBy: accountID)
-        } else {
-            clearBanner(ownedBy: accountID)
-        }
         try Task.checkCancellation()
         return accountID
     }
@@ -231,10 +211,9 @@ final class MitoriModel {
             guard operationIsCurrent(for: id, token: token, requireAccount: true) else { return }
 
             let refreshError = MitoriError.map(error)
-            let storageError = await recordFailure(for: meta, error: refreshError, token: token)
+            await recordFailure(for: meta, error: refreshError, token: token)
             guard operationIsCurrent(for: id, token: token, requireAccount: true) else { return }
             setRefreshState(.failed(refreshError.issueKind), for: id)
-            showBanner(storageError?.localizedDescription ?? refreshError.localizedDescription, ownedBy: id)
         }
     }
 
@@ -290,7 +269,6 @@ final class MitoriModel {
             let mappedError = MitoriError.map(error)
             if operationIsCurrent(for: id, token: token, requireAccount: true) {
                 setRefreshState(.failed(mappedError.issueKind), for: id)
-                showBanner(mappedError.localizedDescription, ownedBy: id)
             }
             throw mappedError
         }
@@ -335,10 +313,6 @@ final class MitoriModel {
         }
         guard operationIsCurrent(for: accountID, token: token) else { return }
         accounts = updatedAccounts
-
-        if account(with: accountID)?.lastIssue == nil {
-            clearBanner(ownedBy: accountID)
-        }
     }
 
     func deleteAccount(id: String) async throws {
@@ -350,32 +324,36 @@ final class MitoriModel {
             guard operationIsCurrent(for: id, token: token) else { return }
             accounts = remainingAccounts
             refreshStates[id] = nil
-            clearBanner(ownedBy: id)
         } catch {
-            let mappedError = MitoriError.map(error)
-            showBanner(mappedError.localizedDescription, ownedBy: id)
-            throw mappedError
+            throw MitoriError.map(error)
         }
     }
 
     private func ensureAccountsLoaded() async {
         guard !hasLoadedAccounts else { return }
-        do {
-            accounts = try await repository.loadAccounts()
-            loadError = nil
-            hasLoadedAccounts = true
-        } catch {
-            let message = MitoriError.map(error).localizedDescription
-            loadError = message
-            bannerMessage = message
+        if let inFlightLoadTask {
+            await inFlightLoadTask.value
+            return
         }
+        let task = Task { @MainActor in
+            do {
+                accounts = try await repository.loadAccounts()
+                loadError = nil
+                hasLoadedAccounts = true
+            } catch {
+                loadError = MitoriError.map(error).localizedDescription
+            }
+        }
+        inFlightLoadTask = task
+        await task.value
+        inFlightLoadTask = nil
     }
 
     private func recordFailure(
         for meta: StoredAccountMeta,
         error: MitoriError,
         token: UUID
-    ) async -> MitoriError? {
+    ) async {
         let currentDate = now()
         let issue = error.refreshIssue(at: currentDate)
         let failureCount = meta.consecutiveFailureCount + 1
@@ -394,7 +372,6 @@ final class MitoriModel {
             if operationIsCurrent(for: meta.id, token: token, requireAccount: true) {
                 accounts = updatedAccounts
             }
-            return nil
         } catch {
             // Keep the backoff in memory so a failed write cannot turn into a retry on every tick.
             if operationIsCurrent(for: meta.id, token: token, requireAccount: true),
@@ -402,7 +379,6 @@ final class MitoriModel {
             {
                 accounts[index] = applyFailure(accounts[index])
             }
-            return MitoriError.map(error)
         }
     }
 
@@ -545,23 +521,10 @@ final class MitoriModel {
     ) -> RefreshIssue? {
         if let issue = result.meta.lastIssue {
             setRefreshState(.failed(issue.kind), for: accountID)
-            showBanner(issue.message, ownedBy: accountID)
             return issue
         }
 
         setRefreshState(.succeeded(result.meta.lastRefreshAt ?? now()), for: accountID)
-        clearBanner(ownedBy: accountID)
         return nil
-    }
-
-    private func showBanner(_ message: String, ownedBy accountID: String) {
-        bannerMessage = message
-        bannerAccountID = accountID
-    }
-
-    /// One account's success must not clear another account's or an unowned error.
-    private func clearBanner(ownedBy accountID: String) {
-        guard bannerAccountID == accountID else { return }
-        bannerMessage = nil
     }
 }

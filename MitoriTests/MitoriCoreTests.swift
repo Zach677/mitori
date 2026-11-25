@@ -163,9 +163,9 @@ struct RefreshSettingsStoreTests {
     }
 }
 
-struct AccountStatusTests {
+struct AccountVisibleIssueTests {
     @Test
-    func emptyProbeWithBalanceIsNormal() {
+    func emptyProbeWithBalanceHasNoVisibleIssue() {
         let snapshot = BalanceSnapshot(
             displayText: "USD 24.90",
             numericValue: Decimal(string: "24.90"),
@@ -182,13 +182,13 @@ struct AccountStatusTests {
             lastRefreshAt: snapshot.fetchedAt
         )
 
-        #expect(account.status == .normal)
+        #expect(account.visibleIssue == nil)
         #expect(account.needsProbeBundleID)
         #expect(account.balanceDisplayText != nil)
     }
 
     @Test
-    func leftoverProbeConfigurationIssueIsNotAttention() {
+    func leftoverProbeConfigurationIssueIsHiddenWhenProbeIsEmpty() {
         let account = StoredAccountMeta(
             account: sampleAccount(),
             deviceIdentifier: "ABCDEF123456",
@@ -198,12 +198,11 @@ struct AccountStatusTests {
             )
         )
 
-        #expect(account.status == .normal)
         #expect(account.visibleIssue == nil)
     }
 
     @Test
-    func configuredProbeIssueIsAttentionAndVisible() {
+    func configuredProbeIssueIsVisible() {
         let account = StoredAccountMeta(
             account: sampleAccount(),
             deviceIdentifier: "ABCDEF123456",
@@ -214,9 +213,7 @@ struct AccountStatusTests {
             )
         )
 
-        #expect(account.status == .attention)
         #expect(account.visibleIssue?.kind == .probeConfigurationMissing)
-        #expect(account.probeDisplayName == "Pages")
     }
 
     @Test
@@ -248,12 +245,10 @@ struct AccountPresentationTests {
         )
 
         #expect(visible.name == account.displayName)
-        #expect(visible.email == account.email)
         #expect(visible.windowTitle == account.displayName)
         #expect(visible.appleID == account.appleID)
         #expect(visible.deviceIdentifier == "ABCDEF1234567890")
         #expect(hidden.name == "Account 2")
-        #expect(hidden.email == nil)
         #expect(hidden.windowTitle == "Account Details")
         #expect(hidden.appleID == "Hidden")
         #expect(hidden.deviceIdentifier == "Hidden")

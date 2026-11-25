@@ -39,23 +39,15 @@ struct ProbeAppLookupModelTests {
     }
 
     @Test
-    func selectingCandidateReturnsBundleIDAndClearsTransientState() {
-        let model = ProbeAppLookupModel(searchService: ProbeAppSearchServiceStub())
-        let candidate = ProbeAppCandidate(
-            id: 2,
-            bundleID: "com.example.pickme",
-            name: "Pick Me"
-        )
-        model.query = "pick"
-        model.results = [candidate]
-        model.errorMessage = "Old error"
+    func cancelledSearchDoesNotSetErrorMessage() async {
+        let model = ProbeAppLookupModel(searchService: CancellingProbeAppSearchService())
+        model.query = "notes"
 
-        let bundleID = model.select(candidate)
+        await model.search(countryCode: "US")
 
-        #expect(bundleID == "com.example.pickme")
-        #expect(model.query == "Pick Me")
         #expect(model.results.isEmpty)
         #expect(model.errorMessage == nil)
+        #expect(model.isSearching == false)
     }
 
     @Test
@@ -88,6 +80,13 @@ struct ProbeAppLookupModelTests {
         #expect(model.results.map(\.name) == ["Second"])
         #expect(model.errorMessage == nil)
         #expect(model.isSearching == false)
+    }
+}
+
+@MainActor
+private final class CancellingProbeAppSearchService: ProbeAppSearching {
+    func searchApps(matching _: String, countryCode _: String, limit _: Int) async throws -> [ProbeAppCandidate] {
+        throw CancellationError()
     }
 }
 

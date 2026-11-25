@@ -69,15 +69,15 @@ final class MitoriAppDelegate: NSObject, NSApplicationDelegate {
             switch change {
             case .accounts, .account:
                 self?.autoRefreshScheduler.reschedule()
-            case .banner, .loadError, .refreshingAll:
+            case .loadError, .refreshingAll:
                 break
             }
         }
-        autoRefreshScheduler.start()
 
         let launchedAtLogin = Self.wasLaunchedAsLoginItem()
         Task { @MainActor in
             await model.loadAccountsIfNeeded()
+            autoRefreshScheduler.start()
             if !launchedAtLogin {
                 controller.presentMainWindow()
             }

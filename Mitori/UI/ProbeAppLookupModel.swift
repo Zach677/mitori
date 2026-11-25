@@ -52,20 +52,13 @@ final class ProbeAppLookupModel {
             if results.isEmpty {
                 errorMessage = "No matching apps found. Try a more specific name."
             }
+        } catch is CancellationError {
+            return
         } catch {
             guard generation == searchGeneration else { return }
             results = []
             errorMessage = MitoriError.map(error).localizedDescription
         }
-    }
-
-    func select(_ candidate: ProbeAppCandidate) -> String {
-        searchGeneration += 1
-        query = candidate.name
-        results = []
-        errorMessage = nil
-        isSearching = false
-        return candidate.bundleID
     }
 
     private func normalizedCountryCode(_ countryCode: String?) -> String {

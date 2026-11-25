@@ -8,35 +8,29 @@
 import AppKit
 
 @MainActor
-final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVisibilityManaging {
+final class AppWindowController: NSWindowController, WindowVisibilityManaging {
     private let titleProvider: @MainActor () -> String
     private let contentProvider: @MainActor () -> NSViewController
     private let defaultSize: NSSize
     private let autosaveName: String?
-    private let windowLevel: NSWindow.Level
     private let titleVisibility: NSWindow.TitleVisibility
     private let isResizable: Bool
-    private let onWindowClose: @MainActor () -> Void
     private var currentViewController: NSViewController?
 
     init(
         title: @escaping @MainActor () -> String,
         size: NSSize,
         autosaveName: String? = nil,
-        windowLevel: NSWindow.Level = .normal,
         titleVisibility: NSWindow.TitleVisibility = .hidden,
         isResizable: Bool = false,
-        onWindowClose: @escaping @MainActor () -> Void = {},
         content: @escaping @MainActor () -> NSViewController
     ) {
         titleProvider = title
         contentProvider = content
         defaultSize = size
         self.autosaveName = autosaveName
-        self.windowLevel = windowLevel
         self.titleVisibility = titleVisibility
         self.isResizable = isResizable
-        self.onWindowClose = onWindowClose
         super.init(window: nil)
     }
 
@@ -67,10 +61,6 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         window.makeKeyAndOrderFront(nil)
     }
 
-    func windowWillClose(_: Notification) {
-        onWindowClose()
-    }
-
     private func ensureWindow() -> NSWindow {
         if let window {
             return window
@@ -88,10 +78,8 @@ final class AppWindowController: NSWindowController, NSWindowDelegate, WindowVis
         )
         createdWindow.isReleasedWhenClosed = false
         createdWindow.center()
-        createdWindow.delegate = self
         createdWindow.tabbingMode = .disallowed
         createdWindow.minSize = defaultSize
-        createdWindow.level = windowLevel
         createdWindow.isOpaque = true
         createdWindow.backgroundColor = .windowBackgroundColor
         createdWindow.hasShadow = true

@@ -13,38 +13,67 @@ import Testing
 
 @MainActor
 struct DockIconPolicyControllerTests {
+    @MainActor
+    private final class WindowState {
+        var isVisible: Bool
+        var applied: [NSApplication.ActivationPolicy] = []
+
+        init(isVisible: Bool) {
+            self.isVisible = isVisible
+        }
+    }
+
     @Test
     func hidesInAccessoryModeWhenNoWindowIsVisibleAndPreferenceIsOn() {
-        var applied: [NSApplication.ActivationPolicy] = []
-        var visible = true
+        let state = WindowState(isVisible: true)
         let controller = DockIconPolicyController(
             hidesWhenClosed: { true },
-            hasVisibleWindow: { visible },
-            applyPolicy: { applied.append($0) }
+            hasVisibleWindow: { state.isVisible },
+            applyPolicy: { state.applied.append($0) }
         )
 
         controller.update()
         #expect(controller.currentPolicy == .regular)
-        #expect(applied == [.regular])
+        #expect(state.applied == [.regular])
 
-        visible = false
+        state.isVisible = false
         controller.update()
         #expect(controller.currentPolicy == .accessory)
-        #expect(applied == [.regular, .accessory])
+        #expect(state.applied == [.regular, .accessory])
     }
 
     @Test
     func staysRegularWhenHidePreferenceIsOff() {
-        var applied: [NSApplication.ActivationPolicy] = []
+        let state = WindowState(isVisible: false)
         let controller = DockIconPolicyController(
             hidesWhenClosed: { false },
             hasVisibleWindow: { false },
-            applyPolicy: { applied.append($0) }
+            applyPolicy: { state.applied.append($0) }
         )
 
         controller.update()
         #expect(controller.currentPolicy == .regular)
-        #expect(applied == [.regular])
+        #expect(state.applied == [.regular])
+    }
+
+    @Test
+    func ensureRegularSynchronizesPolicySoClosingReturnsToAccessory() {
+        let state = WindowState(isVisible: false)
+        let controller = DockIconPolicyController(
+            hidesWhenClosed: { true },
+            hasVisibleWindow: { state.isVisible },
+            applyPolicy: { state.applied.append($0) }
+        )
+
+        controller.ensureRegular()
+        #expect(controller.currentPolicy == .regular)
+        #expect(state.applied == [.regular])
+
+        // Even if no regular window stays visible, update() transitions back to .accessory.
+        state.isVisible = false
+        controller.update()
+        #expect(controller.currentPolicy == .accessory)
+        #expect(state.applied == [.regular, .accessory])
     }
 
     @Test

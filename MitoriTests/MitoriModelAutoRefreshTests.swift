@@ -84,7 +84,7 @@ struct MitoriModelAutoRefreshTests {
         // Before accounts load, scheduler asks to wake immediately once to load them.
         #expect(context.model.nextAutoRefreshDate() == clock.date)
 
-        await context.model.menuPresented()
+        await context.model.loadAccountsIfNeeded()
         let expectedFirstDue = clock.date.addingTimeInterval(-600 + context.settings.autoRefreshInterval)
         #expect(context.model.nextAutoRefreshDate() == expectedFirstDue)
 
@@ -278,7 +278,7 @@ struct MitoriModelAutoRefreshTests {
             return SessionRefreshResult(meta: updated, secret: StoredAccountSecret(account: sampleAccount()))
         }
 
-        await context.model.menuPresented()
+        await context.model.loadAccountsIfNeeded()
         await context.model.refreshAccount(id: context.accountID, isManualRefresh: true)
 
         #expect(context.model.refreshState(for: context.accountID) == .failed(.balanceUnavailable))

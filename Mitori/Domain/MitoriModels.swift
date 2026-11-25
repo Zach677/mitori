@@ -75,13 +75,6 @@ enum RefreshState: Equatable, Sendable {
     case failed(RefreshIssueKind)
 }
 
-enum AccountStatus: Sendable {
-    case normal
-    case needsVerification
-    case sessionExpired
-    case attention
-}
-
 struct StoredAccountMeta: Codable, Equatable, Identifiable, Sendable {
     var email: String
     var appleID: String
@@ -108,12 +101,6 @@ struct StoredAccountMeta: Codable, Equatable, Identifiable, Sendable {
     var balanceDisplayText: String? {
         balanceSnapshot?.localizedDisplayText(countryCode: countryCode)
     }
-    var regionLabel: String {
-        [countryCode, storefront].compactMap { value in
-            guard let value, !value.isEmpty else { return nil }
-            return value
-        }.joined(separator: " • ")
-    }
     var storeDisplayName: String {
         if let countryCode, !countryCode.isEmpty {
             if let localized = Locale.current.localizedString(forRegionCode: countryCode), !localized.isEmpty {
@@ -122,14 +109,6 @@ struct StoredAccountMeta: Codable, Equatable, Identifiable, Sendable {
             return countryCode
         }
         return storefront.isEmpty ? "Unknown" : storefront
-    }
-    var probeDisplayName: String? {
-        let trimmedName = probeAppName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !trimmedName.isEmpty {
-            return trimmedName
-        }
-        let trimmedBundleID = probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedBundleID.isEmpty ? nil : trimmedBundleID
     }
     var needsProbeBundleID: Bool {
         probeBundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -140,17 +119,6 @@ struct StoredAccountMeta: Codable, Equatable, Identifiable, Sendable {
             return nil
         }
         return lastIssue
-    }
-    var status: AccountStatus {
-        guard let visibleIssue else { return .normal }
-        switch visibleIssue.kind {
-        case .requiresVerification:
-            return .needsVerification
-        case .sessionExpired:
-            return .sessionExpired
-        case .probeConfigurationMissing, .balanceUnavailable, .network, .unknown:
-            return .attention
-        }
     }
 }
 
